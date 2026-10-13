@@ -1,0 +1,72 @@
+# Run explicitly with: auto-app ingest run --config config/feeds.yaml
+# Source names are persistent identities. Use separate names for distinct feeds.
+sources:
+  simplify-newgrad:
+    kind: repository
+    location: https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json
+  simplify-internships:
+    kind: repository
+    location: https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json
+    # The upstream feed also contains other terms/years; all are preserved.
+  speedyapply-swe-internships:
+    kind: repository
+    format: speedyapply
+    location: https://raw.githubusercontent.com/speedyapply/2027-SWE-College-Jobs/main/README.md
+  speedyapply-swe-newgrad:
+    kind: repository
+    format: speedyapply
+    location: https://raw.githubusercontent.com/speedyapply/2027-SWE-College-Jobs/main/NEW_GRAD_USA.md
+  speedyapply-ai-internships:
+    kind: repository
+    format: speedyapply
+    location: https://raw.githubusercontent.com/speedyapply/2027-AI-College-Jobs/main/README.md
+  speedyapply-ai-newgrad:
+    kind: repository
+    format: speedyapply
+    location: https://raw.githubusercontent.com/speedyapply/2027-AI-College-Jobs/main/NEW_GRAD_USA.md
+  applyguy-newgrad:
+    kind: repository
+    format: applyguy
+    location: https://raw.githubusercontent.com/ApplyGuy/2027-New-Grad-Jobs/main/data/new-grad-jobs.json
+  ricsign-early-career:
+    kind: repository
+    format: ricsign
+    location: https://raw.githubusercontent.com/ricsign/Ricsign-New-Grads-Jobs-2027/main/data/v1/jobs.json
+  jobright-swe-newgrad:
+    kind: repository
+    format: jobright
+    location: https://raw.githubusercontent.com/jobright-ai/2026-Software-Engineer-New-Grad/master/README.md
+  jobright-swe-internships:
+    kind: repository
+    format: jobright
+    location: https://raw.githubusercontent.com/jobright-ai/2026-Software-Engineer-Internship/master/README.md
+  recommendation-mail:
+    enabled: false
+    kind: email
+    # Relative to this config file. Export chosen job recommendation emails here.
+    paths:
+      - ../data/mail/*.eml
+
+  gmail-jobs:
+    enabled: false  # authorize first, then enable in your config/feeds.yaml
+    kind: mailbox
+    provider: gmail
+    credentials: ../credentials/gmail.json
+    # Adjust sender domains to the recommendations you actually receive.
+    # Alternatively: query: 'label:Jobs'
+    query: '{from:linkedin.com from:jobright.ai from:simplify.jobs}'
+    lookback_days: 14
+    page_size: 50
+    max_pages: 4
+
+  outlook-jobs:
+    enabled: false
+    kind: mailbox
+    provider: outlook
+    credentials: ../credentials/outlook.json
+    folder: inbox  # a well-known Graph folder name or folder ID
+    # Replace with actual From addresses (not domains); or select a dedicated folder ID.
+    senders: [recommendations@example.com]
+    lookback_days: 14
+    page_size: 50
+    max_pages: 4

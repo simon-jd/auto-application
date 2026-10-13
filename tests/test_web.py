@@ -1,0 +1,186 @@
+"""`auto-app web` (docs/web-frontend.md): the JSON API over the TUI's data side, and the localhost guard."""
+
+import pytest
+from fastapi.testclient import TestClient
+
+from auto_app.web.app import create_app
+from tests.select.test_review import env  # noqa: F401 — env is a fixture
+
+HOST = "127.0.0.1:8765"
+
+
+@pytest.fixture
+def web(env, tmp_path):  # noqa: F811
+    db, browser, jobs, _ = env
+    dist = tmp_path / "dist"
+    dist.mkdir()
+    (dist / "index.html").write_text("<html>app</html>")
+    (dist / "app.js").write_text("js")
+    client = TestClient(create_app(browser, dist, port=8765, db_name="auto_app.db"), base_url=f"http://{HOST}")
+    return db, jobs, client
+
+
+def test_meta_has_tabs_with_counts_sources_and_filters(web):
+    db, jobs, c = web
+    m = c.get("/api/meta").json()
+    tabs = {t["id"]: t for t in m["tabs"]}
+    assert tabs["recommended"]["count"] == 2 and tabs["recommended"]["title"] == "New recommended"
+    assert tabs["un_recommended"]["count"] == 1 and "archived" in tabs
+    assert m["sources"] == ["linkedin", "nvidia"] and {f["name"] for f in m["filters"]} == {"ml", "research"}
+
+
+def test_job_lists_and_their_narrowing(web):
+    db, jobs, c = web
+    ids = lambda r: {j["job_id"] for j in r.json()}  # noqa: E731
+    assert ids(c.get("/api/jobs", params={"tab": "recommended"})) == {jobs["ml"], jobs["analyst"]}
+    assert ids(c.get("/api/jobs", params={"tab": "all", "q": "acme"})) == {jobs["analyst"]}
+    assert ids(c.get("/api/jobs", params={"tab": "all", "source": "linkedin"})) == {jobs["analyst"]}
+    assert ids(c.get("/api/jobs", params={"tab": "all", "company": "acm"})) == {jobs["analyst"]}
+    yes = ids(c.get("/api/jobs", params={"tab": "all", "filter": "ml", "verdict": "yes"}))
+    no = ids(c.get("/api/jobs", params={"tab": "all", "filter": "ml", "verdict": "no"}))
+    assert jobs["ml"] in yes and jobs["sales"] in no and not yes & no
+    assert ids(c.get("/api/jobs", params={"tab": "all", "filter": "ml"})) == yes | no  # every job ml judged
+    assert ids(c.get("/api/jobs", params={"tab": "all", "posted_within": 3650})) == set(jobs.values())
+    row = c.get("/api/jobs", params={"tab": "un_recommended"}).json()[0]
+    assert row["title"] == "Sales Lead" and row["state_label"] == "un-recommended" and row["expires"].startswith("in ")
+    assert c.get("/api/jobs", params={"tab": "nope"}).status_code == 400
+
+
+def test_one_job_with_every_verdict(web):
+    db, jobs, c = web
+    j = c.get(f"/api/jobs/{jobs['ml']}").json()
+    assert j["title"] == "ML Engineer" and j["postings"][0]["source"] == "nvidia" and j["description"]
+    v = {x["filter"]: x for x in j["verdicts"]}
+    assert v["ml"]["recommend"] is True and v["ml"]["reason"] == "strong ML fit" and v["ml"]["lookups"]
+    assert v["research"]["recommend"] is False and v["research"]["label"] is None
+    assert c.get("/api/jobs/99999").status_code == 404
+
+
+def test_only_this_mac(web):
+    db, jobs, c = web
+    assert c.get("/api/meta", headers={"host": "evil.example:8765"}).status_code == 403  # DNS rebinding
+    assert c.post("/api/undo", headers={"origin": "https://evil.example"}).status_code == 403  # another site
+    assert c.get("/api/meta", headers={"host": "localhost:8765"}).status_code == 200
+
+
+def test_serves_the_built_app(web):
+    db, jobs, c = web
+    assert c.get("/").text == "<html>app</html>" and c.get("/jobs/12").text == "<html>app</html>"  # its routes
+    assert c.get("/app.js").text == "js"
+    assert c.get("/../../etc/passwd").text == "<html>app</html>"  # never outside dist
+    assert c.get("/api/nothing").status_code == 404
+
+
+def test_decide_with_a_reason_and_undo(web):
+    db, jobs, c = web
+    r = c.post(f"/api/jobs/{jobs['ml']}/decide", json={"decision": "want_to_apply", "reason": "great team"})
+    assert r.status_code == 200 and "queued" in r.json()["message"] and r.json()["job"]["state"] == "want_to_apply"
+    assert db.reviews(jobs["ml"])[-1]["reason"] == "great team"
+    assert db.feedback_of(jobs["ml"])["research"]["origin"] == "implied"  # research said no: you chose to apply
+    rows = c.get("/api/jobs", params={"tab": "recommended", "keep": str(jobs["ml"])}).json()
+    assert jobs["ml"] in {j["job_id"] for j in rows}  # stays in the tab you answered it in…
+    assert jobs["ml"] not in {j["job_id"] for j in c.get("/api/jobs", params={"tab": "recommended"}).json()}  # …until you leave
+    u = c.post("/api/undo").json()
+    assert u["job_id"] == jobs["ml"] and "undone" in u["message"] and db.job(jobs["ml"])["state"] == "recommended"
+    assert "research" not in db.feedback_of(jobs["ml"])  # the implied label went with it
+    assert c.post("/api/undo").status_code == 400  # nothing left
+    assert c.post(f"/api/jobs/{jobs['ml']}/decide", json={"decision": "applied"}).status_code == 400
+
+
+def test_labels_one_filter_or_all_with_reasons(web):
+    db, jobs, c = web
+    r = c.post(f"/api/jobs/{jobs['ml']}/label", json={"filter": "research", "should": True, "reason": "it is research"})
+    assert r.json()["message"].endswith("research should recommend it")
+    assert {v["filter"]: v["label"] for v in r.json()["job"]["verdicts"]}["research"] is True
+    assert db.feedback_of(jobs["ml"])["research"]["reason"] == "it is research"
+    r = c.post(f"/api/jobs/{jobs['sales']}/label", json={"should": False, "reason": "sales"})
+    assert "no filter should recommend it" in r.json()["message"]
+    fb = db.feedback_of(jobs["sales"])
+    assert {f: (v["label"], v["reason"]) for f, v in fb.items()} == {"ml": (False, "sales"), "research": (False, "sales")}
+    assert c.post(f"/api/jobs/{jobs['sales']}/reason", json={"reason": "it's sales"}).status_code == 200  # after B too
+    assert {v["reason"] for v in db.feedback_of(jobs["sales"]).values()} == {"it's sales"}
+    assert c.post(f"/api/jobs/{jobs['ml']}/label", json={"filter": "nope", "should": True}).status_code == 400
+
+
+def test_mark_any_state(web):
+    db, jobs, c = web
+    r = c.post(f"/api/jobs/{jobs['sales']}/mark", json={"state": "applied"})
+    assert r.json()["job"]["state"] == "applied" and "now applied" in r.json()["message"]
+    assert c.post("/api/undo").json()["job"]["state"] == "un_recommended"
+    assert c.post(f"/api/jobs/{jobs['sales']}/mark", json={"state": "archived"}).status_code == 400
+    assert c.post(f"/api/jobs/{jobs['ml']}/reason", json={"reason": "x"}).status_code == 400  # nothing answered yet
+    m = c.get("/api/meta").json()
+    assert {s["id"] for s in m["states"]} >= {"want_to_apply", "applied", "not_evaluated"}
+
+
+def test_the_page_in_a_browser(env):  # noqa: F811 — needs `auto-app web --build` (web/dist); skipped otherwise
+    import socket
+    import threading
+    import time
+
+    import uvicorn
+
+    from auto_app.web.build import DIST, built
+
+    if not built():
+        pytest.skip("web/dist isn't built (auto-app web --build)")
+    sync_playwright = pytest.importorskip("playwright.sync_api").sync_playwright
+    db, browser, jobs, _ = env
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        port = s.getsockname()[1]
+    server = uvicorn.Server(uvicorn.Config(create_app(browser, DIST, port=port), host="127.0.0.1", port=port,
+                                           log_level="warning"))
+    threading.Thread(target=server.run, daemon=True).start()
+    while not server.started:
+        time.sleep(0.05)
+    try:
+        with sync_playwright() as p:
+            b = p.chromium.launch()
+            page = b.new_page()
+            errors = []
+            page.on("pageerror", lambda e: errors.append(str(e)))
+            page.goto(f"http://127.0.0.1:{port}/?tab=recommended")
+            page.wait_for_selector(".detail h1")
+            assert page.locator("tbody tr").count() == 2
+            assert page.inner_text(".tabs .on").startswith("New recommended")
+            page.keyboard.press("/")
+            page.keyboard.type("acme")
+            page.wait_for_function("document.querySelectorAll('tbody tr').length === 1")
+            page.wait_for_function("document.querySelector('.detail h1').innerText === 'Data Analyst'")
+            assert f"job={jobs['analyst']}" in page.url  # the view lives in the URL
+            page.keyboard.press("Escape")
+            page.keyboard.press("n")  # not applying: saved, shown, and still listed here
+            page.wait_for_selector(".toast")
+            assert "not applying" in page.inner_text(".toast span")
+            assert db.job(jobs["analyst"])["decision"] == "not_applied"
+            assert page.locator("tbody tr.answered").count() == 1
+            page.keyboard.press("r")
+            page.fill(".reasonbox input", "it's reporting, not ML")
+            page.keyboard.press("Enter")
+            page.wait_for_function("document.querySelector('.toast span').innerText.includes('reason added')")
+            assert db.reviews(jobs["analyst"])[-1]["reason"] == "it's reporting, not ML"
+            page.keyboard.press("u")
+            page.wait_for_function("document.querySelector('.toast span').innerText.startsWith('undone')")
+            assert db.job(jobs["analyst"])["decision"] is None
+            page.keyboard.press("]")  # the next tab: All recommended
+            page.wait_for_function("document.querySelector('.tabs .on').innerText.startsWith('All recommended')")
+            assert not errors
+            b.close()
+    finally:
+        server.should_exit = True
+
+
+def test_job_detail_exposes_posting_link_and_metadata(web):
+    from datetime import datetime
+    from sqlalchemy import update
+    from auto_app.core.db import tables as T
+
+    db, jobs, client = web
+    with db.engine.begin() as conn:
+        conn.execute(update(T.postings).where(T.postings.c.job_id == jobs['analyst']).values(
+            source_url='https://example.test/jobs/L3', company='Acme', posted_at=datetime(2026, 10, 10)))
+    posting = client.get(f"/api/jobs/{jobs['analyst']}").json()['postings'][0]
+    assert posting['url'] == 'https://example.test/jobs/L3'
+    assert posting['company'] == 'Acme'
+    assert posting['posted_at'].startswith('2026-10-10')

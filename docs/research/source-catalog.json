@@ -1,0 +1,2534 @@
+{
+  "schema_version": 1,
+  "title": "Job and interview source research catalog",
+  "audit_local_date": "2026-10-10",
+  "audit_timezone": "America/Los_Angeles",
+  "assembled_at_utc": "2026-10-11T04:22:47.458829+00:00",
+  "purpose": "Research registry only. Not loaded by application and does not activate feeds. Entries are channels/purposes, not counts of independent evidence.",
+  "scope": {
+    "priority_market": "United States",
+    "excluded_country_preference": "Canada",
+    "roles": [
+      "internship",
+      "new_grad",
+      "entry_level",
+      "software",
+      "backend",
+      "cloud_infrastructure",
+      "ML_data"
+    ],
+    "market_focus_is_not_a_new_us_only_runtime_filter": true
+  },
+  "entry_counts": {
+    "github_jobs": 16,
+    "interview_feedback": 14,
+    "mail_transport": 2,
+    "sponsorship_credibility": 5,
+    "web_jobs": 22
+  },
+  "entry_total": 59,
+  "live_state_observation": {
+    "observed_at": "2026-10-11T06:00:46.622611+00:00",
+    "host": "home-ubuntu",
+    "active_feed_ids": [
+      "applyguy-newgrad",
+      "jobright-swe-internships",
+      "jobright-swe-newgrad",
+      "ricsign-early-career",
+      "simplify-internships",
+      "simplify-newgrad",
+      "speedyapply-ai-internships",
+      "speedyapply-ai-newgrad",
+      "speedyapply-swe-internships",
+      "speedyapply-swe-newgrad"
+    ],
+    "mailbox_sources_enabled": false,
+    "raw_jobs": 10219,
+    "postings": 12225,
+    "excluded_by_canada_preference": 537,
+    "default_visible_jobs": 9682,
+    "note": "Pending enrichment/evaluation; not verified qualified opportunities. Ten public repository feeds passed three live rounds. Gmail/Outlook remain unauthorized."
+  },
+  "sources": [
+    {
+      "id": "github-simplifyjobs-new-grad-positions",
+      "category": "github_jobs",
+      "name": "SimplifyJobs/New-Grad-Positions",
+      "canonical_url": "https://github.com/SimplifyJobs/New-Grad-Positions",
+      "provider_family": "SimplifyJobs",
+      "priority": "P0",
+      "integration_status": "active_public_feed",
+      "verification_level": "public_api_readme_tree_and_data_checked",
+      "checked_at": "2026-10-11T04:17:09.407399+00:00",
+      "observations": {
+        "coverage": "New grad/entry SWE, AI/ML/Data, hardware, quant, PM. README still says 2025/2026; inspect individual roles for 2027.",
+        "regions": "Mixed US/Canada/other/remote; full JSON requires location filter.",
+        "format": "Simplify listing array.",
+        "lineage": "Community submissions + Simplify; not marked GitHub fork.",
+        "closure_semantics": "active and is_visible flags; README lock means closed.",
+        "caveat": "README displays 557 category-count roles but full feed has 19,573 rows/3,126 active. These are different scopes, not interchangeable.",
+        "default_branch": "dev",
+        "archived": false,
+        "github_fork_flag": false,
+        "repo_license_metadata": null,
+        "listing_paths": [
+          ".github/scripts/listings.json",
+          "README.md"
+        ],
+        "data_or_table_commit": {
+          "path": ".github/scripts/listings.json",
+          "sha": "f45f58b6b4218b26666c124f7b297153a9e3685d",
+          "date": "2026-10-11T03:01:20Z",
+          "message": "Updating listings.json with postings from Simplify at 2026-10-11 03:01:17.957840",
+          "url": "https://github.com/SimplifyJobs/New-Grad-Positions/commit/f45f58b6b4218b26666c124f7b297153a9e3685d"
+        },
+        "repo_head_commit": {
+          "sha": "1947cf17de762cdd79e2c6039a5d09f1afc99dcc",
+          "date": "2026-10-11T04:01:21Z",
+          "message": "Updating listings.json with postings from Simplify at 2026-10-11 04:01:20.069444",
+          "url": "https://github.com/SimplifyJobs/New-Grad-Positions/commit/1947cf17de762cdd79e2c6039a5d09f1afc99dcc"
+        },
+        "feed": {
+          "path": ".github/scripts/listings.json",
+          "url": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+          "sha256": "8362a57c09acc1bb7ca73ab941f9932f83a17d07003b80c981c09f877538f084",
+          "top_type": "list",
+          "top_keys": null,
+          "row_count": 19573,
+          "row_keys": [
+            "active",
+            "category",
+            "company_name",
+            "company_url",
+            "date_posted",
+            "date_updated",
+            "degrees",
+            "id",
+            "is_visible",
+            "locations",
+            "source",
+            "sponsorship",
+            "title",
+            "url"
+          ],
+          "active_counts": {
+            "False": 16447,
+            "True": 3126
+          },
+          "is_visible_counts": {
+            "True": 19558,
+            "False": 15
+          },
+          "existing_adapter": {
+            "accepted_records": 19573,
+            "row_issues": 0,
+            "sample_issues": [],
+            "active_records": 3126
+          },
+          "date_posted_min_max_utc": [
+            "2026-02-13T07:08:24+00:00",
+            "2026-10-10T06:08:26+00:00"
+          ],
+          "date_updated_min_max_utc": [
+            "2026-02-13T07:10:41+00:00",
+            "2026-10-10T12:57:24+00:00"
+          ],
+          "status_count_caveat": "Source-reported flags; not independently verified open vacancies or US-only counts."
+        }
+      },
+      "evidence_urls": [
+        "https://github.com/SimplifyJobs/New-Grad-Positions",
+        "https://api.github.com/repos/SimplifyJobs/New-Grad-Positions",
+        "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/README.md",
+        "https://github.com/SimplifyJobs/New-Grad-Positions/commit/f45f58b6b4218b26666c124f7b297153a9e3685d",
+        "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json"
+      ]
+    },
+    {
+      "id": "github-simplifyjobs-summer2027-internships",
+      "category": "github_jobs",
+      "name": "SimplifyJobs/Summer2027-Internships",
+      "canonical_url": "https://github.com/SimplifyJobs/Summer2027-Internships",
+      "provider_family": "SimplifyJobs",
+      "priority": "P0",
+      "integration_status": "active_public_feed",
+      "verification_level": "public_api_readme_tree_and_data_checked",
+      "checked_at": "2026-10-11T04:17:09.407399+00:00",
+      "observations": {
+        "coverage": "Summer2027 plus off-season internships/co-ops; JSON still includes earlier 2026 terms.",
+        "regions": "Mixed US/Canada/other/remote; full JSON requires location filter.",
+        "format": "Simplify listing array.",
+        "lineage": "Pitt CSC + Simplify + community.",
+        "closure_semantics": "active and is_visible; inactive and off-season README files separate.",
+        "caveat": "17,080 raw/4,671 active-and-visible is not a count of US 2027 opportunities.",
+        "default_branch": "dev",
+        "archived": false,
+        "github_fork_flag": false,
+        "repo_license_metadata": null,
+        "listing_paths": [
+          ".github/scripts/listings.json",
+          "README-Inactive.md",
+          "README-Off-Season.md",
+          "README.md"
+        ],
+        "data_or_table_commit": {
+          "path": ".github/scripts/listings.json",
+          "sha": "6d1982267b34510aaf49c24f01977af40ce6b62c",
+          "date": "2026-10-11T03:31:38Z",
+          "message": "Updating listings.json with postings from Simplify at 2026-10-11 03:31:37.094875",
+          "url": "https://github.com/SimplifyJobs/Summer2027-Internships/commit/6d1982267b34510aaf49c24f01977af40ce6b62c"
+        },
+        "repo_head_commit": {
+          "sha": "d7cec72fe468cf80275ae58ca5d2b66728066c9e",
+          "date": "2026-10-11T04:01:35Z",
+          "message": "Updating listings.json with postings from Simplify at 2026-10-11 04:01:33.237722",
+          "url": "https://github.com/SimplifyJobs/Summer2027-Internships/commit/d7cec72fe468cf80275ae58ca5d2b66728066c9e"
+        },
+        "feed": {
+          "path": ".github/scripts/listings.json",
+          "url": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+          "sha256": "e4e0473123c86da82c698af675c78890b91b3cb4f2577d8c9f6b47425c05a10a",
+          "top_type": "list",
+          "top_keys": null,
+          "row_count": 17080,
+          "row_keys": [
+            "active",
+            "category",
+            "company_name",
+            "company_url",
+            "date_posted",
+            "date_updated",
+            "degrees",
+            "id",
+            "is_visible",
+            "locations",
+            "source",
+            "sponsorship",
+            "terms",
+            "title",
+            "url"
+          ],
+          "active_counts": {
+            "False": 12408,
+            "True": 4672
+          },
+          "is_visible_counts": {
+            "True": 17079,
+            "False": 1
+          },
+          "existing_adapter": {
+            "accepted_records": 17080,
+            "row_issues": 0,
+            "sample_issues": [],
+            "active_records": 4671
+          },
+          "date_posted_min_max_utc": [
+            "2026-02-13T07:10:42+00:00",
+            "2026-10-10T22:07:37+00:00"
+          ],
+          "date_updated_min_max_utc": [
+            "2026-02-13T07:10:42+00:00",
+            "2026-10-10T22:12:02+00:00"
+          ],
+          "status_count_caveat": "Source-reported flags; not independently verified open vacancies or US-only counts."
+        }
+      },
+      "evidence_urls": [
+        "https://github.com/SimplifyJobs/Summer2027-Internships",
+        "https://api.github.com/repos/SimplifyJobs/Summer2027-Internships",
+        "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/README.md",
+        "https://github.com/SimplifyJobs/Summer2027-Internships/commit/6d1982267b34510aaf49c24f01977af40ce6b62c",
+        "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json"
+      ]
+    },
+    {
+      "id": "github-vanshb03-new-grad-2027",
+      "category": "github_jobs",
+      "name": "vanshb03/New-Grad-2027",
+      "canonical_url": "https://github.com/vanshb03/New-Grad-2027",
+      "provider_family": "vanshb03",
+      "priority": "P2",
+      "integration_status": "catalog_only",
+      "verification_level": "public_api_readme_tree_and_data_checked",
+      "checked_at": "2026-10-11T04:17:09.407399+00:00",
+      "observations": {
+        "coverage": "2026/2027 new grad SWE/tech/CS/PM/quant; 2027 repo name does not guarantee current cohort.",
+        "regions": "README primarily US/remote, Canada.md separate; JSON includes the combined locations and must be filtered.",
+        "format": "Simplify listing array; 1,135 accepted/7 rejected invalid URLs; 624 active accepted.",
+        "lineage": "cvrve/New-Grad redirects here; README says inspired by Pitt CSC/Simplify. Not marked GitHub fork, not proved an exact mirror.",
+        "closure_semantics": "active/is_visible + README closed lock; active status last refreshed in August.",
+        "caveat": "Data commit Aug21; newest posting Aug5. Can recover existing leads but not a fresh daily source. All 7 malformed URLs are active and start https:/.workable.com; do not guess repairs.",
+        "default_branch": "dev",
+        "archived": false,
+        "github_fork_flag": false,
+        "repo_license_metadata": "MIT",
+        "listing_paths": [
+          ".github/scripts/listings.json",
+          "Canada.md",
+          "README.md"
+        ],
+        "data_or_table_commit": {
+          "path": ".github/scripts/listings.json",
+          "sha": "fac3d90535e7327d78a87628ccce1d81d0dfa487",
+          "date": "2026-08-21T15:30:20Z",
+          "message": "closer",
+          "url": "https://github.com/vanshb03/New-Grad-2027/commit/fac3d90535e7327d78a87628ccce1d81d0dfa487"
+        },
+        "repo_head_commit": {
+          "sha": "d69b33c329ae797a137550e89ceb9672d01962c2",
+          "date": "2026-08-21T15:30:41Z",
+          "message": "Updating README at August 21, 2026 15:30:41",
+          "url": "https://github.com/vanshb03/New-Grad-2027/commit/d69b33c329ae797a137550e89ceb9672d01962c2"
+        },
+        "feed": {
+          "path": ".github/scripts/listings.json",
+          "url": "https://raw.githubusercontent.com/vanshb03/New-Grad-2027/dev/.github/scripts/listings.json",
+          "sha256": "c6cd6f48a86247aee9f7190aa02a1fac563b560ed49af7c06894eed988149934",
+          "top_type": "list",
+          "top_keys": null,
+          "row_count": 1142,
+          "row_keys": [
+            "active",
+            "company_name",
+            "company_url",
+            "date_posted",
+            "date_updated",
+            "id",
+            "is_visible",
+            "locations",
+            "season",
+            "source",
+            "sponsorship",
+            "title",
+            "url"
+          ],
+          "active_counts": {
+            "True": 631,
+            "False": 511
+          },
+          "is_visible_counts": {
+            "True": 1142
+          },
+          "existing_adapter": {
+            "accepted_records": 1135,
+            "row_issues": 7,
+            "sample_issues": [
+              {
+                "index": 404,
+                "reason": "url must be an absolute HTTP(S) URL"
+              },
+              {
+                "index": 407,
+                "reason": "url must be an absolute HTTP(S) URL"
+              },
+              {
+                "index": 436,
+                "reason": "url must be an absolute HTTP(S) URL"
+              }
+            ],
+            "active_records": 624
+          },
+          "date_posted_min_max_utc": [
+            "2025-03-31T10:10:09+00:00",
+            "2026-08-05T23:28:08+00:00"
+          ],
+          "date_updated_min_max_utc": [
+            "2025-03-31T10:10:09+00:00",
+            "2026-08-21T15:30:06+00:00"
+          ],
+          "status_count_caveat": "Source-reported flags; not independently verified open vacancies or US-only counts."
+        }
+      },
+      "evidence_urls": [
+        "https://github.com/vanshb03/New-Grad-2027",
+        "https://api.github.com/repos/vanshb03/New-Grad-2027",
+        "https://raw.githubusercontent.com/vanshb03/New-Grad-2027/dev/README.md",
+        "https://github.com/vanshb03/New-Grad-2027/commit/fac3d90535e7327d78a87628ccce1d81d0dfa487",
+        "https://raw.githubusercontent.com/vanshb03/New-Grad-2027/dev/.github/scripts/listings.json"
+      ]
+    },
+    {
+      "id": "github-vanshb03-summer2027-internships",
+      "category": "github_jobs",
+      "name": "vanshb03/Summer2027-Internships",
+      "canonical_url": "https://github.com/vanshb03/Summer2027-Internships",
+      "provider_family": "vanshb03",
+      "priority": "P2",
+      "integration_status": "catalog_only",
+      "verification_level": "public_api_readme_tree_and_data_checked",
+      "checked_at": "2026-10-11T04:17:09.407399+00:00",
+      "observations": {
+        "coverage": "Summer/Fall/Winter/Spring internships/co-ops; season is not an unambiguous cohort year.",
+        "regions": "US/Canada/remote mixed.",
+        "format": "Simplify array; 471 accepted/0 issues/371 active.",
+        "lineage": "Vansh + CSCareers/Ouckah; inspired by Pitt CSC/Simplify, not marked GitHub fork.",
+        "closure_semantics": "active/is_visible and README lock.",
+        "caveat": "Latest data Aug23, newest posting Aug21. Recheck employer links before recommending.",
+        "default_branch": "dev",
+        "archived": false,
+        "github_fork_flag": false,
+        "repo_license_metadata": "MIT",
+        "listing_paths": [
+          ".github/scripts/listings.json",
+          "OFFSEASON_README.md",
+          "README.md"
+        ],
+        "data_or_table_commit": {
+          "path": ".github/scripts/listings.json",
+          "sha": "609cac4e49c775f77cd419c76026251a4b62163b",
+          "date": "2026-08-23T15:43:56Z",
+          "message": "closed listing: Software Engineer Intern at Netsmart (Closed) (Does Not Offer Sponsorship)",
+          "url": "https://github.com/vanshb03/Summer2027-Internships/commit/609cac4e49c775f77cd419c76026251a4b62163b"
+        },
+        "repo_head_commit": {
+          "sha": "609cac4e49c775f77cd419c76026251a4b62163b",
+          "date": "2026-08-23T15:43:56Z",
+          "message": "closed listing: Software Engineer Intern at Netsmart (Closed) (Does Not Offer Sponsorship)",
+          "url": "https://github.com/vanshb03/Summer2027-Internships/commit/609cac4e49c775f77cd419c76026251a4b62163b"
+        },
+        "feed": {
+          "path": ".github/scripts/listings.json",
+          "url": "https://raw.githubusercontent.com/vanshb03/Summer2027-Internships/dev/.github/scripts/listings.json",
+          "sha256": "58c056d86c59aad0608115e1ae495a73cc00e2fd6c200b06e75ad7fa3bcc3e8a",
+          "top_type": "list",
+          "top_keys": null,
+          "row_count": 471,
+          "row_keys": [
+            "active",
+            "company_name",
+            "company_url",
+            "date_posted",
+            "date_updated",
+            "id",
+            "is_visible",
+            "locations",
+            "season",
+            "source",
+            "sponsorship",
+            "title",
+            "url"
+          ],
+          "active_counts": {
+            "True": 371,
+            "False": 100
+          },
+          "is_visible_counts": {
+            "True": 471
+          },
+          "existing_adapter": {
+            "accepted_records": 471,
+            "row_issues": 0,
+            "sample_issues": [],
+            "active_records": 371
+          },
+          "date_posted_min_max_utc": [
+            "2025-06-07T01:46:32+00:00",
+            "2026-08-21T15:55:36+00:00"
+          ],
+          "date_updated_min_max_utc": [
+            "2025-06-07T01:46:32+00:00",
+            "2026-08-23T15:43:55+00:00"
+          ],
+          "status_count_caveat": "Source-reported flags; not independently verified open vacancies or US-only counts."
+        }
+      },
+      "evidence_urls": [
+        "https://github.com/vanshb03/Summer2027-Internships",
+        "https://api.github.com/repos/vanshb03/Summer2027-Internships",
+        "https://raw.githubusercontent.com/vanshb03/Summer2027-Internships/dev/README.md",
+        "https://github.com/vanshb03/Summer2027-Internships/commit/609cac4e49c775f77cd419c76026251a4b62163b",
+        "https://raw.githubusercontent.com/vanshb03/Summer2027-Internships/dev/.github/scripts/listings.json"
+      ]
+    },
+    {
+      "id": "github-speedyapply-2027-swe-college-jobs",
+      "category": "github_jobs",
+      "name": "speedyapply/2027-SWE-College-Jobs",
+      "canonical_url": "https://github.com/speedyapply/2027-SWE-College-Jobs",
+      "provider_family": "speedyapply",
+      "priority": "P1",
+      "integration_status": "active_public_feed",
+      "verification_level": "public_api_readme_tree_and_data_checked",
+      "checked_at": "2026-10-11T04:17:09.407399+00:00",
+      "observations": {
+        "coverage": "2027 SWE internships + new-grad; roles include backend/cloud/SRE/platform; claims daily updates with priority to 120-day recent jobs.",
+        "regions": "README = USA internships; NEW_GRAD_USA.md = USA new-grad; omit INTERNATIONAL files. Still validate row location.",
+        "format": "Markdown tables with HTML apply anchors, company anchors, salary sometimes, relative Age; no committed listing JSON in complete tree.",
+        "lineage": "Own SpeedyApply query pipeline shown in scripts; do not count SWE and AI overlap twice.",
+        "closure_semantics": "No explicit closed field in published tables; removal must not automatically mean employer closed.",
+        "caveat": "README badge counts 899 US internships, 1,016 US new-grad; these are source claims. Latest head patch actually changes all four tables.",
+        "default_branch": "main",
+        "archived": false,
+        "github_fork_flag": false,
+        "repo_license_metadata": null,
+        "listing_paths": [
+          "INTERN_INTL.md",
+          "NEW_GRAD_INTL.md",
+          "NEW_GRAD_USA.md",
+          "README.md"
+        ],
+        "data_or_table_commit": {
+          "sha": "10cf3a15c3dbd559535c9d991a6151d1e369227e",
+          "date": "2026-10-10T17:12:37Z",
+          "message": "chore: update tables",
+          "url": "https://github.com/speedyapply/2027-SWE-College-Jobs/commit/10cf3a15c3dbd559535c9d991a6151d1e369227e"
+        },
+        "repo_head_commit": {
+          "sha": "10cf3a15c3dbd559535c9d991a6151d1e369227e",
+          "date": "2026-10-10T17:12:37Z",
+          "message": "chore: update tables",
+          "url": "https://github.com/speedyapply/2027-SWE-College-Jobs/commit/10cf3a15c3dbd559535c9d991a6151d1e369227e"
+        }
+      },
+      "evidence_urls": [
+        "https://github.com/speedyapply/2027-SWE-College-Jobs",
+        "https://api.github.com/repos/speedyapply/2027-SWE-College-Jobs",
+        "https://raw.githubusercontent.com/speedyapply/2027-SWE-College-Jobs/main/README.md",
+        "https://github.com/speedyapply/2027-SWE-College-Jobs/commit/10cf3a15c3dbd559535c9d991a6151d1e369227e"
+      ],
+      "deployment": {
+        "host": "home-ubuntu",
+        "verified_at": "2026-10-11T06:00:46.622611+00:00",
+        "feed_ids": [
+          "speedyapply-swe-internships",
+          "speedyapply-swe-newgrad"
+        ],
+        "postings_by_feed": {
+          "speedyapply-swe-internships": 767,
+          "speedyapply-swe-newgrad": 777
+        },
+        "live_rounds_verified": 3,
+        "record": "../updates/2026-10-10-priority-repository-feeds.md"
+      }
+    },
+    {
+      "id": "github-speedyapply-2027-ai-college-jobs",
+      "category": "github_jobs",
+      "name": "speedyapply/2027-AI-College-Jobs",
+      "canonical_url": "https://github.com/speedyapply/2027-AI-College-Jobs",
+      "provider_family": "speedyapply",
+      "priority": "P1",
+      "integration_status": "active_public_feed",
+      "verification_level": "public_api_readme_tree_and_data_checked",
+      "checked_at": "2026-10-11T04:17:09.407399+00:00",
+      "observations": {
+        "coverage": "2027 AI/ML/data science internships + new-grad, includes MS/PhD tracks.",
+        "regions": "README and NEW_GRAD_USA.md US-designated; some rows have international/multiple locations, so row-level checks remain necessary.",
+        "format": "Same SpeedyApply Markdown/HTML table family; no committed listing JSON.",
+        "lineage": "Shared SpeedyApply family; overlap with SWE, Simplify and Tar-ive needs dedupe.",
+        "closure_semantics": "No explicit closed field observed in table.",
+        "caveat": "Source counts 681 USA interns, 512 USA new-grad. Relative Age is not employer publication proof.",
+        "default_branch": "main",
+        "archived": false,
+        "github_fork_flag": false,
+        "repo_license_metadata": null,
+        "listing_paths": [
+          "INTERN_INTL.md",
+          "NEW_GRAD_INTL.md",
+          "NEW_GRAD_USA.md",
+          "README.md"
+        ],
+        "data_or_table_commit": {
+          "sha": "3448676f5358c6af5fb83232a0094407ace363c4",
+          "date": "2026-10-10T17:11:42Z",
+          "message": "chore: update tables",
+          "url": "https://github.com/speedyapply/2027-AI-College-Jobs/commit/3448676f5358c6af5fb83232a0094407ace363c4"
+        },
+        "repo_head_commit": {
+          "sha": "3448676f5358c6af5fb83232a0094407ace363c4",
+          "date": "2026-10-10T17:11:42Z",
+          "message": "chore: update tables",
+          "url": "https://github.com/speedyapply/2027-AI-College-Jobs/commit/3448676f5358c6af5fb83232a0094407ace363c4"
+        }
+      },
+      "evidence_urls": [
+        "https://github.com/speedyapply/2027-AI-College-Jobs",
+        "https://api.github.com/repos/speedyapply/2027-AI-College-Jobs",
+        "https://raw.githubusercontent.com/speedyapply/2027-AI-College-Jobs/main/README.md",
+        "https://github.com/speedyapply/2027-AI-College-Jobs/commit/3448676f5358c6af5fb83232a0094407ace363c4"
+      ],
+      "deployment": {
+        "host": "home-ubuntu",
+        "verified_at": "2026-10-11T06:00:46.622611+00:00",
+        "feed_ids": [
+          "speedyapply-ai-internships",
+          "speedyapply-ai-newgrad"
+        ],
+        "postings_by_feed": {
+          "speedyapply-ai-internships": 637,
+          "speedyapply-ai-newgrad": 495
+        },
+        "live_rounds_verified": 3,
+        "record": "../updates/2026-10-10-priority-repository-feeds.md"
+      }
+    },
+    {
+      "id": "github-jobright-ai-2026-software-engineer-new-grad",
+      "category": "github_jobs",
+      "name": "jobright-ai/2026-Software-Engineer-New-Grad",
+      "canonical_url": "https://github.com/jobright-ai/2026-Software-Engineer-New-Grad",
+      "provider_family": "jobright-ai",
+      "priority": "P1",
+      "integration_status": "active_public_feed",
+      "verification_level": "public_api_readme_tree_and_data_checked",
+      "checked_at": "2026-10-11T04:17:09.407399+00:00",
+      "observations": {
+        "coverage": "Rolling new-grad/early SWE; despite 2026 name current README contains 2027 Start roles.",
+        "regions": "Mixed US/Canada/international, not US-only.",
+        "format": "README-only Markdown; company carry-forward arrow, jobright.ai/jobs/info/ URLs, Month Day date and work model.",
+        "lineage": "Official Jobright public subset; not evidence private Jobright account scraping works.",
+        "closure_semantics": "Only last 7 days listed; aged-out rows must not be marked closed.",
+        "caveat": "Some intern/co-op and broader experience roles appear; resolve direct employer URL and seniority before recommendation.",
+        "default_branch": "master",
+        "archived": false,
+        "github_fork_flag": false,
+        "repo_license_metadata": null,
+        "listing_paths": [
+          "README.md"
+        ],
+        "data_or_table_commit": {
+          "sha": "027f2ba4f6850423e021cfa152a2f81a262aafa3",
+          "date": "2026-10-11T03:41:02Z",
+          "message": "Update README.md",
+          "url": "https://github.com/jobright-ai/2026-Software-Engineer-New-Grad/commit/027f2ba4f6850423e021cfa152a2f81a262aafa3"
+        },
+        "repo_head_commit": {
+          "sha": "027f2ba4f6850423e021cfa152a2f81a262aafa3",
+          "date": "2026-10-11T03:41:02Z",
+          "message": "Update README.md",
+          "url": "https://github.com/jobright-ai/2026-Software-Engineer-New-Grad/commit/027f2ba4f6850423e021cfa152a2f81a262aafa3"
+        }
+      },
+      "evidence_urls": [
+        "https://github.com/jobright-ai/2026-Software-Engineer-New-Grad",
+        "https://api.github.com/repos/jobright-ai/2026-Software-Engineer-New-Grad",
+        "https://raw.githubusercontent.com/jobright-ai/2026-Software-Engineer-New-Grad/master/README.md",
+        "https://github.com/jobright-ai/2026-Software-Engineer-New-Grad/commit/027f2ba4f6850423e021cfa152a2f81a262aafa3"
+      ],
+      "deployment": {
+        "host": "home-ubuntu",
+        "verified_at": "2026-10-11T06:00:46.622611+00:00",
+        "feed_ids": [
+          "jobright-swe-newgrad"
+        ],
+        "postings_by_feed": {
+          "jobright-swe-newgrad": 779
+        },
+        "live_rounds_verified": 3,
+        "record": "../updates/2026-10-10-priority-repository-feeds.md"
+      }
+    },
+    {
+      "id": "github-jobright-ai-2026-software-engineer-internship",
+      "category": "github_jobs",
+      "name": "jobright-ai/2026-Software-Engineer-Internship",
+      "canonical_url": "https://github.com/jobright-ai/2026-Software-Engineer-Internship",
+      "provider_family": "jobright-ai",
+      "priority": "P1",
+      "integration_status": "active_public_feed",
+      "verification_level": "public_api_readme_tree_and_data_checked",
+      "checked_at": "2026-10-11T04:17:09.407399+00:00",
+      "observations": {
+        "coverage": "Rolling software internships including 2027 cycle despite 2026 repo name.",
+        "regions": "Mixed countries; row filtering required.",
+        "format": "README-only Jobright Markdown family; 7-day window.",
+        "lineage": "Same Jobright feed family; roles can overlap New-Grad list.",
+        "closure_semantics": "No explicit closure signal; row expiry is not closure.",
+        "caveat": "Public jobright links are source detail pages, not necessarily employer application URLs.",
+        "default_branch": "master",
+        "archived": false,
+        "github_fork_flag": false,
+        "repo_license_metadata": null,
+        "listing_paths": [
+          "README.md"
+        ],
+        "data_or_table_commit": {
+          "sha": "716c0557e9686c4b33a0eda1526f92c58eb900fd",
+          "date": "2026-10-11T03:19:40Z",
+          "message": "Update README.md",
+          "url": "https://github.com/jobright-ai/2026-Software-Engineer-Internship/commit/716c0557e9686c4b33a0eda1526f92c58eb900fd"
+        },
+        "repo_head_commit": {
+          "sha": "716c0557e9686c4b33a0eda1526f92c58eb900fd",
+          "date": "2026-10-11T03:19:40Z",
+          "message": "Update README.md",
+          "url": "https://github.com/jobright-ai/2026-Software-Engineer-Internship/commit/716c0557e9686c4b33a0eda1526f92c58eb900fd"
+        }
+      },
+      "evidence_urls": [
+        "https://github.com/jobright-ai/2026-Software-Engineer-Internship",
+        "https://api.github.com/repos/jobright-ai/2026-Software-Engineer-Internship",
+        "https://raw.githubusercontent.com/jobright-ai/2026-Software-Engineer-Internship/master/README.md",
+        "https://github.com/jobright-ai/2026-Software-Engineer-Internship/commit/716c0557e9686c4b33a0eda1526f92c58eb900fd"
+      ],
+      "deployment": {
+        "host": "home-ubuntu",
+        "verified_at": "2026-10-11T06:00:46.622611+00:00",
+        "feed_ids": [
+          "jobright-swe-internships"
+        ],
+        "postings_by_feed": {
+          "jobright-swe-internships": 100
+        },
+        "live_rounds_verified": 3,
+        "record": "../updates/2026-10-10-priority-repository-feeds.md"
+      }
+    },
+    {
+      "id": "github-jobright-ai-2026-data-analysis-new-grad",
+      "category": "github_jobs",
+      "name": "jobright-ai/2026-Data-Analysis-New-Grad",
+      "canonical_url": "https://github.com/jobright-ai/2026-Data-Analysis-New-Grad",
+      "provider_family": "jobright-ai",
+      "priority": "P2",
+      "integration_status": "catalog_only",
+      "verification_level": "public_api_readme_tree_and_data_checked",
+      "checked_at": "2026-10-11T04:17:09.407399+00:00",
+      "observations": {
+        "coverage": "Data analyst/data science/adjacent new-grad and junior; substantial non-engineering noise.",
+        "regions": "Explicit UK and Canada rows observed at top, plus US.",
+        "format": "README-only Jobright Markdown family; 7-day window.",
+        "lineage": "Same Jobright family.",
+        "closure_semantics": "No explicit closure signal.",
+        "caveat": "Infer neither 2027 cohort nor technical relevance from repository name.",
+        "default_branch": "master",
+        "archived": false,
+        "github_fork_flag": false,
+        "repo_license_metadata": null,
+        "listing_paths": [
+          "README.md"
+        ],
+        "data_or_table_commit": {
+          "sha": "55745fdcb9b8860e76ea02f884f445f8d3a4ca96",
+          "date": "2026-10-11T03:40:47Z",
+          "message": "Update README.md",
+          "url": "https://github.com/jobright-ai/2026-Data-Analysis-New-Grad/commit/55745fdcb9b8860e76ea02f884f445f8d3a4ca96"
+        },
+        "repo_head_commit": {
+          "sha": "55745fdcb9b8860e76ea02f884f445f8d3a4ca96",
+          "date": "2026-10-11T03:40:47Z",
+          "message": "Update README.md",
+          "url": "https://github.com/jobright-ai/2026-Data-Analysis-New-Grad/commit/55745fdcb9b8860e76ea02f884f445f8d3a4ca96"
+        }
+      },
+      "evidence_urls": [
+        "https://github.com/jobright-ai/2026-Data-Analysis-New-Grad",
+        "https://api.github.com/repos/jobright-ai/2026-Data-Analysis-New-Grad",
+        "https://raw.githubusercontent.com/jobright-ai/2026-Data-Analysis-New-Grad/master/README.md",
+        "https://github.com/jobright-ai/2026-Data-Analysis-New-Grad/commit/55745fdcb9b8860e76ea02f884f445f8d3a4ca96"
+      ]
+    },
+    {
+      "id": "github-jobright-ai-2026-data-analysis-internship",
+      "category": "github_jobs",
+      "name": "jobright-ai/2026-Data-Analysis-Internship",
+      "canonical_url": "https://github.com/jobright-ai/2026-Data-Analysis-Internship",
+      "provider_family": "jobright-ai",
+      "priority": "P2",
+      "integration_status": "catalog_only",
+      "verification_level": "public_api_readme_tree_and_data_checked",
+      "checked_at": "2026-10-11T04:17:09.407399+00:00",
+      "observations": {
+        "coverage": "Data science/analytics internships; current 2027 Summer Games/Analytics Intern roles observed.",
+        "regions": "Mixed; US rows present.",
+        "format": "README-only Jobright Markdown family; 7-day window.",
+        "lineage": "Same Jobright family.",
+        "closure_semantics": "No explicit closure signal.",
+        "caveat": "Separate analytics/business roles from data engineering/ML target roles.",
+        "default_branch": "master",
+        "archived": false,
+        "github_fork_flag": false,
+        "repo_license_metadata": null,
+        "listing_paths": [
+          "README.md"
+        ],
+        "data_or_table_commit": {
+          "sha": "2494cfd738309309dd73b9e38754ba883128db74",
+          "date": "2026-10-11T03:20:13Z",
+          "message": "Update README.md",
+          "url": "https://github.com/jobright-ai/2026-Data-Analysis-Internship/commit/2494cfd738309309dd73b9e38754ba883128db74"
+        },
+        "repo_head_commit": {
+          "sha": "2494cfd738309309dd73b9e38754ba883128db74",
+          "date": "2026-10-11T03:20:13Z",
+          "message": "Update README.md",
+          "url": "https://github.com/jobright-ai/2026-Data-Analysis-Internship/commit/2494cfd738309309dd73b9e38754ba883128db74"
+        }
+      },
+      "evidence_urls": [
+        "https://github.com/jobright-ai/2026-Data-Analysis-Internship",
+        "https://api.github.com/repos/jobright-ai/2026-Data-Analysis-Internship",
+        "https://raw.githubusercontent.com/jobright-ai/2026-Data-Analysis-Internship/master/README.md",
+        "https://github.com/jobright-ai/2026-Data-Analysis-Internship/commit/2494cfd738309309dd73b9e38754ba883128db74"
+      ]
+    },
+    {
+      "id": "github-applyguy-2027-new-grad-jobs",
+      "category": "github_jobs",
+      "name": "ApplyGuy/2027-New-Grad-Jobs",
+      "canonical_url": "https://github.com/ApplyGuy/2027-New-Grad-Jobs",
+      "provider_family": "ApplyGuy",
+      "priority": "P1",
+      "integration_status": "active_public_feed",
+      "verification_level": "public_api_readme_tree_and_data_checked",
+      "checked_at": "2026-10-11T04:17:09.407399+00:00",
+      "observations": {
+        "coverage": "Recent US new-grad/entry SWE; README says last 60 days; 340 published jobs.",
+        "regions": "US-focused source; validate location anyway.",
+        "format": "{updatedAt,jobs}; map id,company,title,location,posted; canonical employer URL is listingUrl, not url (ApplyGuy page).",
+        "lineage": "Maintainer says collected from employer career pages.",
+        "closure_semantics": "Only active jobs exported; no row active/is_visible; disappearing may mean age window, not closure.",
+        "caveat": "Existing parser rejects wrapper object. Preserve explicit/adjacent matchKind and eligibility.",
+        "default_branch": "main",
+        "archived": false,
+        "github_fork_flag": false,
+        "repo_license_metadata": null,
+        "listing_paths": [
+          "README.md",
+          "data/new-grad-jobs.json"
+        ],
+        "data_or_table_commit": {
+          "path": "data/new-grad-jobs.json",
+          "sha": "994e5038ef22f0334eb12843ab0408b94e22736c",
+          "date": "2026-10-11T04:00:42Z",
+          "message": "Update New Grad job data",
+          "url": "https://github.com/ApplyGuy/2027-New-Grad-Jobs/commit/994e5038ef22f0334eb12843ab0408b94e22736c"
+        },
+        "repo_head_commit": {
+          "sha": "994e5038ef22f0334eb12843ab0408b94e22736c",
+          "date": "2026-10-11T04:00:42Z",
+          "message": "Update New Grad job data",
+          "url": "https://github.com/ApplyGuy/2027-New-Grad-Jobs/commit/994e5038ef22f0334eb12843ab0408b94e22736c"
+        },
+        "feed": {
+          "path": "data/new-grad-jobs.json",
+          "url": "https://raw.githubusercontent.com/ApplyGuy/2027-New-Grad-Jobs/main/data/new-grad-jobs.json",
+          "sha256": "c208977d3f2f967570bc1674f9136d785bff1cc36c7105ed6f95b6f86a1724a6",
+          "top_type": "dict",
+          "top_keys": [
+            "updatedAt",
+            "jobs"
+          ],
+          "row_count": 340,
+          "row_keys": [
+            "age",
+            "applySupported",
+            "company",
+            "eligibility",
+            "id",
+            "listingUrl",
+            "location",
+            "matchKind",
+            "posted",
+            "title",
+            "url"
+          ],
+          "existing_adapter": {
+            "document_error": "repository feed must be a JSON array of listing objects"
+          },
+          "status_count_caveat": "Source-reported flags; not independently verified open vacancies or US-only counts."
+        }
+      },
+      "evidence_urls": [
+        "https://github.com/ApplyGuy/2027-New-Grad-Jobs",
+        "https://api.github.com/repos/ApplyGuy/2027-New-Grad-Jobs",
+        "https://raw.githubusercontent.com/ApplyGuy/2027-New-Grad-Jobs/main/README.md",
+        "https://github.com/ApplyGuy/2027-New-Grad-Jobs/commit/994e5038ef22f0334eb12843ab0408b94e22736c",
+        "https://raw.githubusercontent.com/ApplyGuy/2027-New-Grad-Jobs/main/data/new-grad-jobs.json"
+      ],
+      "deployment": {
+        "host": "home-ubuntu",
+        "verified_at": "2026-10-11T06:00:46.622611+00:00",
+        "feed_ids": [
+          "applyguy-newgrad"
+        ],
+        "postings_by_feed": {
+          "applyguy-newgrad": 339
+        },
+        "live_rounds_verified": 3,
+        "record": "../updates/2026-10-10-priority-repository-feeds.md"
+      }
+    },
+    {
+      "id": "github-tar-ive-ml-newgrad-2027",
+      "category": "github_jobs",
+      "name": "Tar-ive/ML_Newgrad_2027",
+      "canonical_url": "https://github.com/Tar-ive/ML_Newgrad_2027",
+      "provider_family": "Tar-ive",
+      "priority": "P2",
+      "integration_status": "catalog_only",
+      "verification_level": "public_api_readme_tree_and_data_checked",
+      "checked_at": "2026-10-11T04:17:09.407399+00:00",
+      "observations": {
+        "coverage": "New-grad through roughly 3 years: ML, AI research, DS, ML-specialized DE/SWE.",
+        "regions": "is_usa flag; README US vs INTERNATIONAL.md. Filter raw list by location too.",
+        "format": "3259-row custom array; company not company_name; apply_url/urls, sources[], verification, first_seen; every row lacks is_visible so current parser rejects all.",
+        "lineage": "Hybrid: community trackers (Simplify, vansh, SpeedyApply, ApplyGuy, Ricsign, Zapply and more) plus direct ATS scraping. ATTRIBUTION verified.",
+        "closure_semantics": "Render calls verify.visible: active, verification status, employer-date <=90days, unverified 14-day grace with direct link; README collapses company/title.",
+        "caveat": "1772 active raw records does not mean 1772 US visible jobs; README shows 518 US at snapshot. Preserve sources[]; source-specific verification is a claim, not our independent employer verification.",
+        "default_branch": "main",
+        "archived": false,
+        "github_fork_flag": false,
+        "repo_license_metadata": null,
+        "listing_paths": [
+          "INTERNATIONAL.md",
+          "README.md",
+          "data/listings.json"
+        ],
+        "data_or_table_commit": {
+          "path": "data/listings.json",
+          "sha": "0d1964d036c0e02500a63b386138f7602a320d54",
+          "date": "2026-10-11T02:12:32Z",
+          "message": "chore: full refresh — 920 verified roles, 13 new",
+          "url": "https://github.com/Tar-ive/ML_Newgrad_2027/commit/0d1964d036c0e02500a63b386138f7602a320d54"
+        },
+        "repo_head_commit": {
+          "sha": "0d1964d036c0e02500a63b386138f7602a320d54",
+          "date": "2026-10-11T02:12:32Z",
+          "message": "chore: full refresh — 920 verified roles, 13 new",
+          "url": "https://github.com/Tar-ive/ML_Newgrad_2027/commit/0d1964d036c0e02500a63b386138f7602a320d54"
+        },
+        "feed": {
+          "path": "data/listings.json",
+          "url": "https://raw.githubusercontent.com/Tar-ive/ML_Newgrad_2027/main/data/listings.json",
+          "sha256": "3551f0ad575476c1b34c7239e7acfa32b4193ecc17fb816f6b328788f9948118",
+          "top_type": "list",
+          "top_keys": null,
+          "row_count": 3259,
+          "row_keys": [
+            "active",
+            "apply_url",
+            "category",
+            "company",
+            "company_url",
+            "date_posted",
+            "experience",
+            "family",
+            "first_seen",
+            "id",
+            "is_usa",
+            "last_seen",
+            "locations",
+            "salary",
+            "sources",
+            "tier",
+            "title",
+            "url",
+            "urls",
+            "verification"
+          ],
+          "active_counts": {
+            "True": 1772,
+            "False": 1487
+          },
+          "existing_adapter": {
+            "accepted_records": 0,
+            "row_issues": 3259,
+            "sample_issues": [
+              {
+                "index": 0,
+                "reason": "is_visible must be a boolean"
+              },
+              {
+                "index": 1,
+                "reason": "is_visible must be a boolean"
+              },
+              {
+                "index": 2,
+                "reason": "is_visible must be a boolean"
+              }
+            ],
+            "active_records": 0
+          },
+          "date_posted_min_max_utc": [
+            "2019-07-12T00:00:00+00:00",
+            "2026-10-10T00:00:00+00:00"
+          ],
+          "status_count_caveat": "Source-reported flags; not independently verified open vacancies or US-only counts."
+        }
+      },
+      "evidence_urls": [
+        "https://github.com/Tar-ive/ML_Newgrad_2027",
+        "https://api.github.com/repos/Tar-ive/ML_Newgrad_2027",
+        "https://raw.githubusercontent.com/Tar-ive/ML_Newgrad_2027/main/README.md",
+        "https://github.com/Tar-ive/ML_Newgrad_2027/commit/0d1964d036c0e02500a63b386138f7602a320d54",
+        "https://raw.githubusercontent.com/Tar-ive/ML_Newgrad_2027/main/data/listings.json"
+      ]
+    },
+    {
+      "id": "github-zapplyjobs-new-grad-jobs-2027",
+      "category": "github_jobs",
+      "name": "zapplyjobs/New-Grad-Jobs-2027",
+      "canonical_url": "https://github.com/zapplyjobs/New-Grad-Jobs-2027",
+      "provider_family": "zapplyjobs",
+      "priority": "P2",
+      "integration_status": "catalog_only",
+      "verification_level": "public_api_readme_tree_and_data_checked",
+      "checked_at": "2026-10-11T04:17:09.407399+00:00",
+      "observations": {
+        "coverage": "Broad 2027 new-grad/intern/early-career across tech/finance/healthcare; Software Development Engineer 3 and unrelated business roles observed.",
+        "regions": "US-oriented description; location validation still required.",
+        "format": "README table/HTML apply image via zapply.jobs/l/d/... redirects; no committed jobs JSON.",
+        "lineage": "Centralized Zapply pipeline; narrow SWE/Data Science repos linked but not audited in this catalog.",
+        "closure_semantics": "No reliable per-row closed field observed.",
+        "caveat": "LICENSE changed Oct6: attribution+linkback, no onward resubmission to third-party aggregators/feeds, enrichment estimates not employer facts. Do not treat its 46,030 badge as verified target jobs.",
+        "default_branch": "main",
+        "archived": false,
+        "github_fork_flag": false,
+        "repo_license_metadata": "NOASSERTION",
+        "listing_paths": [
+          "README.md"
+        ],
+        "data_or_table_commit": {
+          "sha": "289883fbedaea115bb574a0d6a9f17f856f28da2",
+          "date": "2026-10-11T04:05:10Z",
+          "message": "auto: regenerate README from pipeline (centralized)",
+          "url": "https://github.com/zapplyjobs/New-Grad-Jobs-2027/commit/289883fbedaea115bb574a0d6a9f17f856f28da2"
+        },
+        "repo_head_commit": {
+          "sha": "289883fbedaea115bb574a0d6a9f17f856f28da2",
+          "date": "2026-10-11T04:05:10Z",
+          "message": "auto: regenerate README from pipeline (centralized)",
+          "url": "https://github.com/zapplyjobs/New-Grad-Jobs-2027/commit/289883fbedaea115bb574a0d6a9f17f856f28da2"
+        }
+      },
+      "evidence_urls": [
+        "https://github.com/zapplyjobs/New-Grad-Jobs-2027",
+        "https://api.github.com/repos/zapplyjobs/New-Grad-Jobs-2027",
+        "https://raw.githubusercontent.com/zapplyjobs/New-Grad-Jobs-2027/main/README.md",
+        "https://github.com/zapplyjobs/New-Grad-Jobs-2027/commit/289883fbedaea115bb574a0d6a9f17f856f28da2"
+      ]
+    },
+    {
+      "id": "github-derec4-internships-and-newgrad",
+      "category": "github_jobs",
+      "name": "DereC4/internships-and-newgrad",
+      "canonical_url": "https://github.com/DereC4/internships-and-newgrad",
+      "provider_family": "DereC4",
+      "priority": "P3",
+      "integration_status": "catalog_only",
+      "verification_level": "public_api_readme_tree_and_data_checked",
+      "checked_at": "2026-10-11T04:17:09.407399+00:00",
+      "observations": {
+        "coverage": "Combined 2027-2028 internships and new-grad; README interns, NEWGRAD.md graduates.",
+        "regions": "Mixed US/Canada; Canada rows observed.",
+        "format": "Markdown company/title/location/age; no committed listing JSON.",
+        "lineage": "go/main.go explicitly fetches Vansh, Simplify, SpeedyApply, sndsh404, Zapply, zshah101; mostly duplicates direct feeds.",
+        "closure_semantics": "No explicit per-row status; aged/removal semantics not independently verified.",
+        "caveat": "Pharmacy intern and other non-target roles observed; adding as independent source inflates apparent coverage.",
+        "default_branch": "main",
+        "archived": false,
+        "github_fork_flag": false,
+        "repo_license_metadata": "MIT",
+        "listing_paths": [
+          "NEWGRAD.md",
+          "README.md"
+        ],
+        "data_or_table_commit": {
+          "sha": "959838fe9c08b6fa45a4e61e9b91c53940fd86e1",
+          "date": "2026-10-11T03:54:33Z",
+          "message": "Update README tables [skip ci]\n\nUpdated README #5",
+          "url": "https://github.com/DereC4/internships-and-newgrad/commit/959838fe9c08b6fa45a4e61e9b91c53940fd86e1"
+        },
+        "repo_head_commit": {
+          "sha": "959838fe9c08b6fa45a4e61e9b91c53940fd86e1",
+          "date": "2026-10-11T03:54:33Z",
+          "message": "Update README tables [skip ci]\n\nUpdated README #5",
+          "url": "https://github.com/DereC4/internships-and-newgrad/commit/959838fe9c08b6fa45a4e61e9b91c53940fd86e1"
+        }
+      },
+      "evidence_urls": [
+        "https://github.com/DereC4/internships-and-newgrad",
+        "https://api.github.com/repos/DereC4/internships-and-newgrad",
+        "https://raw.githubusercontent.com/DereC4/internships-and-newgrad/main/README.md",
+        "https://github.com/DereC4/internships-and-newgrad/commit/959838fe9c08b6fa45a4e61e9b91c53940fd86e1"
+      ]
+    },
+    {
+      "id": "github-suryaharikrishnan-2027-internship-tracker",
+      "category": "github_jobs",
+      "name": "SuryaHarikrishnan/2027-internship-tracker",
+      "canonical_url": "https://github.com/SuryaHarikrishnan/2027-internship-tracker",
+      "provider_family": "SuryaHarikrishnan",
+      "priority": "P3",
+      "integration_status": "catalog_only",
+      "verification_level": "public_api_readme_tree_and_data_checked",
+      "checked_at": "2026-10-11T04:17:09.407399+00:00",
+      "observations": {
+        "coverage": "Summer2026/2027 SWE/AI/data/quant/hardware/PM internships; separate India list out of scope.",
+        "regions": "Mixed; full JSON requires US-only filter.",
+        "format": "Simplify-compatible array;15412 accepted/0 issues/4406 active; _sources adds provenance.",
+        "lineage": "ATTRIBUTION and commit message explicitly Simplify Summer + Vansh Summer 2026/2027. No independent job discovery evidenced in main merged feed.",
+        "closure_semantics": "Copies upstream active/is_visible; 5x/day aggregation does not make stale upstream current.",
+        "caveat": "LICENSE MIT covers tooling only, explicitly excludes aggregated listing data.",
+        "default_branch": "master",
+        "archived": false,
+        "github_fork_flag": false,
+        "repo_license_metadata": "NOASSERTION",
+        "listing_paths": [
+          "README.md",
+          "data/listings.json"
+        ],
+        "data_or_table_commit": {
+          "path": "data/listings.json",
+          "sha": "aa40c3424c5f5249d58c38064263e5ec8227a00c",
+          "date": "2026-10-11T00:11:03Z",
+          "message": "Listings refresh 00:11 UTC — Merged 15412 unique listings from ['simplify-2026', 'vanshb03-2026', 'vanshb03-2027']. New: 10, closed: 0.",
+          "url": "https://github.com/SuryaHarikrishnan/2027-internship-tracker/commit/aa40c3424c5f5249d58c38064263e5ec8227a00c"
+        },
+        "repo_head_commit": {
+          "sha": "aa40c3424c5f5249d58c38064263e5ec8227a00c",
+          "date": "2026-10-11T00:11:03Z",
+          "message": "Listings refresh 00:11 UTC — Merged 15412 unique listings from ['simplify-2026', 'vanshb03-2026', 'vanshb03-2027']. New: 10, closed: 0.",
+          "url": "https://github.com/SuryaHarikrishnan/2027-internship-tracker/commit/aa40c3424c5f5249d58c38064263e5ec8227a00c"
+        },
+        "feed": {
+          "path": "data/listings.json",
+          "url": "https://raw.githubusercontent.com/SuryaHarikrishnan/2027-internship-tracker/master/data/listings.json",
+          "sha256": "d033f3aeaf4e5a8516de53524e4f708543606363ec39372e99a91813fc0a2694",
+          "top_type": "list",
+          "top_keys": null,
+          "row_count": 15412,
+          "row_keys": [
+            "_sources",
+            "active",
+            "category",
+            "company_name",
+            "company_url",
+            "date_posted",
+            "date_updated",
+            "degrees",
+            "id",
+            "is_visible",
+            "locations",
+            "season",
+            "source",
+            "sponsorship",
+            "terms",
+            "title",
+            "url"
+          ],
+          "active_counts": {
+            "False": 11005,
+            "True": 4407
+          },
+          "is_visible_counts": {
+            "True": 15411,
+            "False": 1
+          },
+          "existing_adapter": {
+            "accepted_records": 15412,
+            "row_issues": 0,
+            "sample_issues": [],
+            "active_records": 4406
+          },
+          "date_posted_min_max_utc": [
+            "2025-06-07T01:46:32+00:00",
+            "2026-10-10T22:07:37+00:00"
+          ],
+          "date_updated_min_max_utc": [
+            "2025-06-07T01:46:32+00:00",
+            "2026-10-10T22:12:02+00:00"
+          ],
+          "status_count_caveat": "Source-reported flags; not independently verified open vacancies or US-only counts."
+        }
+      },
+      "evidence_urls": [
+        "https://github.com/SuryaHarikrishnan/2027-internship-tracker",
+        "https://api.github.com/repos/SuryaHarikrishnan/2027-internship-tracker",
+        "https://raw.githubusercontent.com/SuryaHarikrishnan/2027-internship-tracker/master/README.md",
+        "https://github.com/SuryaHarikrishnan/2027-internship-tracker/commit/aa40c3424c5f5249d58c38064263e5ec8227a00c",
+        "https://raw.githubusercontent.com/SuryaHarikrishnan/2027-internship-tracker/master/data/listings.json"
+      ]
+    },
+    {
+      "id": "github-ricsign-ricsign-new-grads-jobs-2027",
+      "category": "github_jobs",
+      "name": "ricsign/Ricsign-New-Grads-Jobs-2027",
+      "canonical_url": "https://github.com/ricsign/Ricsign-New-Grads-Jobs-2027",
+      "provider_family": "ricsign",
+      "priority": "P1",
+      "integration_status": "active_public_feed",
+      "verification_level": "public_api_readme_tree_and_data_checked",
+      "checked_at": "2026-10-11T04:17:09.407399+00:00",
+      "observations": {
+        "coverage": "Curated employers; US new-grad SWE, internships, quant, AI research/PhD. Backend/infra/security adjacent.",
+        "regions": "US new-grad board; some other tracks potentially broader, validate raw locations.",
+        "format": "Versioned {api_version,generated_at,source,license,count,jobs}; uid->id,apply_url->url, ISO posted_at, company_name, locations, track/degree/sponsorship/link_status.",
+        "lineage": "Own public ATS adapters for Greenhouse/Ashby/Lever/Amazon/Workday/Eightfold; MIT repo and feed declares MIT.",
+        "closure_semantics": "Raw export includes active=true only; board hides link_status dead/closed. Lock icon means security clearance, NOT closed.",
+        "caveat": "490 active raw jobs !=449 live in latest commit label. Evergreen postings date back years; preserve posted_at vs first_seen, link_status and degree filters. Current parser rejects wrapper.",
+        "default_branch": "main",
+        "archived": false,
+        "github_fork_flag": false,
+        "repo_license_metadata": "MIT",
+        "listing_paths": [
+          "README.md",
+          "boards/AI_RESEARCH.md",
+          "boards/INTERNSHIPS.md",
+          "boards/NEW_GRAD_SWE.md",
+          "boards/QUANT.md",
+          "data/v1/jobs.json"
+        ],
+        "data_or_table_commit": {
+          "path": "data/v1/jobs.json",
+          "sha": "a015900b8962b2c6eb3592c5a633a74dc4b421e2",
+          "date": "2026-10-10T21:49:12Z",
+          "message": "data: refresh boards (449 live roles)",
+          "url": "https://github.com/ricsign/Ricsign-New-Grads-Jobs-2027/commit/a015900b8962b2c6eb3592c5a633a74dc4b421e2"
+        },
+        "repo_head_commit": {
+          "sha": "a015900b8962b2c6eb3592c5a633a74dc4b421e2",
+          "date": "2026-10-10T21:49:12Z",
+          "message": "data: refresh boards (449 live roles)",
+          "url": "https://github.com/ricsign/Ricsign-New-Grads-Jobs-2027/commit/a015900b8962b2c6eb3592c5a633a74dc4b421e2"
+        },
+        "feed": {
+          "path": "data/v1/jobs.json",
+          "url": "https://raw.githubusercontent.com/ricsign/Ricsign-New-Grads-Jobs-2027/main/data/v1/jobs.json",
+          "sha256": "9367f0fdc2b2bc2d8d2a86b80614a542259ba489bc81f60dab6dd095e89ccb2b",
+          "top_type": "dict",
+          "top_keys": [
+            "api_version",
+            "generated_at",
+            "source",
+            "license",
+            "count",
+            "jobs"
+          ],
+          "row_count": 490,
+          "row_keys": [
+            "active",
+            "apply_url",
+            "closed_at",
+            "company_category",
+            "company_name",
+            "company_slug",
+            "company_tier",
+            "compensation",
+            "degree",
+            "department",
+            "first_seen",
+            "last_verified",
+            "link_status",
+            "locations",
+            "openings",
+            "posted_at",
+            "season",
+            "source",
+            "sponsorship",
+            "title",
+            "track",
+            "uid"
+          ],
+          "active_counts": {
+            "True": 490
+          },
+          "existing_adapter": {
+            "document_error": "repository feed must be a JSON array of listing objects"
+          },
+          "status_count_caveat": "Source-reported flags; not independently verified open vacancies or US-only counts."
+        }
+      },
+      "evidence_urls": [
+        "https://github.com/ricsign/Ricsign-New-Grads-Jobs-2027",
+        "https://api.github.com/repos/ricsign/Ricsign-New-Grads-Jobs-2027",
+        "https://raw.githubusercontent.com/ricsign/Ricsign-New-Grads-Jobs-2027/main/README.md",
+        "https://github.com/ricsign/Ricsign-New-Grads-Jobs-2027/commit/a015900b8962b2c6eb3592c5a633a74dc4b421e2",
+        "https://raw.githubusercontent.com/ricsign/Ricsign-New-Grads-Jobs-2027/main/data/v1/jobs.json"
+      ],
+      "deployment": {
+        "host": "home-ubuntu",
+        "verified_at": "2026-10-11T06:00:46.622611+00:00",
+        "feed_ids": [
+          "ricsign-early-career"
+        ],
+        "postings_by_feed": {
+          "ricsign-early-career": 490
+        },
+        "live_rounds_verified": 3,
+        "record": "../updates/2026-10-10-priority-repository-feeds.md"
+      }
+    },
+    {
+      "id": "web-employer_careers",
+      "category": "web_jobs",
+      "name": "Employer career sites / university hiring pages",
+      "canonical_url": "https://www.google.com/about/careers/applications/jobs/results",
+      "provider_family": "employer_careers",
+      "priority": "P0",
+      "integration_status": "catalog_only_account_and_runtime_unverified",
+      "verification_level": "Official Google Careers search/help and Google JobPosting documentation inspected; employer-specific parser and alerts remain prospective.",
+      "observations": {
+        "kind": "primary_employer",
+        "scope": "All target roles and levels; use each employer's US locations and student/graduate programs.",
+        "access": [
+          "public_page",
+          "employer_email_alert_if_offered"
+        ],
+        "api": "No universal API. Prefer documented ATS adapters when identified; otherwise employer public pages and visible JobPosting JSON-LD.",
+        "company_discovery": "Required: employer domain -> verified careers URL -> ATS tenant/site/board. Preserve the domain-to-board evidence.",
+        "freshness": "Use source datePosted, validThrough and visible deadline if provided, plus first_seen_at/last_seen_at/content fingerprint. Schema dates are publisher assertions and may be missing.",
+        "account_and_cost": "Public reading generally does not need an account; applications/alerts vary by employer. No paid access verified.",
+        "lineage": "Canonical destination for aggregated/cross-posted opportunities. Preserve requisition ID and all location variants."
+      },
+      "evidence_urls": [
+        "https://www.google.com/about/careers/applications/jobs/results",
+        "https://amazon.jobs/content/en/career-programs/university/technical-engineering",
+        "https://support.google.com/googlecareers/answer/9018529?hl=en",
+        "https://developers.google.com/search/docs/appearance/structured-data/job-posting",
+        "https://amazon.jobs/content/pl/career-programs/university/technical-engineering"
+      ]
+    },
+    {
+      "id": "web-greenhouse",
+      "category": "web_jobs",
+      "name": "Greenhouse Job Board API",
+      "canonical_url": "https://docs.greenhouse.io/job-board.html",
+      "provider_family": "greenhouse",
+      "priority": "P0",
+      "integration_status": "catalog_only_account_and_runtime_unverified",
+      "verification_level": "Official documentation read and public greenhouse example JSON retrieved through web tool. Production adapter not tested.",
+      "observations": {
+        "kind": "employer_ats",
+        "scope": "Employer-defined, global and all levels; US/role/level filters are downstream.",
+        "access": [
+          "documented_public_api",
+          "public_page"
+        ],
+        "api": "GET https://boards-api.greenhouse.io/v1/boards/{board_token}/jobs?content=true; GET /jobs/{job_id}. GET endpoints need no authentication.",
+        "company_discovery": "Required board_token; no global employer discovery/search endpoint documented here.",
+        "pagination": "List jobs returns all board posts and meta.total; no list pagination parameters documented.",
+        "freshness": "List: updated_at. Detail: first_published, updated_at, application_deadline when present. updated_at is not a new-posting date.",
+        "account_and_cost": "No authentication for job GET; do not confuse with authenticated Harvest API or application POST.",
+        "lineage": "Primary published employer postings. Distinguish post id from internal_job_id; multiple posts can represent the same internal job."
+      },
+      "evidence_urls": [
+        "https://docs.greenhouse.io/job-board.html",
+        "https://boards-api.greenhouse.io/v1/boards/greenhouse/jobs"
+      ]
+    },
+    {
+      "id": "web-lever",
+      "category": "web_jobs",
+      "name": "Lever Postings API",
+      "canonical_url": "https://github.com/lever/postings-api",
+      "provider_family": "lever",
+      "priority": "P0",
+      "integration_status": "catalog_only_account_and_runtime_unverified",
+      "verification_level": "Official API README and public leverdemo endpoint retrieved. Demo is not evidence of current real employer openings or production integration.",
+      "observations": {
+        "kind": "employer_ats",
+        "scope": "Employer-defined global roles; published jobs only, not internal jobs.",
+        "access": [
+          "documented_public_api",
+          "public_page"
+        ],
+        "api": "GET https://api.lever.co/v0/postings/{site}?mode=json&skip={n}&limit={n}; EU instance api.eu.lever.co.",
+        "company_discovery": "Required site name from employer careers link; no full-text cross-company search.",
+        "pagination": "skip/limit; filters include location, commitment, team and department.",
+        "freshness": "The public response field list inspected does not document createdAt or a publication date. Record first_seen_at/last_seen_at and content hash; do not invent posted_at.",
+        "account_and_cost": "Published postings publicly viewable; no job-reader login documented.",
+        "lineage": "Employer-hosted job ID, hostedUrl/applyUrl; downstream boards frequently repeat these jobs."
+      },
+      "evidence_urls": [
+        "https://github.com/lever/postings-api",
+        "https://api.lever.co/v0/postings/leverdemo"
+      ]
+    },
+    {
+      "id": "web-ashby",
+      "category": "web_jobs",
+      "name": "Ashby public Job Postings API",
+      "canonical_url": "https://developers.ashbyhq.com/docs/public-job-posting-api",
+      "provider_family": "ashby",
+      "priority": "P0",
+      "integration_status": "catalog_only_account_and_runtime_unverified",
+      "verification_level": "Official public API search-index content verified; direct documentation fetch timed out. Actual /job-board/ashby JSON retrieved with fields. No production adapter test.",
+      "observations": {
+        "kind": "employer_ats",
+        "scope": "Employer-defined/global; employmentType includes Intern and FullTime.",
+        "access": [
+          "documented_public_api",
+          "public_page"
+        ],
+        "api": "GET https://api.ashbyhq.com/posting-api/job-board/{JOB_BOARD_NAME}; optional includeCompensation=true.",
+        "company_discovery": "Required jobs page name from jobs.ashbyhq.com/{name}.",
+        "pagination": "Public board API documentation returns jobs array; no pagination documented on this surface.",
+        "freshness": "publishedAt means last published, not original creation. isListed=false means direct-link only; exclude from publicly listed catalog.",
+        "account_and_cost": "Public lightweight posting surface; do not substitute employer-authenticated job.list API requiring jobsRead.",
+        "lineage": "Primary employer posting id/jobUrl/applyUrl; retain secondary locations and country restrictions."
+      },
+      "evidence_urls": [
+        "https://developers.ashbyhq.com/docs/public-job-posting-api",
+        "https://docs.ashbyhq.com/using-the-lightweight-job-posting-api-to-list-openings-on-your-site",
+        "https://api.ashbyhq.com/posting-api/job-board/ashby",
+        "https://developers.ashbyhq.com/reference/joblist"
+      ]
+    },
+    {
+      "id": "web-smartrecruiters",
+      "category": "web_jobs",
+      "name": "SmartRecruiters Posting API",
+      "canonical_url": "https://developers.smartrecruiters.com/docs/endpoints",
+      "provider_family": "smartrecruiters",
+      "priority": "P0",
+      "integration_status": "catalog_only_account_and_runtime_unverified",
+      "verification_level": "Official API docs and external example JSON {offset:0,limit:100,totalFound:0,content:[]} retrieved. Nonempty employer response and runtime pagination still need a connector smoke test.",
+      "observations": {
+        "kind": "employer_ats",
+        "scope": "Employer-defined global openings; API supports country filtering.",
+        "access": [
+          "documented_public_api",
+          "public_page"
+        ],
+        "api": "GET https://api.smartrecruiters.com/v1/companies/{companyIdentifier}/postings; follow detail ref.",
+        "company_discovery": "Required companyIdentifier from employer SmartRecruiters career URL.",
+        "pagination": "offset/limit and totalFound; query/country/region/city/department filters documented.",
+        "freshness": "releasedDate appears in list object; verify employer detail/status before recommendation.",
+        "account_and_cost": "External public example retrieved without credentials. Current overview also describes API key/OAuth for internal postings; never mix internal/customer access into public collection.",
+        "lineage": "Primary employer ATS. Store posting UUID/id and company identifier."
+      },
+      "evidence_urls": [
+        "https://developers.smartrecruiters.com/docs/endpoints",
+        "https://developers.smartrecruiters.com/docs/posting-api",
+        "https://api.smartrecruiters.com/v1/companies/smartrecruiters/postings"
+      ]
+    },
+    {
+      "id": "web-workday",
+      "category": "web_jobs",
+      "name": "Workday-hosted external career sites",
+      "canonical_url": "https://doc.workday.com/workday-education/en-us/course-manuals/recruiting-for-administrators/career-sites.html",
+      "provider_family": "workday",
+      "priority": "P1",
+      "integration_status": "catalog_only_account_and_runtime_unverified",
+      "verification_level": "Official external career-site and alert capability documentation. No employer account or job feed connected.",
+      "observations": {
+        "kind": "employer_ats",
+        "scope": "Enterprise employers; important internship/graduate and infrastructure coverage, global.",
+        "access": [
+          "public_page",
+          "employer_email_alert_if_enabled"
+        ],
+        "api": "No candidate-facing unauthenticated supported job-search API verified. Public SOAP documentation is not public access to tenant data. Do not rely on reverse-engineered /wday/cxs endpoints.",
+        "company_discovery": "Required employer/tenant/external career site; one employer may expose multiple regional sites.",
+        "pagination": "Public UI-specific; not standardized by this audit.",
+        "freshness": "Visible posted date/deadline and public structured data when present; alerts depend on employer configuration.",
+        "account_and_cost": "Public search may be open; candidates create an employer account for some actions. Workday officially supports external job alerts if enabled.",
+        "lineage": "Primary employer jobs, often syndicated to LinkedIn/Indeed and repeated across regional sites."
+      },
+      "evidence_urls": [
+        "https://doc.workday.com/workday-education/en-us/course-manuals/recruiting-for-administrators/career-sites.html",
+        "https://community-content.workday.com/en-us/public/products/platform-and-product-extensions/soap-api-reference.html"
+      ]
+    },
+    {
+      "id": "web-icims",
+      "category": "web_jobs",
+      "name": "iCIMS employer job portals",
+      "canonical_url": "https://developer-community.icims.com/applications/applicant-tracking/job-portal",
+      "provider_family": "icims",
+      "priority": "P1",
+      "integration_status": "catalog_only_account_and_runtime_unverified",
+      "verification_level": "Official API documentation inspected. Public portal automation and email capability per employer remain prospective.",
+      "observations": {
+        "kind": "employer_ats",
+        "scope": "Enterprise and midmarket employers; tech roles across industries, global.",
+        "access": [
+          "public_page",
+          "employer_email_alert_if_offered"
+        ],
+        "api": "Official Job Portal API exists at api.icims.com/customers/{customerId}/..., but its examples require Basic Authorization. No global anonymous reader feed verified.",
+        "company_discovery": "Required employer customer/portal; use public employer portal URL, not guessed credentials.",
+        "pagination": "API pagination not relevant without authorized employer access; public UI-specific.",
+        "freshness": "Authenticated API documents updatedDate and job.jobpost.postdate filter. Public page dates depend on portal.",
+        "account_and_cost": "Public job pages may be readable; candidate alerts/account depend on employer. No job-seeker API credentials assumed.",
+        "lineage": "Primary employer postings; corporate branding/custom URLs can obscure the ATS identity."
+      },
+      "evidence_urls": [
+        "https://developer-community.icims.com/applications/applicant-tracking/job-portal"
+      ]
+    },
+    {
+      "id": "web-linkedin",
+      "category": "web_jobs",
+      "name": "LinkedIn Jobs",
+      "canonical_url": "https://www.linkedin.com/jobs/",
+      "provider_family": "linkedin",
+      "priority": "P1",
+      "integration_status": "catalog_only_account_and_runtime_unverified",
+      "verification_level": "Official alert settings and policy inspected. User login, subscriptions and actual alerts not checked.",
+      "observations": {
+        "kind": "aggregator_and_employer_board",
+        "scope": "Broad US roles; use internship/entry level and role/location searches; seniority labels require description checks.",
+        "access": [
+          "user_authorized_email",
+          "user_manual_browser",
+          "public_page_when_available"
+        ],
+        "api": "No open job-search reader API verified. Prefer delivered alerts and user-provided links; scraping/automation is expressly restricted by LinkedIn's current help policy.",
+        "pagination": "Email is partial; search results not an export feed.",
+        "freshness": "Daily or weekly email/app alerts; posting/repost dates are LinkedIn observations, not necessarily employer original publication.",
+        "account_and_cost": "Member account required for saved alerts; official help permits up to 20 alerts. Premium entitlement not inspected or required by the cited alert instructions.",
+        "lineage": "May be employer-direct or ATS syndication; store LinkedIn ID and resolve external employer apply link."
+      },
+      "evidence_urls": [
+        "https://www.linkedin.com/jobs/",
+        "https://www.linkedin.com/help/linkedin/answer/a511279/job-alerts-on-linkedin?intendedLocale=en&lang=en-us",
+        "https://www.linkedin.com/help/linkedin/answer/a1341387/prohibition-of-scraping-software?intendedLocale=en&lang=en-us"
+      ]
+    },
+    {
+      "id": "web-jobright",
+      "category": "web_jobs",
+      "name": "Jobright",
+      "canonical_url": "https://jobright.ai/",
+      "provider_family": "jobright",
+      "priority": "P1",
+      "integration_status": "catalog_only_account_and_runtime_unverified",
+      "verification_level": "Official public homepage and H1B page read; account, subscription, personalized results and actual emails remain unverified.",
+      "observations": {
+        "kind": "aggregator_and_recommendation",
+        "scope": "US-oriented personalized role/location/experience matching; H1B jobs discovery page exists.",
+        "access": [
+          "public_page",
+          "authenticated_user_browser",
+          "user_authorized_email_if_received"
+        ],
+        "api": "No supported public job-reader API verified.",
+        "pagination": "Not verified; do not assume hidden endpoints or full result export.",
+        "freshness": "Homepage claims early alerts and new jobs; timing/completeness not independently established. Email frequency not documented in the official material retrieved.",
+        "account_and_cost": "Homepage has sign-in and Try For Free. Job-seeker paid pricing and user plan not verified; employer pricing is a separate product.",
+        "lineage": "Discovery layer; employer/ATS destination is canonical. H1B label must not overwrite current job-specific authorization text."
+      },
+      "evidence_urls": [
+        "https://jobright.ai/",
+        "https://jobright.ai/h1b-jobs",
+        "https://jobright.ai/employers/pricing"
+      ]
+    },
+    {
+      "id": "web-simplify",
+      "category": "web_jobs",
+      "name": "Simplify",
+      "canonical_url": "https://simplify.jobs/",
+      "provider_family": "simplify",
+      "priority": "P1",
+      "integration_status": "catalog_only_account_and_runtime_unverified",
+      "verification_level": "Official homepage FAQ and dashboard email settings inspected; actual user feed and emails not checked.",
+      "observations": {
+        "kind": "aggregator_and_curated_lists",
+        "scope": "Particularly relevant internships and entry-level/new-grad; broader software and data roles also covered.",
+        "access": [
+          "public_page",
+          "authenticated_user_browser",
+          "user_authorized_email"
+        ],
+        "api": "No supported public job-reader API verified.",
+        "pagination": "No complete reader export verified; daily recommendations are a subset.",
+        "freshness": "Official FAQ says it indexes job boards and career pages daily; page also markets hourly additions. Dashboard emails can be Daily, Weekly or Never.",
+        "account_and_cost": "Official FAQ says matches/autofill/tracker free; Simplify+ paid extras. Account used for personalized feed; user plan not checked.",
+        "lineage": "Explicitly indexes 50+ boards and employer pages; GitHub lists and Simplify website may share upstream jobs. Preserve origin links and deduplicate across channels."
+      },
+      "evidence_urls": [
+        "https://simplify.jobs/",
+        "https://help.simplify.jobs/en/articles/6390631-navigating-your-dashboard"
+      ]
+    },
+    {
+      "id": "web-handshake",
+      "category": "web_jobs",
+      "name": "Handshake",
+      "canonical_url": "https://joinhandshake.com/",
+      "provider_family": "handshake",
+      "priority": "P1",
+      "integration_status": "catalog_only_account_and_runtime_unverified",
+      "verification_level": "Official search and alert docs inspected; user account/access not checked.",
+      "observations": {
+        "kind": "campus_employer_board",
+        "scope": "Student/new-grad internships and full-time jobs; graduation date, school year and major preferences.",
+        "access": [
+          "authenticated_user_browser",
+          "user_authorized_email"
+        ],
+        "api": "No public candidate job-reader API verified.",
+        "pagination": "Alert email contains at most 25 postings; full results require signed-in saved search.",
+        "freshness": "Daily/weekly email, app or push for saved searches; application deadlines may be supplied.",
+        "account_and_cost": "Account/school-specific access must be verified; no account/payment or school eligibility assumed.",
+        "lineage": "Employers can post campus-specific opportunities; same requisition can appear at employer ATS and other boards, but exclusive campus descriptions should be retained."
+      },
+      "evidence_urls": [
+        "https://joinhandshake.com/",
+        "https://support.joinhandshake.com/hc/en-us/articles/218693388-Saving-Job-Searches-and-Receiving-Job-Alerts",
+        "https://joinhandshake.com/blog/students/how-to-find-the-jobs-you-want-on-handshake/",
+        "https://joinhandshake.com/blog/students/finding-a-job-on-handshake-faqs/"
+      ]
+    },
+    {
+      "id": "web-nuworks",
+      "category": "web_jobs",
+      "name": "Northeastern NUworks (Symplicity)",
+      "canonical_url": "https://northeastern-csm.symplicity.com/students/?signin_tab=0",
+      "provider_family": "nuworks",
+      "priority": "P1",
+      "integration_status": "catalog_only_account_and_runtime_unverified",
+      "verification_level": "Official NEU policy and actual public login page inspected; no login or private content accessed.",
+      "observations": {
+        "kind": "university_employer_board",
+        "scope": "Northeastern co-op and university career opportunities; select US campus/role eligibility downstream.",
+        "access": [
+          "school_authenticated_browser",
+          "user_saved_export_or_email_if_available"
+        ],
+        "api": "No public candidate reader API or export feed verified.",
+        "pagination": "Behind school access; not inspected.",
+        "freshness": "Employer search-cycle dates/deadlines matter. Actual alert cadence not verified.",
+        "account_and_cost": "Student/alumni sign-in page confirmed. Co-op searching requires relevant eligibility and advisor/resume approval per official NEU guidance; this user's eligibility not established.",
+        "lineage": "Potential university-specific opportunities plus duplicates of employer careers jobs. Preserve NUworks posting ID and school-only context."
+      },
+      "evidence_urls": [
+        "https://northeastern-csm.symplicity.com/students/?signin_tab=0",
+        "https://careers.northeastern.edu/co-op-information/",
+        "https://damore-mckim.northeastern.edu/cooperative-education/employer-faq/"
+      ]
+    },
+    {
+      "id": "web-wellfound",
+      "category": "web_jobs",
+      "name": "Wellfound",
+      "canonical_url": "https://wellfound.com/candidates/overview",
+      "provider_family": "wellfound",
+      "priority": "P1",
+      "integration_status": "catalog_only_account_and_runtime_unverified",
+      "verification_level": "Official candidate and saved-search docs inspected; user account and actual alerts unverified.",
+      "observations": {
+        "kind": "startup_employer_board",
+        "scope": "Startup and tech roles; US/remote filters needed; not primarily new-grad.",
+        "access": [
+          "public_page",
+          "authenticated_user_browser",
+          "user_authorized_email"
+        ],
+        "api": "No supported public candidate job-reader API verified.",
+        "pagination": "Web/search-specific; alerts not a complete feed.",
+        "freshness": "Saved search emails daily or weekly for matching new jobs.",
+        "account_and_cost": "Official candidate overview says job seekers use it free; saved alerts require sign-in.",
+        "lineage": "Employer listings may be direct to platform or duplicated on employer ATS; retain startup and compensation context."
+      },
+      "evidence_urls": [
+        "https://wellfound.com/candidates/overview",
+        "https://help.wellfound.com/article/782-saved-searches"
+      ]
+    },
+    {
+      "id": "web-yc_work_at_a_startup",
+      "category": "web_jobs",
+      "name": "Y Combinator Work at a Startup",
+      "canonical_url": "https://www.ycombinator.com/jobs/",
+      "provider_family": "yc_work_at_a_startup",
+      "priority": "P1",
+      "integration_status": "catalog_only_account_and_runtime_unverified",
+      "verification_level": "Official YC jobs page retrieved with US and non-US job examples. Account/email recommendations not inspected.",
+      "observations": {
+        "kind": "portfolio_employer_board",
+        "scope": "Only YC companies; backend/infrastructure/software roles, mixed levels and countries.",
+        "access": [
+          "public_page",
+          "authenticated_user_browser"
+        ],
+        "api": "No supported public reader API verified.",
+        "pagination": "Public board listing and role/company pages; completeness not tested.",
+        "freshness": "Official landing lists recently added jobs; no refresh SLA verified.",
+        "account_and_cost": "Public listings readable; single-profile applications/letting founders contact candidates require a profile. No job-seeker payment requirement observed, exact pricing not audited.",
+        "lineage": "Portfolio-specific employer channel, often same employer role as ATS. Do not count two YC front doors as independent sources."
+      },
+      "evidence_urls": [
+        "https://www.ycombinator.com/jobs/",
+        "https://www.workatastartup.com/"
+      ]
+    },
+    {
+      "id": "web-builtin",
+      "category": "web_jobs",
+      "name": "Built In",
+      "canonical_url": "https://builtin.com/jobs",
+      "provider_family": "builtin",
+      "priority": "P2",
+      "integration_status": "catalog_only_account_and_runtime_unverified",
+      "verification_level": "Official coverage and product overview inspected; personalized account state unknown.",
+      "observations": {
+        "kind": "tech_employer_board_and_aggregator",
+        "scope": "US technology hubs, all states and remote; international listings including Canada exist.",
+        "access": [
+          "public_page",
+          "authenticated_user_browser",
+          "user_authorized_email_if_enabled"
+        ],
+        "api": "No supported public candidate reader API verified.",
+        "pagination": "Public search-specific; full export not verified.",
+        "freshness": "Official overview advertises real-time listings and personalized alerts; no latency SLA or email cadence verified.",
+        "account_and_cost": "Public information readable; personalized-alert login/payment requirements not verified in this audit.",
+        "lineage": "Company profiles and jobs may overlap ATS/LinkedIn. Helpful tech-stack context; canonical employer apply link preferred."
+      },
+      "evidence_urls": [
+        "https://builtin.com/jobs",
+        "https://builtin.com/articles/our-sites"
+      ]
+    },
+    {
+      "id": "web-google_jobs",
+      "category": "web_jobs",
+      "name": "Google job discovery / targeted web search",
+      "canonical_url": "https://support.google.com/websearch/answer/7498276?hl=en",
+      "provider_family": "google_jobs",
+      "priority": "P2",
+      "integration_status": "catalog_only_account_and_runtime_unverified",
+      "verification_level": "Current official Search Help and JobPosting publisher docs read.",
+      "observations": {
+        "kind": "search_aggregator",
+        "scope": "Cross-web employer/board discovery, including obscure employers and ATS tenants.",
+        "access": [
+          "public_search",
+          "account_dependent_alerts"
+        ],
+        "api": "No public Google Jobs market-wide reader API verified. Google indexing/JobPosting submission APIs are publisher mechanisms, not a candidate jobs feed.",
+        "pagination": "Search ranking/index coverage is not an exhaustive export.",
+        "freshness": "Indexing can lag source changes. Listing date and personalized new-to-you differ from employer original post date; alert availability depends on account/region/experience.",
+        "account_and_cost": "Public search accessible; some save/alert personalization depends on signed-in Google account. No account settings checked.",
+        "lineage": "Explicitly collects employers and career sites across the web; mainly discovers sources/canonical links, not independent employer evidence."
+      },
+      "evidence_urls": [
+        "https://support.google.com/websearch/answer/7498276?hl=en",
+        "https://developers.google.com/search/docs/appearance/structured-data/job-posting"
+      ]
+    },
+    {
+      "id": "web-indeed",
+      "category": "web_jobs",
+      "name": "Indeed",
+      "canonical_url": "https://www.indeed.com/",
+      "provider_family": "indeed",
+      "priority": "P2",
+      "integration_status": "catalog_only_account_and_runtime_unverified",
+      "verification_level": "Official current alert help inspected; account/email access not verified.",
+      "observations": {
+        "kind": "aggregator_and_employer_board",
+        "scope": "Broad US employers beyond technology companies; technical/experience precision requires filtering.",
+        "access": [
+          "public_page_when_available",
+          "authenticated_user_browser",
+          "user_authorized_email"
+        ],
+        "api": "No public general candidate-reader API verified; partner/employer APIs must not be assumed to expose market-wide listings.",
+        "pagination": "Search/email subset; account result completeness not inspected.",
+        "freshness": "Job alert email frequency is editable. Email location matches may broaden beyond exact location; official help says open alert search to view exact-location matches.",
+        "account_and_cost": "Indeed account explicitly required to create or receive alerts. Pricing entitlement not audited; no purchase needed for research.",
+        "lineage": "Employer posts and syndicated jobs can duplicate ATS/LinkedIn; retain Indeed listing ID and actual employer."
+      },
+      "evidence_urls": [
+        "https://www.indeed.com/",
+        "https://support.indeed.com/hc/en-us/articles/204488890-Starting-Stopping-and-Managing-Job-Alerts"
+      ]
+    },
+    {
+      "id": "web-dice",
+      "category": "web_jobs",
+      "name": "Dice",
+      "canonical_url": "https://www.dice.com/",
+      "provider_family": "dice",
+      "priority": "P2",
+      "integration_status": "catalog_only_account_and_runtime_unverified",
+      "verification_level": "Official Dice candidate alert guide and Greenhouse Easy Post description read; actual user feed unverified.",
+      "observations": {
+        "kind": "tech_employer_and_recruiter_board",
+        "scope": "US technology roles including infrastructure, cloud and data; separate employer-direct from staffing/recruiter postings and check seniority.",
+        "access": [
+          "public_page",
+          "authenticated_user_browser",
+          "user_authorized_email"
+        ],
+        "api": "No supported public candidate-reader API verified.",
+        "pagination": "Search result/email-specific; full export not verified.",
+        "freshness": "Daily/weekly keyword-and-filter alerts or profile-based recommended job alerts.",
+        "account_and_cost": "Registered, signed-in Dice technologist account required for saved alerts; user account/payment not audited.",
+        "lineage": "Employer/staffing listings and ATS syndication overlap; preserve agency versus hiring-company identity."
+      },
+      "evidence_urls": [
+        "https://www.dice.com/",
+        "https://www.dice.com/support/candidate-help/finding-a-job/job-alerts-and-setting-them-up.html",
+        "https://www.dice.com/hiring/whats-new"
+      ]
+    },
+    {
+      "id": "web-usajobs",
+      "category": "web_jobs",
+      "name": "USAJOBS",
+      "canonical_url": "https://www.usajobs.gov/",
+      "provider_family": "usajobs",
+      "priority": "P2_conditional",
+      "integration_status": "catalog_only_account_and_runtime_unverified",
+      "verification_level": "Official API/date/profile/eligibility docs inspected. Federal employment generally requires US citizenship or nationality with exceptions; evaluate each announcement, not inferred user status.",
+      "observations": {
+        "kind": "government_primary_board",
+        "scope": "US federal jobs, internships/recent-graduate hiring paths. Eligibility restrictions make it optional for a user needing sponsorship.",
+        "access": [
+          "documented_api_with_key",
+          "public_page",
+          "authenticated_email_alerts"
+        ],
+        "api": "GET https://data.usajobs.gov/api/Search requires requested USAJOBS API key.",
+        "pagination": "Page and ResultsPerPage; default 250 and maximum 500 per page.",
+        "freshness": "PublicationStartDate, PositionStartDate, PositionEndDate, ApplicationCloseDate. Saved-search emails documented.",
+        "account_and_cost": "API key registration required; saved searches require USAJOBS/Login.gov profile. No keys or accounts created.",
+        "lineage": "Canonical federal announcement ID; agency-specific application destinations should be preserved."
+      },
+      "evidence_urls": [
+        "https://www.usajobs.gov/",
+        "https://developer.usajobs.gov/api-reference/job-apis",
+        "https://developer.usajobs.gov/api-reference/get-api-search",
+        "https://help.usajobs.gov/how-to/account/profile",
+        "https://help.usajobs.gov/working-in-government/non-citizens"
+      ]
+    },
+    {
+      "id": "web-hiringcafe",
+      "category": "web_jobs",
+      "name": "HiringCafe",
+      "canonical_url": "https://hiringcafe.com/",
+      "provider_family": "hiringcafe",
+      "priority": "P1",
+      "integration_status": "catalog_only",
+      "verification_level": "public_primary_pages_inspected",
+      "observations": {
+        "kind": "job_aggregator",
+        "coverage": "Company career-page discovery; software and other roles, all levels. Public date/title/experience/education/clearance filters observed.",
+        "access": "Public listing inspected; no login, email alert or supported reader API verified.",
+        "freshness": "Relative listing ages (1h/2h) observed; not proof of employer original posting date or currently open status.",
+        "lineage": "Resolve original employer JobPosting link. hiring.cafe redirects to hiringcafe.com; one provider. Mixed US/Canada rows still need downstream exclusion."
+      },
+      "evidence_urls": [
+        "https://hiringcafe.com/",
+        "https://hiring.cafe/"
+      ]
+    },
+    {
+      "id": "web-levels-jobs",
+      "category": "web_jobs",
+      "name": "Levels.fyi Jobs and Internships",
+      "canonical_url": "https://www.levels.fyi/jobs/title/software-engineer/level/internship",
+      "provider_family": "levels-jobs",
+      "priority": "P2",
+      "integration_status": "catalog_only",
+      "verification_level": "public_primary_pages_inspected",
+      "observations": {
+        "kind": "job_aggregator_and_compensation_context",
+        "coverage": "Intern and entry-role discovery plus compensation context; worldwide, including non-US roles.",
+        "access": "Public job and internship pages inspected; no supported reader API or account capabilities verified.",
+        "freshness": "Date/location/title/level controls and listing context observed; check employer page for original date/open status.",
+        "lineage": "Jobs and internship salary pages are one provider, not independent confirmation of an opening."
+      },
+      "evidence_urls": [
+        "https://www.levels.fyi/jobs/title/software-engineer/level/internship",
+        "https://www.levels.fyi/internships/"
+      ]
+    },
+    {
+      "id": "web-hn-who-is-hiring",
+      "category": "web_jobs",
+      "name": "Hacker News Who is hiring",
+      "canonical_url": "https://news.ycombinator.com/item?id=49922569",
+      "provider_family": "hn-who-is-hiring",
+      "priority": "P2",
+      "integration_status": "catalog_only",
+      "verification_level": "public_primary_pages_inspected",
+      "observations": {
+        "kind": "community_employer_posts",
+        "coverage": "Monthly hiring thread; startup/backend/infra opportunities, mixed seniority and countries. Employers self-post; many senior roles.",
+        "access": "Public October 2026 thread and official HN API documentation inspected; no connector implemented.",
+        "freshness": "Use each hiring comment time and monthly parent thread separately. HN API item.time is Unix seconds; edited/replied does not imply a new vacancy.",
+        "lineage": "Employer identity is self-declared; verify company/apply destination. Mirrors of the same HN comment count once. Who wants to be hired is a different candidate-ad thread."
+      },
+      "evidence_urls": [
+        "https://news.ycombinator.com/item?id=49922569",
+        "https://github.com/HackerNews/API"
+      ]
+    },
+    {
+      "id": "research-1point3acres",
+      "category": "interview_feedback",
+      "name": "一亩三分地 / 1Point3Acres",
+      "canonical_url": "https://www.1point3acres.com/bbs/forum.php?mod=forumdisplay&fid=145",
+      "provider_family": "1point3acres",
+      "priority": "P1",
+      "integration_status": "research_catalog_only",
+      "verification_level": "public_surface_or_samples_checked_no_paid_account_access",
+      "observations": {
+        "category": "community_firsthand_and_mixed",
+        "verified_filters": "Forum visibly provides year, season, job category, round, full-time/intern type, education, source, YOE, company, outcome, new-grad/job-change, difficulty; post-time sorting and 1 day/2 days/1 week/1 month/3 months windows.",
+        "recency": "Fresh-looking cards and 2026 season tags observed, but list crawl-relative dates are not exact live post timestamps. Newest reply differs from newest thread. Job season may mean recruiting cycle, not interview event date.",
+        "access": "Public list/partial posts. Login, points, per-post reading permissions and paid VIP/Premium entrances observed; full content depends on exact post/account.",
+        "usage": "Primary Chinese candidate source. Still manually confirm US city/country; overseas forum also contains Singapore and other regions. Separate forum originals from editorial premium question summaries.",
+        "confidence": "High for platform capabilities; report truth remains anonymous self-report."
+      },
+      "evidence_urls": [
+        "https://www.1point3acres.com/bbs/forum.php?mod=forumdisplay&fid=145",
+        "https://www.1point3acres.com/bbs/forum.php?digest=1&fid=145&filter=digest&mod=forumdisplay",
+        "https://jobs.1point3acres.com/",
+        "https://www.1point3acres.com/interview"
+      ]
+    },
+    {
+      "id": "research-leetcode",
+      "category": "interview_feedback",
+      "name": "LeetCode Discuss",
+      "canonical_url": "https://leetcode.com/discuss/",
+      "provider_family": "leetcode",
+      "priority": "P1",
+      "integration_status": "research_catalog_only",
+      "verification_level": "public_surface_or_samples_checked_no_paid_account_access",
+      "observations": {
+        "category": "community_firsthand_and_mixed",
+        "verified_filters": "Search and company/interview tags observed; company, role, location, level usually require text matching. Do not claim structured region/level/date filters were tested.",
+        "recency": "Amazon sample explicitly posted Jun 19 2026 with May/June round dates. Google 2026 new-grad India sample posted Nov 24 2025: cohort year is not event year. Stripe 2026 title has no date or location in parsed article.",
+        "access": "Sample full posts public; posting/comments require login; Premium company question frequency products are distinct.",
+        "usage": "Good low-cost original narrative source, but many India reports. Accept US evidence only with explicit US location; site footer United States is not job location.",
+        "confidence": "High for observed public samples; medium/low per anonymous report."
+      },
+      "evidence_urls": [
+        "https://leetcode.com/discuss/",
+        "https://leetcode.com/discuss/post/8343668/amazon-sde-1-interview-experience-2026-s-uroi/",
+        "https://leetcode.com/discuss/post/7371064/",
+        "https://leetcode.com/discuss/post/7566910/"
+      ]
+    },
+    {
+      "id": "research-reddit",
+      "category": "interview_feedback",
+      "name": "Reddit",
+      "canonical_url": "https://www.reddit.com/r/csMajors/",
+      "provider_family": "reddit",
+      "priority": "P1",
+      "integration_status": "research_catalog_only",
+      "verification_level": "public_surface_or_samples_checked_no_paid_account_access",
+      "observations": {
+        "category": "community_firsthand_and_mixed",
+        "verified_filters": "Official help confirms New sorting and past hour/day/week/month/year filters; scope to subreddit and search company + role + USA. No exact 90/180-day built-in claim.",
+        "recency": "Amazon US new-grad Seattle sample indexed as posted Oct 9 2026, body says interview Aug 17 (year unstated). Event age differs from publication age. Comments need their own timestamps/permalinks.",
+        "access": "Public samples readable; login or other restrictions may occur for particular pages. Do not assume complete coverage.",
+        "usage": "r/csMajors for internships/new-grad timelines, r/leetcode for loops, r/cscareerquestions for broader recruiting. Exclude prep requests, ads, affiliate posts and hearsay from firsthand counts.",
+        "confidence": "Good discovery, report-level identity and truth unverified."
+      },
+      "evidence_urls": [
+        "https://www.reddit.com/r/csMajors/",
+        "https://www.reddit.com/r/leetcode/",
+        "https://www.reddit.com/r/cscareerquestions/",
+        "https://support.reddithelp.com/hc/en-us/articles/19695706914196-What-filters-and-sorts-are-available",
+        "https://www.reddit.com/r/leetcode/comments/1x1fmxc/amazon_sde_1_usa_interview_experience_4_rounds/"
+      ]
+    },
+    {
+      "id": "research-glassdoor",
+      "category": "interview_feedback",
+      "name": "Glassdoor Interviews",
+      "canonical_url": "https://www.glassdoor.com/Interview/junior-software-engineer-interview-questions-SRCH_KO0%2C24_SDRD.htm",
+      "provider_family": "glassdoor",
+      "priority": "P1",
+      "integration_status": "research_catalog_only",
+      "verification_level": "public_surface_or_samples_checked_no_paid_account_access",
+      "observations": {
+        "category": "candidate_reviews",
+        "verified_filters": "Job title, company links, location input and Most recent sorting visible; exact level needs job-title/body validation.",
+        "recency": "Public junior listing includes Aug 2026 entries. An older sample separately shows review Feb 28 2023 and interview Oct 2022, proving dates differ. Latest US company-specific full reports not verified.",
+        "access": "Public previews/sample reviews accessible; Sign in/Register surface observed. Access varies by session; do not promise unrestricted or free complete database.",
+        "usage": "Useful for rounds, duration, treatment and outcomes. Enforce US location and role match; global aggregate ratings are not current team/job-specific evidence.",
+        "confidence": "High for date/layout observation; self-selected candidate reviews."
+      },
+      "evidence_urls": [
+        "https://www.glassdoor.com/Interview/junior-software-engineer-interview-questions-SRCH_KO0%2C24_SDRD.htm",
+        "https://www.glassdoor.com/Interview/Levels-Fyi-Interview-Questions-E6293503.htm"
+      ]
+    },
+    {
+      "id": "research-blind",
+      "category": "interview_feedback",
+      "name": "Blind",
+      "canonical_url": "https://www.teamblind.com/channels/interview-experiences",
+      "provider_family": "blind",
+      "priority": "P2",
+      "integration_status": "research_catalog_only",
+      "verification_level": "public_surface_or_samples_checked_no_paid_account_access",
+      "observations": {
+        "category": "community_firsthand_and_mixed",
+        "verified_filters": "Search, interview-experiences channel and regional/job-function channels visible. No structured company+level+date-range filter confirmed.",
+        "recency": "Public feed shows relative post age and LinkedIn Staff L6 loop, Anthropic and Roblox recruiting accounts. Must resolve exact permalink/timestamp before quoting; company badge refers to poster affiliation, not interviewed employer.",
+        "access": "Public excerpts/read-more and login/signup visible; full-post availability varies. Work-email verification or badge does not independently verify interview story.",
+        "usage": "Strong follow-up source for timelines, treatment, team/headcount reports; staff/senior heavy, so don't extrapolate to new-grad.",
+        "confidence": "Medium discovery; no verified US entry-level dated sample in this audit."
+      },
+      "evidence_urls": [
+        "https://www.teamblind.com/channels/interview-experiences",
+        "https://www.teamblind.com/channels",
+        "https://www.teamblind.com/"
+      ]
+    },
+    {
+      "id": "research-indeed",
+      "category": "interview_feedback",
+      "name": "Indeed company interview pages",
+      "canonical_url": "https://www.indeed.com/cmp/Microsoft",
+      "provider_family": "indeed",
+      "priority": "P3",
+      "integration_status": "research_catalog_only",
+      "verification_level": "public_surface_or_samples_checked_no_paid_account_access",
+      "observations": {
+        "category": "candidate_reviews",
+        "verified_filters": "Role-specific interview URLs/search results exist; US interview URL redirected to company landing page in current fetch, so detailed live filtering not verified.",
+        "recency": "Official indexed US company page describes a five-year aggregate and older Shared on dates; AWS sample indexed Feb 21 2025. No fresh US SWE sample established.",
+        "access": "Some summaries publicly indexed; detailed content/fetch may vary.",
+        "usage": "Secondary recruiting-experience cross-check, especially non-big-tech employers; low priority for fresh specialized SWE questions. Never use ca.indeed.com to fill US evidence.",
+        "confidence": "Medium for platform function; low freshness for current target."
+      },
+      "evidence_urls": [
+        "https://www.indeed.com/cmp/Microsoft",
+        "https://www.indeed.com/cmp/Microsoft/interviews?fjobtitle=Software+Engineer",
+        "https://www.indeed.com/cmp/Amazon-Web-Services-05cb4ad1"
+      ]
+    },
+    {
+      "id": "research-prachub",
+      "category": "interview_feedback",
+      "name": "PracHub",
+      "canonical_url": "https://prachub.com/about",
+      "provider_family": "prachub",
+      "priority": "P2",
+      "integration_status": "research_catalog_only",
+      "verification_level": "public_surface_or_samples_checked_no_paid_account_access",
+      "observations": {
+        "category": "mixed_candidate_and_curated_derived_reports",
+        "verified_filters": "Experience listing has company, role, round, seniority; Newest/Popular buttons. No location filter or exact date-range filter seen. Question library separately supports category.",
+        "recency": "OpenAI sample: Published Oct 3 2026, interview month Oct 2026, curated/edited. Anthropic compilation: Published Oct 6 2026; sidebar says interview Oct 2026 even though body explicitly calls itself compilation, not own interview.",
+        "access": "Sample experience bodies public; About describes XP/Premium for questions and solutions. Per-experience membership boundaries unverified. Pricing page remained Loading; no price confirmed.",
+        "usage": "Useful discovery and prep index, but preserve original source/translation/edition and deduplicate against 1P3A/Reddit/Glassdoor. Compilation not independent candidate evidence. 'Added' is not interview date.",
+        "confidence": "High for official identity/UI; mixed provenance and date semantics require per-item verification."
+      },
+      "evidence_urls": [
+        "https://prachub.com/about",
+        "https://prachub.com/interview-experiences",
+        "https://prachub.com/pricing",
+        "https://prachub.com/interview-experiences/openai-software-engineer-interview-experience-fault-tolerant-work-queue-coding-plus-a-metrics-monitoring-design-round",
+        "https://prachub.com/interview-experiences/anthropic-software-engineer-interview-experience-a-compilation-on-culture-practical-coding-and-timelines"
+      ]
+    },
+    {
+      "id": "research-interviewdb",
+      "category": "interview_feedback",
+      "name": "InterviewDB (.io)",
+      "canonical_url": "https://www.interviewdb.io/",
+      "provider_family": "interviewdb",
+      "priority": "P2",
+      "integration_status": "research_catalog_only",
+      "verification_level": "public_surface_or_samples_checked_no_paid_account_access",
+      "observations": {
+        "category": "crowdsourced_and_aggregated_question_bank",
+        "verified_filters": "Company index; official homepage says role and stage (OA/phone/onsite); company table includes Last Reported and Frequency.",
+        "recency": "Faire table showed entries with relative Last Reported dates and page update title. Detail page only Loading; actual latest event date/region/level not verified.",
+        "access": "Public company index/table preview; homepage references points/cost FAQ and content-request services. Full question access/price not verified without account.",
+        "usage": "Similar to PracHub for question preparation; official homepage names user submissions and 1P3A among inputs. Do not count aggregates as independent corroboration or request hidden originals.",
+        "confidence": "High identity/declared provenance; medium table availability, low latest full-content verification."
+      },
+      "evidence_urls": [
+        "https://www.interviewdb.io/",
+        "https://www.interviewdb.io/get-started",
+        "https://www.interviewdb.io/question/faire",
+        "https://www.interviewdb.io/question/faire/haiku-substring"
+      ]
+    },
+    {
+      "id": "research-interview-query",
+      "category": "interview_feedback",
+      "name": "Interview Query",
+      "canonical_url": "https://www.interviewquery.com/guides",
+      "provider_family": "interview-query",
+      "priority": "P2",
+      "integration_status": "research_catalog_only",
+      "verification_level": "public_surface_or_samples_checked_no_paid_account_access",
+      "observations": {
+        "category": "candidate_reports_plus_editorial_and_AI_anonymization",
+        "verified_filters": "Company, role and Last 90 days visible on experiences feed. Entry cards separate posted grouping from Interviewed Qx yyyy. Region/level filters not confirmed.",
+        "recency": "Feed has Oct 2026 postings/Q4 events; Crusoe SWE page has Q1-Q4 2026 reports. Quarter precision cannot justify exact day or guaranteed 30-day freshness.",
+        "access": "Public excerpts and some full text; Crusoe says share a genuine experience or subscribe to unlock all seven reports. No fabricated contribution to unlock.",
+        "usage": "Strong DS/DE/ML and usable SWE/infra. Crusoe page explicitly says some accounts AI-anonymized and guide synthesized by editorial team; preserve these provenance flags.",
+        "confidence": "High platform/access observation; candidate substance remains unverified, transformed prose is not verbatim."
+      },
+      "evidence_urls": [
+        "https://www.interviewquery.com/guides",
+        "https://www.interviewquery.com/guides/crusoe-energy-software-engineer",
+        "https://theloop.interviewquery.com/"
+      ]
+    },
+    {
+      "id": "research-hello-interview",
+      "category": "interview_feedback",
+      "name": "Hello Interview",
+      "canonical_url": "https://www.hellointerview.com/community/questions",
+      "provider_family": "hello-interview",
+      "priority": "P2",
+      "integration_status": "research_catalog_only",
+      "verification_level": "public_surface_or_samples_checked_no_paid_account_access",
+      "observations": {
+        "category": "reported_questions_plus_editorial_prep",
+        "verified_filters": "Company input, level, region, type, Recent and Popular sort visible.",
+        "recency": "Question cards/dates were not returned in public parser; site claim of recent real questions is not proof of latest US NG event.",
+        "access": "Public learning content and community surface; Premium entrance visible. Exact community full-access limits not confirmed.",
+        "usage": "Helpful for system design, practical coding, ML design, backend/infra prep. Treat user-reported questions separately from staff-written guides/mock exercises and success testimonials.",
+        "confidence": "High filter-surface observation; latest dated report not verified."
+      },
+      "evidence_urls": [
+        "https://www.hellointerview.com/community/questions",
+        "https://www.hellointerview.com/learn",
+        "https://www.hellointerview.com/"
+      ]
+    },
+    {
+      "id": "research-aced",
+      "category": "interview_feedback",
+      "name": "Aced (formerly Exponent)",
+      "canonical_url": "https://www.tryexponent.com/questions",
+      "provider_family": "aced",
+      "priority": "P2",
+      "integration_status": "research_catalog_only",
+      "verification_level": "public_surface_or_samples_checked_no_paid_account_access",
+      "observations": {
+        "category": "candidate_and_interviewer_experiences_plus_prep",
+        "verified_filters": "Experiences page exposes role/company and Verified marker; question bank has role/company/category. Exact region/date-range controls not confirmed.",
+        "recency": "Cards distinguish Posted age from interview month: e.g. Meta Computer Vision L5 posted ~1 month ago, interview Jul 2026; Netflix EM posted ~5 months ago, interview Dec 2025. Header updated 6 hours ago is feed update only.",
+        "access": "Public previews; share genuine interview experience or membership for full experience access. Full article fetch failed; no prices verified.",
+        "usage": "Recent loop discovery with visible seniority; current visible samples are experienced hires, not NG. Verified is platform assertion, not employer validation.",
+        "confidence": "High current brand/preview/date distinction; no full report verification."
+      },
+      "evidence_urls": [
+        "https://www.tryexponent.com/questions",
+        "https://www.aced.io/questions",
+        "https://www.aced.io/experiences?src=nav"
+      ]
+    },
+    {
+      "id": "research-interviewing-io",
+      "category": "interview_feedback",
+      "name": "interviewing.io",
+      "canonical_url": "https://interviewing.io/learn",
+      "provider_family": "interviewing-io",
+      "priority": "P3",
+      "integration_status": "research_catalog_only",
+      "verification_level": "public_surface_or_samples_checked_no_paid_account_access",
+      "observations": {
+        "category": "mock_practice_and_editorial_process_guides",
+        "verified_filters": "Learning center browses company, programming language and technical topic; replay categories include ML/system-design/staff-level.",
+        "recency": "Company guides/replays exist; recent company hiring signals are advertised. Mock session dates must not be interpreted as actual employer interview event dates.",
+        "access": "Public guides/FAQ; signup/access to services and replay library varies; no cost checked.",
+        "usage": "Backend/full-stack interviewing rehearsal and guides grounded in interviewer experience. Not a primary stream of firsthand actual hiring-loop reports.",
+        "confidence": "High for product classification, not evidence of target job activity."
+      },
+      "evidence_urls": [
+        "https://interviewing.io/learn",
+        "https://interviewing.io/faq"
+      ]
+    },
+    {
+      "id": "research-igotanoffer",
+      "category": "interview_feedback",
+      "name": "IGotAnOffer",
+      "canonical_url": "https://igotanoffer.com/en/advice/google-interview-experience",
+      "provider_family": "igotanoffer",
+      "priority": "P3",
+      "integration_status": "research_catalog_only",
+      "verification_level": "public_surface_or_samples_checked_no_paid_account_access",
+      "observations": {
+        "category": "editorial_synthesis_and_coaching",
+        "verified_filters": "Articles organized by company/role; no structured candidate-event/date filters confirmed.",
+        "recency": "Google article Last updated Jun 15 2026 but mixes 2020/2023/2025/2026 source accounts. Article refresh does not refresh every underlying experience.",
+        "access": "Sample article public; paid coaching is separate.",
+        "usage": "Useful process overview and links back to original reports; never count its Glassdoor/Reddit quotations as additional independent evidence.",
+        "confidence": "High date/provenance observation; secondary source only."
+      },
+      "evidence_urls": [
+        "https://igotanoffer.com/en/advice/google-interview-experience",
+        "https://igotanoffer.com/en/advice"
+      ]
+    },
+    {
+      "id": "research-nowcoder",
+      "category": "interview_feedback",
+      "name": "牛客 / Nowcoder",
+      "canonical_url": "https://www.nowcoder.com/home/",
+      "provider_family": "nowcoder",
+      "priority": "P4",
+      "integration_status": "research_catalog_only",
+      "verification_level": "public_surface_or_samples_checked_no_paid_account_access",
+      "observations": {
+        "category": "community_firsthand_and_prep",
+        "verified_filters": "Company/role/tag discovery from indexed official pages; current detailed filter UI not successfully parsed.",
+        "recency": "Official samples visibly dated 2020 and 2017; new title keywords are not freshness proof. No recent US new-grad/infra sample established.",
+        "access": "Public indexed article bodies; homepage parser unreliable, other actions may need login.",
+        "usage": "Chinese supplement only when exact US role/location matches. Search returned many Amazon China accounts, so it should not be a default US evidence source.",
+        "confidence": "High historical examples, low current US relevance."
+      },
+      "evidence_urls": [
+        "https://www.nowcoder.com/home/",
+        "https://www.nowcoder.com/discuss/353156947144810496?sourceSSR=subject",
+        "https://www.nowcoder.com/discuss/353154037715509248"
+      ]
+    },
+    {
+      "id": "transport-gmail_job_emails",
+      "category": "mail_transport",
+      "name": "Gmail recommendation/alert emails",
+      "canonical_url": "https://developers.google.com/workspace/gmail/api/reference/rest/v1/users.messages/list",
+      "provider_family": "gmail_job_emails",
+      "priority": "P1",
+      "integration_status": "reader_implemented_but_deployed_source_disabled_oauth_pending",
+      "verification_level": "Official Gmail API docs only; no user mailbox read or connectivity test performed.",
+      "is_independent_job_origin": false,
+      "observations": {
+        "is_independent_job_origin": false,
+        "access": [
+          "oauth_readonly_api",
+          "user_saved_eml_html"
+        ],
+        "api": "users.messages.list with q/labelIds and maxResults<=500, follow nextPageToken; list returns IDs/threadIds, then messages.get retrieves body.",
+        "account_and_cost": "User OAuth required for the application's mailbox access; gmail.readonly is sufficient for body reading and query use. A connected chat tool is not proof the deployed application's mailbox is connected.",
+        "freshness": "Save Gmail internalDate (normal incoming mail acceptance time), email Date, ingest time and original job dates separately. Receipt time is not posted_at.",
+        "lineage": "Store sender source (LinkedIn/Simplify/employer), message id, original URL, redirected canonical URL and job ID. A message can contain multiple jobs; multiple messages can reference one job.",
+        "limitations": "Only delivered alerts; personalized sampling, truncation, spam filtering and unsubscribe state limit coverage. Restrict ingestion to designated job labels/senders; do not infer unrelated mailbox access."
+      },
+      "evidence_urls": [
+        "https://developers.google.com/workspace/gmail/api/reference/rest/v1/users.messages/list",
+        "https://developers.google.com/workspace/gmail/api/reference/rest/v1/users.messages"
+      ]
+    },
+    {
+      "id": "transport-outlook_job_emails",
+      "category": "mail_transport",
+      "name": "Outlook / Microsoft 365 recommendation emails",
+      "canonical_url": "https://learn.microsoft.com/graph/api/user-list-messages",
+      "provider_family": "outlook_job_emails",
+      "priority": "P1",
+      "integration_status": "reader_implemented_but_deployed_source_disabled_oauth_pending",
+      "verification_level": "Official Graph API/resource/permission docs inspected; no mailbox login, message reading or deployment validation.",
+      "is_independent_job_origin": false,
+      "observations": {
+        "is_independent_job_origin": false,
+        "access": [
+          "oauth_readonly_api",
+          "user_saved_eml_html"
+        ],
+        "api": "Microsoft Graph GET /me/mailFolders/{id}/messages; $top 1..1000 (default 10); follow entire @odata.nextLink without rewriting $skip.",
+        "account_and_cost": "Delegated user consent needed. Mail.ReadBasic excludes body; Mail.Read is suitable for reading job-email content. Work/school tenant consent policy can add a gate; no consent state assumed.",
+        "freshness": "Preserve receivedDateTime/sentDateTime, ingestion time and original job date separately.",
+        "lineage": "Retain sender platform and internetMessageId/Graph id along with canonical employer job link; Outlook is transport only.",
+        "limitations": "Only emails actually delivered into selected folders. Parent application's IMAP support, Graph docs and a connected app are separate capabilities; this audit does not switch its protocol."
+      },
+      "evidence_urls": [
+        "https://learn.microsoft.com/graph/api/user-list-messages",
+        "https://learn.microsoft.com/en-us/graph/api/resources/message?view=graph-rest-1.0",
+        "https://learn.microsoft.com/en-us/graph/permissions-reference#mailreadbasic"
+      ]
+    },
+    {
+      "id": "evidence-current_employer_job_text",
+      "category": "sponsorship_credibility",
+      "name": "Current official employer job and application text",
+      "canonical_url": "https://amazon.jobs/en-gb/jobs/10441358/2026-aws-sourcing-recruiter",
+      "provider_family": "current_employer_job_text",
+      "priority": "P0",
+      "integration_status": "research_catalog_only",
+      "verification_level": "Public role example inspected; not a recommended job.",
+      "observations": {
+        "evidence_tier": "primary_current_role",
+        "use": "Highest-priority evidence of this requisition's current work authorization and sponsorship restrictions. Save exact short excerpt, URL, requisition, observation time and scope.",
+        "limit": "One role's statement does not define company-wide policy. Silence means unknown. Historical employer sponsorship cannot override explicit current-role no-sponsorship text.",
+        "example": "Amazon's 2026 AWS Sourcing Recruiter job explicitly says sponsorship is unavailable; this is an example of role-level evidence, not a recommended software job."
+      },
+      "evidence_urls": [
+        "https://amazon.jobs/en-gb/jobs/10441358/2026-aws-sourcing-recruiter"
+      ]
+    },
+    {
+      "id": "evidence-uscis_h1b",
+      "category": "sponsorship_credibility",
+      "name": "USCIS H-1B Employer Data Hub",
+      "canonical_url": "https://www.uscis.gov/tools/reports-and-studies/h-1b-employer-data-hub",
+      "provider_family": "uscis_h1b",
+      "priority": "P0",
+      "integration_status": "research_catalog_only",
+      "verification_level": "Official USCIS FY2024 report was found in official-domain search results and describes the hub/quarterly data. Direct hub and PDF fetches failed in this web tool, so latest downloadable dataset and current portal usability remain unverified.",
+      "observations": {
+        "evidence_tier": "primary_historical_government",
+        "use": "Historical employer petition decisions; match legal employer/entity and fiscal year, distinguishing initial from continuing approvals.",
+        "limit": "Past decisions are not current job sponsorship commitments, vacancies or counts of distinct workers; employer names/entity/address differences complicate joins. Dataset time lag must be explicit.",
+        "excluded_sources": "Search surfaced USCIS-looking .us mirror domains; excluded because they are not uscis.gov."
+      },
+      "evidence_urls": [
+        "https://www.uscis.gov/tools/reports-and-studies/h-1b-employer-data-hub",
+        "https://www.uscis.gov/sites/default/files/document/reports/ola_signed_h1b_characteristics_congressional_report_FY24.pdf"
+      ]
+    },
+    {
+      "id": "evidence-dol_lca",
+      "category": "sponsorship_credibility",
+      "name": "DOL OFLC disclosure files and layouts",
+      "canonical_url": "https://www.dol.gov/agencies/eta/foreign-labor/performance",
+      "provider_family": "dol_lca",
+      "priority": "P0",
+      "integration_status": "research_catalog_only",
+      "verification_level": "Official DOL performance and FLAG LCA explanation read; large spreadsheet not downloaded or analyzed.",
+      "observations": {
+        "evidence_tier": "primary_historical_government",
+        "use": "Employer/job title/SOC/location/wage and case-status history; official page currently lists FY2026 Q3 LCA files plus worksite/appendix layouts.",
+        "limit": "LCA certification is a step before USCIS/State visa processing, not an approved H-1B visa, filled job or sponsorship offer. Keep fiscal-year/quarter and schema version."
+      },
+      "evidence_urls": [
+        "https://www.dol.gov/agencies/eta/foreign-labor/performance",
+        "https://flag.dol.gov/programs/lca"
+      ]
+    },
+    {
+      "id": "evidence-e_verify",
+      "category": "sponsorship_credibility",
+      "name": "E-Verify Employer Search",
+      "canonical_url": "https://www.e-verify.gov/e-verify-employer-search",
+      "provider_family": "e_verify",
+      "priority": "P0",
+      "integration_status": "research_catalog_only",
+      "verification_level": "Official caveat PDF and participation documentation indexed/read; direct search UI fetch failed, so no employer lookup verified.",
+      "observations": {
+        "evidence_tier": "primary_government_participation",
+        "use": "Supplementary employer participation check; preserve legal name and covered hiring-site context.",
+        "limit": "Participation does not promise sponsorship or authenticate a job ad. Official caveats: not every location is listed; names may differ; absence does not prove nonparticipation."
+      },
+      "evidence_urls": [
+        "https://www.e-verify.gov/e-verify-employer-search",
+        "https://www.e-verify.gov/sites/default/files/everify/E-VerifyEmployerSearchToolCaveats.pdf",
+        "https://www.e-verify.gov/node/2369"
+      ]
+    },
+    {
+      "id": "evidence-myvisajobs",
+      "category": "sponsorship_credibility",
+      "name": "MyVisaJobs",
+      "canonical_url": "https://www.myvisajobs.com/",
+      "provider_family": "myvisajobs",
+      "priority": "P2",
+      "integration_status": "research_catalog_only",
+      "verification_level": "Provider's official About page read; no subscription/login or employer record analysis performed.",
+      "observations": {
+        "evidence_tier": "secondary_aggregator",
+        "use": "Convenient employer/name/history discovery and secondary cross-check, followed by government source verification.",
+        "limit": "Official about page says data blends public sites, job boards, social networks and government agencies. It is not an independent government record or a current sponsorship commitment. Paid features and individual record completeness not audited."
+      },
+      "evidence_urls": [
+        "https://www.myvisajobs.com/",
+        "https://www.myvisajobs.com/aboutus.aspx"
+      ]
+    }
+  ],
+  "aliases": [
+    {
+      "requested": "cvrve/New-Grad",
+      "canonical": "vanshb03/New-Grad-2027",
+      "verified_by": "GitHub API metadata and web redirect"
+    },
+    {
+      "requested": "https://www.tryexponent.com/questions",
+      "canonical": "https://www.aced.io/questions"
+    },
+    {
+      "requested": "https://hiring.cafe/",
+      "canonical": "https://hiringcafe.com/"
+    }
+  ],
+  "temporal_rules": {
+    "as_of": "2026-10-10",
+    "windows": {
+      "days_30_from": "2026-09-10",
+      "days_90_from": "2026-07-12",
+      "days_180_from": "2026-04-13",
+      "days_365_from": "2025-10-10"
+    },
+    "fields": [
+      "event_date_start",
+      "event_date_end",
+      "event_date_precision",
+      "event_date_evidence",
+      "published_at",
+      "updated_at",
+      "indexed_at_if_known",
+      "retrieved_at",
+      "cohort_year",
+      "region",
+      "role_family",
+      "level",
+      "source_kind",
+      "access_state",
+      "original_url",
+      "canonical_url",
+      "duplicate_group_id"
+    ],
+    "rules": [
+      "Use interview event time for current-process relevance. If absent, label event date unknown and show post date separately; do not substitute.",
+      "Store month/quarter as intervals. If an interval crosses a cutoff, mark boundary uncertainty; do not fabricate a day. Future parts of Q4 are not observed evidence.",
+      "Latest replies, page/footer year, SEO title year, added/reported/verified date, compilation refresh, search publication estimate and crawl date are distinct.",
+      "Resolve relative dates only with a reliable page retrieval timestamp and preserve raw string; cached pages showing yesterday can be stale.",
+      "A 2027 intern/2026 new-grad cohort can be interviewed in 2026/2025; retain both cohort and event date.",
+      "Rank exact company+US+role+level above newer mismatched geography/seniority. Exclude Canada primary job/report matching; unknown location remains unknown.",
+      "Record separate dates/permalinks for comments and follow-ups; do not turn a current comment into a fresh original post.",
+      "No fresher exact match is a valid result. State no public <=90-day US matching report verified instead of supplying a generic SEO guide as fresh evidence."
+    ]
+  },
+  "interview_evidence_rules": [
+    "Classify original self-report, edited/anonymized self-report, repost/translation, multi-report compilation, editorial guide, mock/practice and promotion separately.",
+    "Deduplicate canonical URLs, crosslinks, distinctive question sequence, timeline/outcome and text similarity. Derived PracHub/InterviewDB/IQ/IGotAnOffer pages and originals share an evidence family.",
+    "One candidate story copied onto five platforms counts once; independent corroboration means distinct candidates/events with identifiable provenance, not domain count.",
+    "Use report observations for that candidate/team only. Do not infer employer-wide process, active headcount or sponsorship guarantee from a single anecdote.",
+    "Confidence should factor exact target match, event-date precision, full text vs preview, explicit firsthand status, transformations and independent agreement.",
+    "High confidence can mean confidence in what the page says; it does not establish that an anonymous claim happened. Label both source visibility and claim reliability.",
+    "Store short factual paraphrases and links, not full protected or paywalled report text. Respect public/member access boundaries."
+  ],
+  "interview_retrieval_order": [
+    "Resolve exact company identity, US location, role family, hiring level/cohort and requisition from official job and recruiter material first.",
+    "Search public original candidate sources: 1P3A, LeetCode Discuss, Reddit, Glassdoor; 30 days then 90 days, exact US+role+level match.",
+    "Consult PracHub/InterviewDB, Interview Query, Hello Interview and Aced to discover reports/questions; trace to original when available and keep derived status.",
+    "Blind and Indeed add recruiting-process/team signals; require exact target match and distinguish completed experience from requests for advice.",
+    "Expand to 180 then 365 days only if needed, labeling each expansion; preparation guides/mock tools and China-heavy sources are supplemental.",
+    "A paid membership choice should follow demonstrated recent exact-match preview inventory and original-source coverage, not headline counts or testimonials."
+  ],
+  "interview_dated_examples": [
+    {
+      "platform": "PracHub",
+      "url": "https://prachub.com/interview-experiences/openai-software-engineer-interview-experience-fault-tolerant-work-queue-coding-plus-a-metrics-monitoring-design-round",
+      "published": "2026-10-03",
+      "event_date": "2026-10 (month precision; platform field)",
+      "role": "Software Engineer",
+      "level": "unknown",
+      "region": "unknown",
+      "classification": "curated_edited_candidate_style_report",
+      "use": "Proves visible dating, not US entry-level match."
+    },
+    {
+      "platform": "PracHub",
+      "url": "https://prachub.com/interview-experiences/anthropic-software-engineer-interview-experience-a-compilation-on-culture-practical-coding-and-timelines",
+      "published": "2026-10-06",
+      "event_date": "Do not use: sidebar Oct 2026 conflicts with compilation character",
+      "classification": "secondary_compilation",
+      "use": "Concrete example of misleading event-date metadata and cross-source duplication."
+    },
+    {
+      "platform": "Reddit",
+      "url": "https://www.reddit.com/r/leetcode/comments/1x1fmxc/amazon_sde_1_usa_interview_experience_4_rounds/",
+      "published": "2026-10-09 (search rendering); page displays relative age",
+      "event_date": "Aug 17; year absent in body, 2026 only inferred",
+      "role": "SDE 1 / New grad",
+      "region": "USA, Seattle onsite explicitly in body",
+      "classification": "self_report",
+      "use": "Strong match, publication fresh but event older. Do not silently fill the year."
+    },
+    {
+      "platform": "Interview Query",
+      "url": "https://www.interviewquery.com/guides/crusoe-energy-software-engineer",
+      "event_date": "Q4 2026 (quarter precision)",
+      "role": "Software Engineer",
+      "region": "unknown",
+      "level": "unknown",
+      "classification": "AI_anonymized_candidate_report_plus_editorial_guide",
+      "use": "Infra/GPU topics present but role/region must be checked before applying to US NG."
+    },
+    {
+      "platform": "LeetCode",
+      "url": "https://leetcode.com/discuss/post/7371064/",
+      "published": "2025-11-24",
+      "event_date": "not exact",
+      "role": "Google Software Engineer University Graduate 2026",
+      "region": "India",
+      "classification": "self_report_excluded_geography",
+      "use": "Shows 2026 cohort title is not event date; excluded from US primary results."
+    },
+    {
+      "platform": "Aced",
+      "url": "https://www.aced.io/experiences?src=nav",
+      "published": "relative: 1 month ago",
+      "event_date": "2026-07",
+      "role": "Meta Computer Vision Engineer L5",
+      "region": "unknown",
+      "classification": "preview_only",
+      "use": "UI explicitly separates posting age and interview month; experienced hire not NG."
+    }
+  ],
+  "discovery_not_yet_verified": [
+    {
+      "name": "FastPrep",
+      "url": "https://www.fastprep.io/experience/google-2027-intern-interview-experiences-question-tracker-part-1-64d2q8f42p",
+      "finding": "Official indexed preview claims US 2027 SWE intern tracker, report Sep 30 2026; opened page returned Loading post and homepage timed out. Full provenance, access and date semantics unverified; do not promote to trusted catalog yet."
+    }
+  ],
+  "cross_source_rules": [
+    "Source repo branding/year is not cohort evidence; retain actual job title/season/terms/employer eligibility.",
+    "JSON contains closed/historical/non-US rows even when README is a fresh subset.",
+    "Preserve source + upstream ID + original URL + final employer URL + observed_at + employer posted_at + first_seen separately.",
+    "Use employer requisition identity/canonical URL to dedupe; multiple locations are not necessarily multiple vacancies.",
+    "Canada exclusion must match country/province/city context; CA alone can mean California and cannot be blanket-excluded. Remote without geographic eligibility remains unknown.",
+    "README window expiry and source disappearance are not employer closure.",
+    "No sources activated, no production files/config changed. Pure parser executed against fetched bytes only."
+  ],
+  "sample_employer_checks": [
+    {
+      "url": "https://job-boards.greenhouse.io/ctccampusboard/jobs/4709991005",
+      "source": "vanshb03/New-Grad-2027",
+      "observed": "Direct employer ATS rendered Associate Engineer 2027 Start, Chicago/New York, graduation Dec2026-Jun2027, Apply form present. No submission."
+    },
+    {
+      "url": "https://job-boards.greenhouse.io/figureai/jobs/4719593006",
+      "source": "ricsign/Ricsign-New-Grads-Jobs-2027",
+      "observed": "Direct employer ATS rendered Security Engineer Intern Winter2027 San Jose and Apply form. No submission."
+    },
+    {
+      "url": "https://jobs.ashbyhq.com/quora/452afc2e-0c79-41f8-8201-1aab7df775db",
+      "source": "vanshb03/New-Grad-2027",
+      "observed": "Web reader returned JavaScript-only shell; role open/closed not verified."
+    },
+    {
+      "url": "https://jobs.ashbyhq.com/aurelian/a2bc965f-d639-41f7-946a-67c05c22e04e",
+      "source": "ApplyGuy/2027-New-Grad-Jobs",
+      "observed": "Web title says Software Engineer (New Grad); body JavaScript-only, full eligibility/open state not verified."
+    }
+  ],
+  "verification_limits": [
+    "No paid/account-only platform contents accessed; no membership purchases or mailbox authorization.",
+    "Interview filtering capability primarily observed in public controls or official descriptions, not every filter interactively tested.",
+    "Repository counts are raw/provider-status counts, not distinct eligible open US opportunities.",
+    "Existing parser checks used fetched bytes without ingestion into the production database.",
+    "USCIS/E-Verify live query/download usability not verified; DOL page read but datasets not analyzed."
+  ],
+  "configuration_locations": {
+    "feeds": "config/feeds.yaml",
+    "website_searches": "config/searches.yaml",
+    "preferences": "config/preferences.json",
+    "this_file": "docs/research/source-catalog.json"
+  },
+  "prior_live_state_observations": [
+    {
+      "observed_at": "2026-10-11T04:10:53Z",
+      "host": "home-ubuntu",
+      "active_feed_ids": [
+        "simplify-newgrad",
+        "simplify-internships"
+      ],
+      "mailbox_sources_enabled": false,
+      "raw_jobs": 7840,
+      "postings": 7841,
+      "excluded_by_canada_preference": 463,
+      "default_visible_jobs": 7377,
+      "note": "Pending enrichment/evaluation; not verified qualified opportunities. Website adapter code or docs do not prove an active Linux website schedule."
+    }
+  ]
+}

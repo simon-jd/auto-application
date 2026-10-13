@@ -1,0 +1,15 @@
+[Unit]
+Description=Job Search MCP tools
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/Desktop/job-search/auto-application
+ExecStart=%h/Desktop/job-search/auto-application/.venv/bin/auto-app-agent serve --db %h/Desktop/job-search/runtime/data/auto_app.db --preferences %h/Desktop/job-search/runtime/config/preferences.json --preparation-dir %h/Desktop/job-search/runtime/preparation --transport streamable-http --host 127.0.0.1 --port 8767
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+UMask=0077
+
+[Install]
+WantedBy=default.target

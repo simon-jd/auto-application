@@ -1,0 +1,17 @@
+[Unit]
+Description=Job Search OpenAI private MCP tunnel
+Wants=network-online.target auto-app-agent.service
+After=network-online.target auto-app-agent.service
+
+[Service]
+Type=simple
+WorkingDirectory=%h
+EnvironmentFile=%h/Desktop/job-search/runtime/credentials/tunnel.env
+ExecStart=%h/Desktop/job-search/bin/tunnel-client run --profile job-search
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=30
+UMask=0077
+
+[Install]
+WantedBy=default.target

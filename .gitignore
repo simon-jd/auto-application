@@ -1,0 +1,27 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.db
+*.db-*
+out/
+.DS_Store
+
+# personal config, browser logins, and collected data
+config/searches.yaml
+config/apply.yaml
+config/serve.yaml
+config/feeds.yaml
+config/preferences.json
+credentials/
+browser-profiles/
+data/
+
+# Step 2 filters (your commands, settings, notes); examples are in filters.example/
+filters/
+
+# global settings and secrets (template: .env.example)
+.env
+
+# Step 3: your profile, answer bank and CV (templates in profile.example/)
+profile/

@@ -1,0 +1,14 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "job-search",
+  "version": "0.2.0",
+  "description": "Review saved jobs, track explicit manual decisions, and prepare fictional Ashby test forms when connected tools are enabled.",
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "Job Search",
+        "shortDescription": "Jobs, tracking and test forms"
+      }
+    }
+  }
+}

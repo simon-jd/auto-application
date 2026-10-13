@@ -1,0 +1,16 @@
+[Unit]
+Description=Fictional Ashby form preparation worker (never submit)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/Desktop/job-search/auto-application
+ExecStart=%h/Desktop/job-search/auto-application/.venv/bin/auto-app-agent prepare-worker --preparation-dir %h/Desktop/job-search/runtime/preparation --driver claude --browser-channel chrome --task-timeout 240
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+KillMode=control-group
+UMask=0077
+
+[Install]
+WantedBy=default.target
