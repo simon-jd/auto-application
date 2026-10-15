@@ -314,6 +314,7 @@ class Serve:
                 self.state.update(status="waiting for usage")
                 self._sleep_until(_dt(st["usage_until"]))
                 continue
+            started_at = self.clock()
             try:
                 rep = self.judge()
             except BrokenFilters as e:
@@ -324,7 +325,7 @@ class Serve:
                 return
             now = self.clock()
             h = assess(rep, now, tries_per_job=self.cfg.filter.tries_per_job, broken_after=self.cfg.filter.broken_after,
-                       retry_s=parse_duration(self.cfg.filter.usage_retry), store=self.store)
+                       retry_s=parse_duration(self.cfg.filter.usage_retry), store=self.store, started_at=started_at)
             r.judged += rep.judged - len(rep.failures)
             r.recommended += rep.recommended_jobs
             r.unjudgeable += len(h.unjudgeable)

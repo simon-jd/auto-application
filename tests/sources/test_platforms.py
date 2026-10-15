@@ -59,6 +59,34 @@ def test_keyword_and_location_helpers():
     assert location_match(["Anywhere"], ["Remote"], remote=True)
 
 
+@pytest.mark.parametrize("location", ["Jerusalem", "Busan", "Jerusalem, Israel", "Busan, South Korea"])
+@pytest.mark.parametrize("wanted", ["United States", "USA", "US"])
+def test_us_location_aliases_do_not_match_inside_city_names(location, wanted):
+    assert not looks_us(location)
+    assert not location_match([location], [wanted])
+
+
+@pytest.mark.parametrize("country,location", [
+    ("IN", "Bangalore"), ("CA", "Toronto"), ("DE", "Berlin"), ("IL", "Jerusalem"),
+])
+def test_lever_country_codes_are_not_us_states(country, location):
+    p = PLATFORMS["lever"]()
+    job = p.to_job({"id": "1", "hostedUrl": "https://example.test/job/1", "text": "Engineer",
+                    "country": country, "categories": {"location": location}})
+    assert p.local_filter(job, search(p, locations=["United States"])) == "location"
+
+
+@pytest.mark.parametrize("country,location", [
+    ("US", "Remote"), (None, "San Francisco, CA"), (None, "Indianapolis, IN"),
+    (None, "Wilmington, DE"), (None, "Chicago, IL"),
+])
+def test_lever_keeps_us_country_and_state_locations(country, location):
+    p = PLATFORMS["lever"]()
+    job = p.to_job({"id": "1", "hostedUrl": "https://example.test/job/1", "text": "Engineer",
+                    "country": country, "categories": {"location": location}})
+    assert p.local_filter(job, search(p, locations=["United States"])) is None
+
+
 # ---- Ashby ---------------------------------------------------------------------------------
 
 async def test_ashby_keywords_location_departments():

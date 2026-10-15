@@ -2,6 +2,10 @@
 
 **Goal:** produce one clean, deduplicated list of **jobs** from job sites and company career sites, stored in a local database, ready for Step 2.
 
+**2026-10-12 worker update:** imported jobs can now receive missing descriptions from supported public
+employer APIs through the separate deterministic Linux worker. Source history, stable job IDs and manual
+decisions are preserved. Implementation and deployment/acceptance boundaries: [Linux worker](linux-worker.md).
+
 ```
 1a COLLECT (raw)                                        1b PROCESS
 search / list jobs ─► cards ─► L1a known? ─► fetch ─►   parse ─► normalize ─► L1b ─► L2 ─► jobs
@@ -30,9 +34,11 @@ search / list jobs ─► cards ─► L1a known? ─► fetch ─►   parse �
 
 Detailed history: [updates/](updates/README.md).
 
+**Review follow-up (2026-10-12):** card exclusions distinguish titles from company evidence and support punctuation; country matching uses token boundaries and structured country codes. Requisition and salary extraction reject prose suffixes. Shared parser versions invalidate old cached parses when raw evidence is still present. TTL checks country locations only for expired deletion candidates and defers deletion with a warning if preferences are unreadable. Repository URL validation isolates malformed rows; valid Google/Tesla career links survive mail parsing; recurring mail failures are retained for separate retries while the scan advances. Details and verification: [follow-up record](updates/2026-10-12-review-followup.md).
+
 | Part | State |
 |---|---|
-| Repository JSON, `.eml`, scoped Gmail/Outlook reads and recurring feeds, with source revisions and shared dedup | implemented; repository worker deployed on home-ubuntu; see §14 and the mailbox setup guide; real OAuth authorization pending |
+| Repository JSON, employer-board feeds, `.eml`, scoped Gmail/Outlook/IMAP reads and recurring feeds, with source revisions and shared dedup | board/IMAP code implemented locally; existing public-repository worker deployed on home-ubuntu; see §14 and the mailbox setup guide; real board/IMAP activation and OAuth authorization pending |
 | Collection engine (search runs, cards, L1a, fetch, pacing, rate pauses, retry, blocks, manual checks, interruption) | ✅ implemented, tested on fake site |
 | LinkedIn (built-in browser plugin) | ✅ verified on the live site |
 | Handshake (built-in browser plugin) | ⚠️ implemented, not yet verified live |
@@ -697,6 +703,7 @@ auto-app source new-plugin <name> --kind api|browser
 | C12 | One plugin = one source: platform bases in `src/auto_app/platforms/`, one plugin file per company (`add-company` writes it), config `sources.<plugin>` with named searches + `from:` + limits, load-time plugin checks, `-s` for every source; migration of the `job_sites` / `companies` layout | ✅ |
 | C11 | Job state model (`step2` + `decision`, migration from `status`), job TTL (delete / archive), archived-job records, repost warnings, `mark`; atomic migrations | ✅ |
 | I1 | Repository snapshots and saved email recommendations, provenance/history, conservative sparse-record matching, read-only query visibility | ✅ repository, Gmail/Outlook and periodic feed implementations; Linux repository worker deployed; actual mailbox authorization pending |
+| I2 | Greenhouse/Lever/Ashby board feed formats and read-only IMAP mailbox | locally implemented and scoped-tested; real board selection, Gmail credentials and live import acceptance pending (§14.6–14.7) |
 
 ---
 
@@ -736,14 +743,14 @@ uv run auto-app-query --db data/try.db context
 uv run auto-app-query --db data/try.db jobs --source recommendations
 ```
 
-The commands initialize/migrate the selected database. They print JSON to stdout, diagnostics to stderr and return nonzero for partial or failed runs. Valid sources continue when another input fails. Feed config paths and email globs are relative to the config file. Keep source names stable across runs; names contain lowercase letters, numbers, `_` or `-`, and a name cannot switch between repository and email kinds. Use distinct names for feeds and browser collectors.
+The commands initialize/migrate the selected database. They print JSON to stdout, diagnostics to stderr and return nonzero for partial or failed runs. Valid sources continue when another input fails. Feed config paths and email globs are relative to the config file. Keep source names stable across runs; names contain lowercase letters, numbers, `_` or `-`, and a name cannot switch between repository, email and mailbox kinds. Use distinct names for feeds and browser collectors.
 
 ### 14.1 Inputs
 
-- **Repository:** a local file or public HTTP(S) snapshot with explicit `format`. The default `simplify` accepts the existing JSON listing array; `speedyapply` and `jobright` parse their published Markdown/HTML tables; `applyguy` and `ricsign` map their JSON `jobs` wrappers. Eight new configured sources cover SpeedyApply US SWE/AI internships/new-grad, ApplyGuy, Ricsign and Jobright SWE internships/new-grad, alongside the original two Simplify feeds. These are provider adapters, not a generic GitHub README parser. Invalid rows yield partial results and do not imply absence of other rows.
+- **Repository:** a local file or public HTTP(S) snapshot with explicit `format`. The default `simplify` accepts the existing JSON listing array; `speedyapply` and `jobright` parse their published Markdown/HTML tables; `applyguy` and `ricsign` map their JSON `jobs` wrappers. `greenhouse-board`, `lever-board` and `ashby-board` parse public employer listing APIs, including descriptions. Eight configured public-repository sources cover SpeedyApply US SWE/AI internships/new-grad, ApplyGuy, Ricsign and Jobright SWE internships/new-grad, alongside the original two Simplify feeds. These are explicit adapters, not a generic GitHub README parser. Invalid rows yield partial results and do not imply absence of other rows.
 - **Email:** exported `.eml` files, parsed locally. HTML/plain text bodies yield recognized individual job links, including LinkedIn, Jobright, Simplify and common employer ATS URLs. Attachments and navigation links are ignored. HTML anchor text may supply a title; a subject or generic Apply button does not. Known tracking wrappers are unwrapped without following links over the network. Opaque redirect links that cannot be decoded locally need a later enrichment provider.
 
-Pure parsers produce `IngestRecord` objects; retrieval and persistence are separate. Future mailbox and website providers can reuse this contract. No new runtime dependency is needed.
+Pure parsers produce `IngestRecord` objects; retrieval and persistence are separate. Gmail, Outlook and IMAP mailbox providers reuse this contract; future website providers can do the same.
 
 `auto-app ingest repository FILE --format FORMAT --source NAME` selects the same adapter used by feed YAML. ApplyGuy identity comes from `id` and employer `listingUrl`; Ricsign from `uid`/`apply_url`. Ricsign `dead`/`closed` link status is inactive; a blocked check or clearance requirement does not prove closure. Markdown identity comes from the canonical apply URL (SpeedyApply) or Jobright job ID. Repeated rows union locations and retain all observed title/company variants with a deterministic display pair. Company carry-forward arrows and embedded HTML links are handled. Unknown document layouts fail visibly rather than becoming empty successful snapshots.
 
@@ -753,7 +760,7 @@ Yearless `Oct 10` and relative `2d` remain source observations; they do not fabr
 
 `ingest_entries` stores each source/external-ID observation, its origin/revision, content hash, latest source payload, source status and observation/import times. `ingest_changes` stores created, updated, missing and restored events. HTTP ETag/Last-Modified checkpoints advance after complete successful parsing and persistence. Before writing a parsed snapshot, conditional headers are invalidated while preserving the previous successful revision for provenance; an interrupted import must retrieve a full body next time. A 304 refreshes observation time for active/unknown rows. Re-reading a dated email preserves its original observation time; an undated email retains its first import time.
 
-Repository checkpoints include format; changes to format or origin cannot reuse old validators. Jobright's seven-day window and other feed expiry rules can produce `missing` observations without establishing employer closure. Canada filtering applies to the union of merged and original posting locations, including mixed US/Canada jobs, while retaining the original evidence.
+Repository checkpoints include format; changes to format or origin cannot reuse old validators. Jobright's seven-day window and other feed expiry rules can produce `missing` observations without establishing employer closure. Canada filtering applies to the union of merged and original posting locations, while retaining the original evidence; a merged job with any US location stays visible.
 
 Repeated content does not create another posting/job. Content updates refresh the job's displayed fields and matching keys while preserving decisions and judgments. A changed linked observation or a new source joining an existing job sets `needs_reassessment`; this batch exposes the flag but does not run or clear a new assessment automatically. A complete snapshot can mark a row missing from that source, which does not establish official closure. Initially inactive/hidden rows retain provenance without creating new opportunities; later inactive observations do not renew an existing posting's last-seen time.
 
@@ -771,7 +778,7 @@ An archived imported identity remains attached to its archived job when the same
 
 ### 14.4 Current scope
 
-Repository and saved-mail ingestion is recorded in [the initial update](updates/2026-10-09-multisource-ingestion.md). Scoped Gmail/Outlook providers and an independent `ingest watch` worker now implement recurring feed runs; [authorization and Linux setup](mailbox-linux-setup.md) covers actual account/host activation. The existing `serve run` still operates browser searches and model filters. Generic IMAP, website sessions, missing JD retrieval, per-track `possible/unknown/excluded` decisions, public company research and resume orchestration remain later batches. Automated applying stays off.
+Repository and saved-mail ingestion is recorded in [the initial update](updates/2026-10-09-multisource-ingestion.md). Scoped Gmail/Outlook/IMAP providers and an independent `ingest watch` worker implement recurring feed runs; [authorization and Linux setup](mailbox-linux-setup.md) covers actual account/host activation. Board feeds and IMAP are locally implemented but no real employer board or mailbox source has been enabled in this P1 work. The existing `serve run` still operates browser searches and model filters. Website sessions, broader missing-JD retrieval, per-track `possible/unknown/excluded` decisions, public company research and resume orchestration remain later batches. Automated applying stays off.
 
 ### 14.5 Gmail/Outlook progress
 
@@ -780,3 +787,15 @@ Repository and saved-mail ingestion is recorded in [the initial update](updates/
 `mail_messages` records successful/no-job messages and messages removed before retrieval, keyed by source/provider/account/message ID. Received time can be unknown for a deleted message. Provider IDs and account keys keep mail provenance distinct while normal job linking can join the same vacancy. Pagination windows/checkpoints live in source health. A page advances only after its messages are accounted for; receipts allow replay after failure or interruption. Expired page cursors restart the same window. Completed windows overlap the next by two minutes; mail moved into the target folder long after arrival needs a deliberate history rescan, as explained in the setup guide.
 
 `auto-app-query context` exposes allowlisted `ingest_run` counts/status and mailbox date progress, without tokens or credentials. The separate `ingest status` command reads scheduler state and next-run time. Source errors are saved each configured round and independent sources continue.
+
+### 14.6 Employer board feeds
+
+The read-only `auto-app worker boards --yaml --top 30` suggests Greenhouse, Lever and Ashby listing APIs from existing kept jobs. Review each suggested employer/source identity and add selected entries to the **runtime** feeds file; the three [disabled examples](../config/feeds.example.yaml) show `kind: repository`, `format`, `company` and `location`. `company` is an optional display hint when the API omits it. Greenhouse listing URLs require `?content=true` for the JD. A format, URL or company change triggers a full reparse rather than trusting old HTTP validators. Valid rows in a partial snapshot are imported while previously saved missing rows remain until a complete snapshot; a complete empty board can mark source rows missing. Exact ATS identity can merge a board listing with its repository copy without discarding either source's provenance.
+
+Workday remains a per-job enrichment target, not one of these board-list formats. The ingest worker reloads enabled feeds after each completed round, usually every 30 minutes. A suggested YAML block does not activate a feed or establish the planned 30-employer daily coverage. See [Linux worker §6](linux-worker.md#6-employer-boards) and [P1 acceptance](updates/2026-10-12-p1-coverage-and-control.md).
+
+### 14.7 Read-only IMAP mailbox
+
+`kind: mailbox, provider: imap` uses a private mode-600 JSON credential file (`host`, optional `port` default 993, `username`, `password`), `folder` (default `INBOX`), and an explicit `senders` list or Gmail-specific `gmail_raw` search. The same bounded lookback/page settings and durable successful-message receipts/retry queue apply. IMAP folder selection uses EXAMINE; fetching MIME content uses BODY.PEEK, so the code does not mark mail read. The app password itself is not a read-only permission grant. The adapter tracks UIDVALIDITY and restarts a bounded lookback when that identity changes; the mailbox acceptance must still verify a real message remains unread.
+
+The [IMAP setup procedure](mailbox-linux-setup.md) keeps the example disabled until the owner checks actual From addresses, installs credentials and elects activation. LinkedIn/Jobright links with no description remain title-only; no logged-in page scrape is implied. `ingest status` and `auto-app-query context` show source health and processed-message counts without exposing credentials. No live IMAP login or email import is claimed by local tests.

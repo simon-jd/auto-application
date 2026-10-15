@@ -7,6 +7,7 @@ import pytest
 from auto_app.process.dedup import Item, dedup, format_preview, title_similarity
 from auto_app.process.normalize import clean_description
 from auto_app.process.similarity import minhash, shingles
+from auto_app.sources.parsing import req_id_from_text
 
 NOW = datetime(2026, 9, 30, tzinfo=timezone.utc)
 JOB_A = " ".join(f"gpu{i} kernels cuda team{i % 7}" for i in range(120))  # one job's description
@@ -50,6 +51,14 @@ def test_easy_apply_copy_merges_on_description_and_same_title():
     [g] = dedup(items).merged
     assert g.links[0].rule == "description" and g.links[0].confidence == 0.9
     assert g.primary == "nvidia/JR2"
+
+
+def test_requisition_prose_does_not_veto_matching_description():
+    postings = [
+        item("nvidia/JR2026343", req="JR2026343"),
+        item("linkedin/222", req=req_id_from_text("Please include the job id when applying.")),
+    ]
+    assert groups_of(dedup({p.pid: p for p in postings})) == [["linkedin/222", "nvidia/JR2026343"]]
 
 
 def test_different_titles_are_different_jobs_even_with_the_same_description():

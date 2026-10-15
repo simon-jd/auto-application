@@ -344,3 +344,194 @@ def test_message_deleted_after_listing_does_not_block_following_mail(store, tmp_
     assert gone["job_links"] == 0 and gone["received_at"] is None
     assert len(store.jobs()) == 1 and entries(store)[0]["status"] == "unknown"
     assert again["messages_skipped"] == 2
+
+
+@pytest.mark.parametrize("provider", ["gmail", "outlook"])
+@pytest.mark.parametrize("recovery_status", [200, 404, 410])
+def test_repeated_bad_message_defers_durably_without_blocking_later_mail(
+        store, tmp_path, provider, recovery_status):
+    config = definition(tmp_path, provider, max_pages=1)
+    recover = False
+    bad_fetches = []
+
+    def handler(request):
+        if request.url.path.endswith("/messages"):
+            page_two = request.url.params.get("pageToken") == "p2" or request.url.params.get("$skip") == "1"
+            window = request.url.params.get("q", request.url.params.get("$filter", ""))
+            old_window = str(int(NOW.timestamp())) in window or "lt 2026-10-10T12:00:00Z" in window
+            ids = ["two"] if page_two else (["bad", "one"] if old_window else ["new"])
+            messages = [{"id": id, "receivedDateTime": RECEIVED} for id in ids]
+            response = {"messages" if provider == "gmail" else "value": messages}
+            if old_window and not page_two:
+                response["nextPageToken" if provider == "gmail" else "@odata.nextLink"] = (
+                    "p2" if provider == "gmail" else "https://graph.microsoft.com/v1.0/me/messages?$skip=1")
+            return httpx.Response(200, json=response)
+        message_id = request.url.path.split("/")[-2 if provider == "outlook" else -1]
+        if message_id == "bad":
+            bad_fetches.append(message_id)
+            if not recover or recovery_status != 200:
+                return httpx.Response(recovery_status if recover else 503, text="SECRET BODY")
+        job_id = {"one": "123", "two": "456", "new": "789", "bad": "999"}[message_id]
+        return (httpx.Response(200, json=gmail_message(message_id, job_id)) if provider == "gmail"
+                else httpx.Response(200, content=mime(message_id, job_id)))
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        for minute in (0, 30, 60):
+            deferred = run_mailbox(store, "mail", config, client=client, now=NOW + timedelta(minutes=minute))
+        assert deferred["status"] == "partial"
+        assert deferred["checkpoint"]["next_page"] is not None
+        assert deferred["messages_pending"] == deferred["messages_deferred"] == 1
+        assert deferred["checkpoint"]["watermark"] is None
+        assert len(receipts(store)) == 1
+        assert "SECRET BODY" not in json.dumps(deferred)
+
+        # Reopen storage to prove this is a durable retry, not an in-memory list.
+        store.engine.dispose()
+        reopened = DbStore(tmp_path / "jobs.db", Paths(home=tmp_path))
+        try:
+            later_page = run_mailbox(reopened, "mail", config, client=client, now=NOW + timedelta(minutes=61))
+            assert later_page["checkpoint"]["watermark"] == NOW.isoformat()
+            assert later_page["messages_pending"] == 1
+            new_window = run_mailbox(reopened, "mail", config, client=client, now=NOW + timedelta(minutes=62))
+            assert new_window["messages_processed"] == 1 and new_window["status"] == "partial"
+            assert len(bad_fetches) == 3  # Backoff does not freeze scanning.
+            recover = True
+            recovered = run_mailbox(reopened, "mail", config, client=client, now=NOW + timedelta(minutes=91))
+            assert recovered["status"] == "ok" and recovered["messages_pending"] == 0
+            assert len(bad_fetches) == 4
+            receipt = next(row for row in receipts(reopened) if row["message_id"] == "bad")
+            assert receipt["job_links"] == (1 if recovery_status == 200 else 0)
+            assert len(entries(reopened)) == (4 if recovery_status == 200 else 3)
+            if recovery_status == 200:
+                failed_entry = next(row for row in entries(reopened)
+                                    if row["payload"]["metadata"]["mailbox"]["message_id"] == "bad")
+                assert failed_entry["payload"]["metadata"]["mailbox"]["received_at"] == RECEIVED
+        finally:
+            reopened.engine.dispose()
+
+
+def test_malformed_mime_defers_without_recording_a_success_receipt(store, tmp_path):
+    config = definition(tmp_path)
+
+    def handler(request):
+        if request.url.path.endswith("/messages"):
+            return httpx.Response(200, json={"messages": [{"id": "bad"}]})
+        return httpx.Response(200, json={"raw": "%%%invalid", "internalDate": "1791626400000"})
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        for minute in (0, 30, 60):
+            report = run_mailbox(store, "mail", config, client=client, now=NOW + timedelta(minutes=minute))
+    assert report["checkpoint"]["watermark"] == NOW.isoformat()
+    assert report["messages_pending"] == 1 and report["status"] == "partial"
+    assert receipts(store) == []
+
+
+def test_scope_change_preserves_failed_identity_and_retries_it_outside_new_listing(store, tmp_path):
+    config = definition(tmp_path)
+    recover = False
+
+    def handler(request):
+        if request.url.path.endswith("/messages"):
+            return httpx.Response(200, json={"messages": [] if recover else [{"id": "bad"}]})
+        return httpx.Response(200, json=gmail_message("bad")) if recover else httpx.Response(503)
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        failed = run_mailbox(store, "mail", config, client=client, now=NOW)
+        assert failed["messages_pending"] == 1
+        recover = True
+        report = run_mailbox(store, "mail", {**config, "query": "from:other@example.com"}, client=client,
+                             now=NOW + timedelta(hours=1))
+    assert report["status"] == "ok" and report["messages_pending"] == 0
+    assert report["messages_processed"] == 1 and len(receipts(store)) == 1
+
+
+@pytest.mark.parametrize("unfinished", [False, True])
+def test_parser_upgrade_replays_bounded_window_and_stale_receipt_across_restart(
+        store, tmp_path, monkeypatch, unfinished):
+    import auto_app.ingest.mailbox as module
+    from auto_app.ingest.models import ParsedFeed
+
+    config = definition(tmp_path, max_pages=1)
+    fail = False
+    fetches = []
+    queries = []
+    raw = mime().replace(b"https://www.linkedin.com/jobs/view/123",
+                         b"https://www.google.com/about/careers/applications/jobs/results/123456-engineer")
+
+    def handler(request):
+        if request.url.path.endswith("/messages"):
+            queries.append(dict(request.url.params))
+            if request.url.params.get("pageToken") == "p2":
+                return httpx.Response(200, json={})
+            response = {"messages": [{"id": "one"}]}
+            if unfinished:
+                response["nextPageToken"] = "p2"
+            return httpx.Response(200, json=response)
+        fetches.append("one")
+        if fail:
+            return httpx.Response(503)
+        return httpx.Response(200, json={**gmail_message(), "raw": base64.urlsafe_b64encode(raw).decode()})
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        with monkeypatch.context() as old:
+            old.setattr(module, "parse_email", lambda content: ParsedFeed())
+            initial = run_mailbox(store, "mail", config, client=client, now=NOW)
+        assert receipts(store)[0]["job_links"] == 0
+        checkpoint = store.source_health("mail")["mailbox"]
+        checkpoint["email_parser_version"] = "old"
+        store.update_health("mail", mailbox=checkpoint)
+        fail = True
+        failed = run_mailbox(store, "mail", config, client=client, now=NOW)
+        assert failed["status"] == "error" and failed["messages_pending"] == 1
+        assert failed["checkpoint"]["next_page"] is None
+        assert failed["checkpoint"]["window_start"] == initial["checkpoint"]["window_start"]
+        assert receipts(store)[0]["job_links"] == 0  # Retain the old receipt until replay succeeds.
+        cutoff = failed["checkpoint"]["reparse_before"]
+        store.engine.dispose()
+        reopened = DbStore(tmp_path / "jobs.db", Paths(home=tmp_path))
+        try:
+            fail = False
+            recovered = run_mailbox(reopened, "mail", config, client=client, now=NOW)
+            assert recovered["status"] == "ok" and recovered["messages_processed"] == 1
+            assert recovered["checkpoint"]["reparse_before"] == cutoff
+            assert recovered["messages_pending"] == 0
+            assert len(entries(reopened)) == len(receipts(reopened)) == 1
+            assert receipts(reopened)[0]["job_links"] == 1
+            again = run_mailbox(reopened, "mail", config, client=client, now=NOW)
+            assert len(fetches) == 3
+            assert again["checkpoint"]["reparse_before"] == cutoff
+            assert all("pageToken" not in query for query in queries[:3])
+        finally:
+            reopened.engine.dispose()
+
+
+def test_deferred_retry_requests_are_bounded_and_backoff_does_not_block_current_scan(store, tmp_path):
+    from auto_app.ingest.mailbox import _retry_key
+
+    config = definition(tmp_path, page_size=1, max_pages=1)
+    with httpx.Client(transport=httpx.MockTransport(lambda request: httpx.Response(200, json={}))) as client:
+        run_mailbox(store, "mail", config, client=client, now=NOW)
+    checkpoint = store.source_health("mail")["mailbox"]
+    for message_id in ("bad-one", "bad-two"):
+        checkpoint["message_retries"][_retry_key("gmail", "gmail-account", message_id)] = {
+            "provider": "gmail", "account_key": "gmail-account", "message": {"id": message_id},
+            "attempts": 99, "deferred": True, "first_failed_at": NOW.isoformat(),
+            "next_retry_at": NOW.isoformat(),
+        }
+    store.update_health("mail", mailbox=checkpoint)
+    fetched = []
+
+    def handler(request):
+        if request.url.path.endswith("/messages"):
+            return httpx.Response(200, json={"messages": [{"id": "new"}]})
+        message_id = request.url.path.rsplit("/", 1)[-1]
+        fetched.append(message_id)
+        return httpx.Response(200, json=gmail_message("new")) if message_id == "new" else httpx.Response(503)
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        report = run_mailbox(store, "mail", config, client=client, now=NOW)
+    assert fetched == ["bad-one", "new"]
+    assert report["messages_pending"] == 2 and report["messages_processed"] == 1
+    assert report["checkpoint"]["watermark"] == NOW.isoformat()
+    retried = next(item for item in report["checkpoint"]["message_retries"].values() if item["attempts"] == 100)
+    assert retried["next_retry_at"] == (NOW + timedelta(days=1)).isoformat()

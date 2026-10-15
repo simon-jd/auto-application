@@ -97,6 +97,14 @@ def test_version_covers_what_the_agent_sees_but_not_parser_or_applies_to(tmp_pat
     assert load_filter(d).version != load_filter(make(tmp_path, name="other")).version
 
 
+def test_version_is_scoped_to_filter_name_but_not_absolute_folder(tmp_path):
+    first = load_filter(make(tmp_path / "one", name="ml"))
+    relocated = load_filter(make(tmp_path / "two", name="ml"))
+    copied = load_filter(make(tmp_path / "one", name="research"))
+    assert first.version == relocated.version
+    assert first.version != copied.version
+
+
 def test_applies_to_names_real_sources_and_searches(tmp_path):
     f = load_filter(make(tmp_path, yaml="applies_to: [linkedin, linkedin/test, linkedin/nope, nosuch]\n"))
     cfg = AppConfig.model_validate({"sources": {"linkedin": {"searches": [{"name": "test"}]}}})

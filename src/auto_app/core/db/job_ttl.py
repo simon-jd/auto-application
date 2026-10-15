@@ -21,6 +21,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
 import json
+import logging
 
 from sqlalchemy import and_, func, or_, select, update
 
@@ -47,12 +48,14 @@ class TTLReport:
     archived: list[ExpiredJob] = field(default_factory=list)
     linked: dict[int, int] = field(default_factory=dict)  # archived job → the earlier archived job it duplicates
     deleted_postings: int = 0
+    warnings: list[str] = field(default_factory=list)
 
     def format(self, limit: int = 15) -> list[str]:
         verb = ("would delete", "would archive") if self.dry_run else ("deleted", "archived")
         linked = f" ({len(self.linked)} linked to an earlier archived copy)" if self.linked else ""
         out = [f"  jobs (TTL)      {verb[0]} {len(self.deleted)} never-judged jobs ({self.deleted_postings} postings), "
                f"{verb[1]} {len(self.archived)}{linked}"]
+        out.extend(f"    warning: {message}" for message in self.warnings)
         for label, rows in ((verb[0], self.deleted), (verb[1], self.archived)):
             for e in rows[:limit]:
                 seen = e.last_seen_at.strftime("%Y-%m-%d") if e.last_seen_at else "?"
@@ -101,19 +104,9 @@ def expire_jobs(store, ttl: JobTTL, *, now: datetime | None = None, dry_run: boo
     """Archive or delete every active job past its TTL (the dates as they are)."""
     now = now or utcnow()
     rep = TTLReport(dry_run)
-    preferences = load_preferences(store.paths.preferences)
     j, p = T.jobs, T.postings
     cutoff = now.replace(tzinfo=None) if now.tzinfo else now  # SQLite stores naive UTC
     with store.engine.begin() as conn:
-        excluded = set()
-        if preferences.exclude_countries:
-            for job_id, location in conn.execute(select(T.job_locations.c.job_id, T.job_locations.c.location_norm)):
-                if preferences.evaluate([location])["excluded"]:
-                    excluded.add(job_id)
-            for job_id, raw in conn.execute(select(p.c.job_id, func.json_extract(p.c.parsed, '$.locations'))
-                                           .where(p.c.job_id.is_not(None))):
-                if raw and preferences.evaluate(json.loads(raw))["excluded"]:
-                    excluded.add(job_id)
         imported, pending = imported_job_retention(conn)
         latest = dict(conn.execute(select(p.c.job_id, func.max(p.c.last_seen_at))
                                    .where(p.c.job_id.is_not(None)).group_by(p.c.job_id)).all())
@@ -137,8 +130,43 @@ def expire_jobs(store, ttl: JobTTL, *, now: datetime | None = None, dry_run: boo
             if seen + timedelta(days=ttl.for_state(step2)) >= cutoff:
                 continue
             e = ExpiredJob(job_id, _state(step2, decision), title, company, seen, counts.get(job_id, 0))
-            keep = job_id in excluded or job_id in imported or job_id in judged or step2 == "recommended" or decision
+            keep = job_id in imported or job_id in judged or step2 == "recommended" or decision
             (rep.archived if keep else rep.deleted).append(e)
+        # Country preferences only affect jobs otherwise eligible for deletion.
+        # Do not read every posting's JSON during ordinary decisions/refreshes.
+        if rep.deleted:
+            try:
+                preferences = load_preferences(store.paths.preferences)
+            except ValueError as exc:
+                # Maintenance follows already-committed decisions. An unreadable
+                # preference file cannot make those fail or permit unsafe deletion.
+                message = f"Job deletion deferred because preferences could not be loaded: {exc}"
+                rep.warnings.append(message)
+                logging.getLogger(__name__).warning(message)
+                rep.deleted.clear()
+            else:
+                if preferences.exclude_countries:
+                    candidates = [e.job_id for e in rep.deleted]
+                    # Judge each job on all of its evidence at once: a US place beside an excluded
+                    # country keeps the job visible, so it is not an excluded job to archive.
+                    evidence = {job_id: ([], []) for job_id in candidates}
+                    locations = T.job_locations
+                    for job_id, location in conn.execute(
+                        select(locations.c.job_id, locations.c.location_norm)
+                        .where(locations.c.job_id.in_(candidates))
+                    ):
+                        evidence[job_id][0].append(location)
+                    for job_id, raw, country in conn.execute(
+                        select(p.c.job_id, func.json_extract(p.c.parsed, '$.locations'),
+                               func.json_extract(p.c.parsed, '$.extras.country'))
+                        .where(p.c.job_id.in_(candidates))
+                    ):
+                        evidence[job_id][0].extend(json.loads(raw) if raw else [])
+                        evidence[job_id][1].append(country)
+                    excluded = {job_id for job_id, (places, codes) in evidence.items()
+                                if preferences.evaluate(places, countries=codes)["excluded"]}
+                    rep.archived.extend(e for e in rep.deleted if e.job_id in excluded)
+                    rep.deleted = [e for e in rep.deleted if e.job_id not in excluded]
         rep.deleted_postings = sum(e.postings for e in rep.deleted)
         if dry_run:
             return rep
@@ -200,12 +228,19 @@ def _archive_job(conn, job_id: int, now: datetime) -> list[Path]:
     # source's original location before non-primary parsed postings are dropped.
     raw_locations = sorted({loc for posting in postings
                             for loc in ((posting["parsed"] or {}).get("locations") or [])})
+    countries = {((posting["parsed"] or {}).get("extras") or {}).get("country") for posting in postings
+                 if isinstance(((posting["parsed"] or {}).get("extras") or {}).get("country"), str)}
+    for (country,) in conn.execute(select(func.json_extract(T.ingest_entries.c.payload, '$.metadata.upstream.country'))
+                                  .where(T.ingest_entries.c.posting_id.in_([x["posting_id"] for x in postings]))):
+        if isinstance(country, str):
+            countries.add(country)
     record = {
         "title": primary["title"] if primary else None,
         "company": primary["company"] if primary else job["company_norm"],
         "company_norm": job["company_norm"],
         "locations": locations,
         "raw_locations": raw_locations,
+        "countries": sorted(countries),
         "apply_url": job["canonical_url"],
         "posted_at": _iso(primary["posted_at"]) if primary else None,
         "first_seen_at": _iso(job["first_seen_at"]),

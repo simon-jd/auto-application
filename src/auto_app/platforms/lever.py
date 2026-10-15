@@ -50,6 +50,7 @@ class LeverSource(ApiSource):
             url=j["hostedUrl"],
             title=(j.get("text") or "").strip(),
             locations=[x for x in locs if x],
+            country=country,
             posted_at=datetime.fromtimestamp(created / 1000, tz=timezone.utc) if created else None,
             apply_url=j.get("applyUrl"),
             remote=(j.get("workplaceType") == "remote") or None,

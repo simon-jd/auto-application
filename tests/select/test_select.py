@@ -54,6 +54,9 @@ def test_country_preference_skips_model_even_for_explicit_job(env):
         parsed = db.job_inputs(jobs["ml"])[0]
         parsed["locations"] = ["Remote in Canada"]
         conn.execute(update(T.postings).where(T.postings.c.job_id == jobs["ml"]).values(parsed=parsed))
+        # No US place remains, so the country preference applies.
+        conn.execute(update(T.job_locations).where(T.job_locations.c.job_id == jobs["ml"])
+                     .values(location_norm="remote"))
     client = FakeClient(by_title)
     flt = load_filter(folder / "ml")
     rep = run_select(db, CFG, [flt], api_runner(client), SelectOptions(jobs=[jobs["ml"]]))
@@ -76,6 +79,8 @@ def test_job_lists_hide_country_matches_but_keep_internal_audit_records(env, mon
     parsed["locations"] = ["Remote in Canada"]
     with db.engine.begin() as conn:
         conn.execute(update(T.postings).where(T.postings.c.job_id == jobs["ml"]).values(parsed=parsed))
+        conn.execute(update(T.job_locations).where(T.job_locations.c.job_id == jobs["ml"])
+                     .values(location_norm="remote"))
     assert {j["job_id"] for j in db.jobs(include_excluded=False)} == {jobs["sales"], jobs["analyst"]}
     assert {j["job_id"] for j in JobBrowser(db, []).jobs("all")} == {jobs["sales"], jobs["analyst"]}
     monkeypatch.setenv("AUTO_APP_HOME", str(db.paths.home))
@@ -102,6 +107,56 @@ def test_select_judges_sets_state_and_does_not_repeat(env):
     assert row["status"] == "ok" and row["reason"] == "strong ML fit" and row["filter_version"] == flt.version
     assert row["trace"][0]["blocks"][0]["type"] == "text"
     assert run_select(db, CFG, [flt], api_runner(FakeClient(by_title)), SelectOptions()).planned == []  # nothing new
+
+
+def test_identical_named_filters_keep_both_results_and_do_not_repeat(env):
+    from sqlalchemy import select
+    from auto_app.core.db import tables as T
+
+    db, folder, jobs = env
+    shutil.copytree(folder / "ml", folder / "research")
+    filters = [load_filter(folder / name) for name in ("ml", "research")]
+    clients = {name: FakeClient(lambda kw, name=name: answer(name == "ml", name + " verdict"))
+               for name in ("ml", "research")}
+    runners = {name: api_runner(client) for name, client in clients.items()}
+
+    def judge(flt, prompt):
+        return runners[flt.name](flt, prompt)
+
+    first = run_select(db, CFG, filters, judge, SelectOptions(parallel=1))
+    assert first.judged == 6
+    for job_id in jobs.values():
+        assert {(r["filter"], r["recommend"]) for r in db.judgment_rows(job_id=job_id)} == {
+            ("ml", True), ("research", False)}
+        assert db.job(job_id)["step2"] == "recommended"
+    with db.engine.connect() as conn:
+        catalog = conn.execute(select(T.filter_versions.c.filter, T.filter_versions.c.filter_version)).all()
+    assert {name for name, _ in catalog} == {"ml", "research"}
+    assert len({version for _, version in catalog}) == 2
+    second = run_select(db, CFG, filters, judge, SelectOptions())
+    assert second.planned == [] and second.judged == 0
+    assert sum(len(client.calls) for client in clients.values()) == 6
+
+
+def test_previous_hashes_stay_readable_without_automatic_rescore(env):
+    from dataclasses import replace
+    from auto_app.select.review import Review
+
+    db, folder, jobs = env
+    current = load_filter(folder / "ml")
+    legacy = replace(current, version="legacy-content-hash")
+    client = FakeClient(by_title)
+    run_select(db, CFG, [legacy], api_runner(client), SelectOptions())
+    assert run_select(db, CFG, [current], api_runner(client), SelectOptions()).planned == []
+    [verdict] = Review(db, [current]).detail(jobs["ml"]).verdicts
+    assert (verdict.version, verdict.recommend, verdict.current) == ("legacy-content-hash", True, False)
+    assert len(client.calls) == 3
+    rescored = run_select(db, CFG, [current], api_runner(client), SelectOptions(rescore=True))
+    assert rescored.judged == 3
+    assert {r["filter_version"] for r in db.judgment_rows(job_id=jobs["ml"])} == {
+        "legacy-content-hash", current.version}
+    assert run_select(db, CFG, [current], api_runner(client), SelectOptions()).planned == []
+    assert len(client.calls) == 6
 
 
 def test_new_versions_need_rescore_and_decided_jobs_are_never_touched(env):
@@ -325,6 +380,29 @@ def test_runner_exception_is_saved_and_other_verdicts_are_applied(env, parallel)
     assert db.job(jobs['sales'])['step2'] is None
     from auto_app.select.engine import plan
     assert [jid for jid, _ in plan(db, [flt], SelectOptions())] == [jobs['sales']]
+
+
+def test_runner_failure_time_survives_a_later_slow_judgment(env):
+    from datetime import datetime
+    from auto_app.select.health import assess
+    from auto_app.select.runner import RunResult
+
+    db, folder, jobs = env
+    clock = [datetime(2026, 10, 6, 14, 58)]
+    calls = []
+
+    def runner(flt, prompt):
+        calls.append(prompt)
+        if len(calls) == 1:
+            clock[0] = datetime(2026, 10, 6, 14, 59)
+            return RunResult(answer=None, status="error", error="usage limit, resets 3pm")
+        clock[0] = datetime(2026, 10, 6, 15, 5)
+        return RunResult(answer='{"recommend": true, "reason": "fit"}', status="ok")
+
+    report = run_select(db, CFG, [load_filter(folder / "ml")], runner,
+                        SelectOptions(jobs=[jobs["ml"], jobs["sales"]], parallel=1), clock=lambda: clock[0])
+    assert (report.judged, report.errors, report.recommend) == (2, 1, 1)
+    assert assess(report, clock[0]).usage_until == datetime(2026, 10, 6, 15)
 
 
 def test_saved_verdict_is_applied_even_if_progress_callback_raises(env):

@@ -12,6 +12,7 @@ from .models import IngestRecord, ParsedFeed
 from .urls import canonical_url
 
 
+EMAIL_PARSER_VERSION = "2"
 _PLAIN_URL = re.compile(r"https?://[^\s<>\"']+", re.I)
 _UUID = r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}"
 _NAVIGATION = {
@@ -92,6 +93,12 @@ def _is_job_url(url: str) -> bool:
     host = parsed.hostname or ""
     path = parsed.path
     parts = [part.lower() for part in path.split("/") if part]
+    # These job-detail routes contain words also used by generic navigation.
+    # Match the full provider route and its numeric identity before that filter.
+    if host in {"google.com", "www.google.com"}:
+        return bool(re.fullmatch(r"/about/careers/applications/jobs/results/\d+(?:-[^/]+)?", path))
+    if host in {"tesla.com", "www.tesla.com"}:
+        return bool(re.fullmatch(r"/careers/search/job/(?:[^/]+-)?\d+", path))
     if any(part in _NAVIGATION for part in parts):
         return False
     if host in {"linkedin.com", "www.linkedin.com", "m.linkedin.com"}:

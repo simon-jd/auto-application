@@ -1,5 +1,23 @@
 # Step 4 — Run: the scheduler and the manager agent
 
+**2026-10-14 review update:** ingestion projection reloads under the writer transaction; manual
+applied paths write timeline events atomically; rejection negation, backup integrity and Git private-file
+protection are corrected. Dot 0.3.0 adds guidance for the current controls and timeline tools.
+The current source/schema is deployed: ingestion, screening/enrichment, private MCP, preparation
+and private tunnel are active. Discord/Grok units and dependencies are installed but disabled until
+the owner fills the [Linux connector configuration](linux-connectors-setup.md).
+See [verification and deployment evidence](updates/2026-10-14-review-deployment.md) for live status.
+
+**2026-10-13 P3 update:** Linux is the intended primary runtime. The Mac TUI, browser/model
+`serve`/`schedule` loop and launchd instructions below are development tooling. The deterministic
+worker defaults to `screen,enrich,notify,summary,health`, with rescreening after changed enrichment.
+[Tracking](application-tracking.md) adds rolling seven-day summaries; [operations](operations.md)
+adds 2 GiB disk health, verified main/optional preparation SQLite backups, private pull and optional
+Git deployment (rsync remains default). This was the local-only state on 2026-10-13; the deployment
+and remaining connector acceptance boundaries are recorded in the 2026-10-14 update above.
+
+**Review follow-up (2026-10-12):** quota recovery uses the recorded failure time so a batch that crosses the reset does not wait another day. `ingest systemd --uv uv` resolves the command through PATH. Mailbox scanning moves repeatedly failed messages into a durable retry queue after three attempts, with capped backoff and bounded requests per run; unresolved counts remain visible through query/MCP context. Explicit `state=archived` overrides the query adapter's default active-only flag. Details and verification: [follow-up record](updates/2026-10-12-review-followup.md).
+
 **2026-10-11 update:** opt-in fictional Ashby preparation adds a separate
 single-worker queue behind the Dot MCP interface (§17). The worker fills and
 checks test values, then closes the browser before submission. The Ubuntu worker
@@ -362,6 +380,7 @@ Library: `slack_bolt` (async, Socket Mode).
 | R4 | *(parked)* Applying from Slack: Apply → the trial run, questions in threads, action needed, Ready cards, the Submit button and confirmation |
 | F1 ✅ | Independent repository/mail feed worker, durable last/next run, restart recovery, shared import lock and user systemd template (§15); deployed on home-ubuntu, mailbox authorization pending |
 | D1 ✅ | Dot MCP tools, atomic manual decisions and cloud Skill packaging (§16); Ubuntu services and private cloud plugins deployed, real cloud reads verified |
+| P1 local | Separate Bearer-protected MCP listener, revision-checked control tools and owner-only Discord bot (§19); public tunnel, Grok and live bot acceptance pending |
 
 ## 10. Decisions (2026-10-05)
 
@@ -559,7 +578,8 @@ the distinction between backend validation and verified cloud connectivity.
 ## 17. Persistent fictional Ashby preparation worker (2026-10-11)
 
 `auto-app-agent serve --db PATH --preparation-dir PREP_DIR` adds
-`prepare_application` and `get_application_run` to the four base tools. The
+`prepare_application` and `get_application_run` to the base tools (five in the
+current local P3 code, including `record_application_event`; seven with preparation). The
 first records an immutable fictional request in `PREP_DIR/preparation.sqlite3`;
 it does not run a browser in the MCP process. The second returns persisted
 progress/results. Both the request and its artifacts are independent of the
@@ -624,3 +644,57 @@ was not repeated after this scoped fix.
 Daily window names and HH:MM values are validated when configuration loads. Runtime errors from `serve run` print their cause and exit nonzero after cleanup; ordinary completion no longer uses an unconditional successful process exit. A signal-triggered forced shutdown remains available for stuck browser tasks.
 
 The query HTTP API restricts Host and Origin on every route, including GET, to the configured local/private authorities. Custom CLI ports and concrete bind hosts are passed into the allowlist; wildcard bind addresses do not permit arbitrary Host headers. Python callers can supply `allowed_hosts` explicitly for a private reverse proxy. This is rebinding protection, not authentication for public deployment.
+
+## 18. Linux screening and enrichment worker (2026-10-12)
+
+`auto-app worker run / watch / status` is a separate deterministic loop over the saved library: screen →
+public employer-API enrichment → rescreen → Discord → weekly-summary check → disk-health check, with a default 900-second start-to-start cadence and
+no overlapping rounds. Unlike the existing browser/model `serve` loop, it consumes ingest results without
+collecting feeds, calling a model or submitting applications; screening changes only a reversible view.
+
+The first-round cutoff is persisted before work, title-only jobs wait two hours, failed screen/rescreen
+prevents notification, and partial rounds count toward consecutive failures. Implementation is local;
+deployment, webhook configuration and 24-hour acceptance remain pending. Commands, rules, state and
+deployment recovery: [Linux worker](linux-worker.md); verification record: [implementation entry](updates/2026-10-12-linux-worker.md).
+
+## 19. P1 control and Discord bot (2026-10-12)
+
+The optional MCP control tools expose ingest/worker status, worker pause/resume, screening rules and a
+revision-checked rule-change preview, filter feedback, and the pending digest. A client must present a
+rule diff and preview to the user and receive confirmation before applying its `change_id` with the same
+`expected_revision`. The preview persists a proposal but does not change active rules. Pausing stops the
+screening/enrichment/notification worker and the bot digest; the independent `ingest watch` feed worker
+continues. The public MCP listener has a separate Bearer token and loopback bind behind a user-configured
+HTTPS tunnel. [Remote MCP guide](remote-mcp.md).
+
+The owner-only Discord bot posts the same eligible digest and offers decision buttons that record
+`want_to_apply`, `not_applied`, or an owner-reported `applied` state. `/jobs` filters by sponsorship,
+company and keyword; `/job`, `/status`, `/pause` and `/resume` are also available. It has no free chat,
+model call or application submission. In bot mode run the screening worker with
+`--steps screen,enrich,summary,health` so the bot alone delivers/marks digests; worker operational alerts may still use
+the separately configured webhook. Bot credentials come from a private mode-600 file, not a service
+environment variable. [Discord bot guide](discord-bot.md).
+
+These P1 paths have local implementation and scoped verification. No live Discord delivery, tunnel,
+Grok connector, Linux service activation or cross-client decision readback is claimed. The outstanding
+checks are in the [P1 acceptance record](updates/2026-10-12-p1-coverage-and-control.md).
+
+
+## 20. Application outcomes, timelines and operations (2026-10-13)
+
+The `notify` step also sends reported external-agent outcomes without depending on a new-job digest;
+acknowledged batches advance `handoff_cursor`. In bot mode the bot owns outcomes with an independent
+`<db>.bot-state.json` cursor; the worker retains summary/health through its webhook.
+[Handoff contract](agent-handoff.md).
+
+`events` and base MCP `record_application_event` persist application timelines; opt-in control tools
+review unmatched status mail. `purpose: updates` mailboxes stay disabled in the example and need
+separate authorization. Summary runs on first due round and then seven days after last acknowledgment,
+covering the preceding seven days, rather than a fixed weekday. `summary_at` changes only after delivery.
+[Application tracking](application-tracking.md).
+
+Health reports error below 2 GiB free on the database filesystem. Service `OnFailure` hooks send
+minimal alerts. `ops backup` snapshots main and existing optional preparation SQLite databases,
+restore-verifies every new copy and retains 14 recent daily / 8 older weekly representatives per DB.
+Referenced attachments are not backed up. Private Mac pulls and optional Git deployment are described
+in [operations](operations.md); rsync is still default. No P2/P3 deployment or live acceptance occurred.

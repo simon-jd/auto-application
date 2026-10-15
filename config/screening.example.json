@@ -1,0 +1,10 @@
+{
+  "exclude_internships": true,
+  "exclude_senior": true,
+  "exclude_non_cs": true,
+  "exclude_citizenship_required": true,
+  "max_years_required": 3,
+  "extra_cs_terms": [],
+  "extra_non_cs_terms": [],
+  "us_only": true
+}

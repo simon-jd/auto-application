@@ -1,0 +1,24 @@
+[Unit]
+OnFailure=auto-app-alert@%n.service
+Description=Job Search Discord bot
+Wants=network-online.target
+After=network-online.target auto-app-worker.service
+ConditionPathExists=%h/Desktop/job-search/runtime/credentials/bot.env
+
+# A persistent failure must reach the failed state so OnFailure alerts: configuration errors
+# exit 2 and are not retried; any other crash loop stops after 10 starts in 30 minutes.
+StartLimitIntervalSec=1800
+StartLimitBurst=10
+
+[Service]
+Type=simple
+WorkingDirectory=%h/Desktop/job-search/auto-application
+Environment=AUTO_APP_HOME=%h/Desktop/job-search/runtime
+ExecStart=%h/Desktop/job-search/auto-application/.venv/bin/auto-app bot run --db %h/Desktop/job-search/runtime/data/auto_app.db --credentials %h/Desktop/job-search/runtime/credentials/bot.env
+Restart=on-failure
+RestartPreventExitStatus=2
+RestartSec=30
+UMask=0077
+
+[Install]
+WantedBy=default.target

@@ -71,7 +71,8 @@ class Review:
                 continue
             current = self.filters.get(r["filter"])
             # prefer the current version's judgment; otherwise the latest one
-            if r["filter"] not in latest or (current and r["filter_version"] == current.version):
+            previous = latest.get(r["filter"])
+            if previous is None or not current or previous["filter_version"] != current.version:
                 latest[r["filter"]] = r
         labels = self.store.feedback_of(job_id)
         verdicts = []

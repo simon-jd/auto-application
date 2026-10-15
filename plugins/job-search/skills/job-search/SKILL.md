@@ -1,6 +1,6 @@
 ---
 name: job-search
-description: Search the connected saved job library, explain evidence, record explicit manual application decisions, and run requested fictional Ashby form preparations when the connected tools support them. Use for job briefings, queues, tracking, or fill-only tests.
+description: Search screened jobs and sponsorship evidence, record explicit manual decisions and milestones, inspect pipeline health and digests, use confirmed controls, and run requested fictional Ashby tests when connected tools support them.
 ---
 
 # Job Search
@@ -11,6 +11,14 @@ namespace supplied by the current session; do not invent a namespace. If the
 connection or a required tool is unavailable, explain what is missing. A
 skills-only installation provides instructions, not access to the job database.
 Do not substitute local files, SSH, or an assumed connection.
+
+Also discover `record_application_event` for milestones. With owner-controlled
+pipeline tools enabled, discover `get_pipeline_status`, `get_screening_rules`,
+`get_digest`, `pause_pipeline`, `resume_pipeline`, `propose_screening_change`,
+`apply_screening_change`, `record_filter_feedback`, `list_unmatched_updates`,
+`assign_update`, and `dismiss_update`. Tool availability must come from current
+discovery, not this list. A source-code update or installed Skill alone does not
+refresh a connected app's cached schema.
 
 For an explicitly requested fictional Ashby fill-only test, also discover
 `prepare_application` and `get_application_run`. These are optional tools;
@@ -32,6 +40,41 @@ the installed Skill or plugin archive does not prove they are connected.
 4. Use `get_job(job_id)` for full evidence and decision history. Identify jobs
    by their stable integer `job_id`, displayed as `#ID`; list positions are not
    job IDs. Keep source links, source/update history, and conflicting evidence.
+
+When supported, `sponsorship` filters `offers`, `no`, `unknown`, or
+`citizenship_required`. Report saved screening reasons and description/enrichment
+coverage. Rules-screened jobs and country-excluded jobs are hidden by default;
+`include_excluded=true` is an explicit audit, not a way to pad a shortlist.
+Sponsorship is evidence for ordering, not proof of the candidate's eligibility.
+
+## Pipeline and milestones
+
+Read `get_pipeline_status`, `get_screening_rules`, and `get_digest` when the user
+asks for health, active filters, or new-job summaries. Digest reads do not mark
+jobs notified. `pause_pipeline` and `resume_pipeline` control screening,
+enrichment and notifications; ingestion continues separately. Only change this
+state when the user requests it. Report a missing/stale worker separately from
+healthy ingestion.
+
+For rule changes: call `propose_screening_change`, show the exact diff and preview
+counts, and wait for the user's confirmation before `apply_screening_change` with
+that proposal's ID and revision. Never invent confirmation from an old request
+to inspect or tune the system. Expired/stale proposals require a fresh preview.
+Record filter feedback only for the user's stated verdict; it is not a manual
+application decision.
+
+Use `record_application_event` only for a user-reported `applied`, `assessment`,
+`interview`, `rejected`, `offer`, or `withdrawn` milestone on a resolved job ID.
+Preserve the reported occurrence time and note without inventing either. Read
+back the timeline with `get_job`. For ambiguous saved mail updates, show
+`list_unmatched_updates`; use `assign_update` or `dismiss_update` only after the
+user identifies the matching job or says the update is unrelated. Do not infer a
+rejection from negated or conditional language.
+
+Handoff/resume tools are separately authenticated and opt-in; this private Dot
+configuration does not enable them. Do not promise that a cloud-local resume
+path is a file on the Linux server, or treat agent memory as the saved resume
+evidence bank or application history.
 
 Exclude Canada by default, including jobs with both Canadian and US locations.
 Check the effective country preferences in context. If Canada is not excluded

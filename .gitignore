@@ -25,3 +25,23 @@ filters/
 
 # Step 3: your profile, answer bank and CV (templates in profile.example/)
 profile/
+
+# Per-user deterministic screening rules
+config/screening.json
+config/screening.lock
+config/.screening-proposals/
+
+# P2/P3 private runtime inputs, output files and recovery artifacts
+config/handoff.json
+runtime/
+resumes/
+evidence/
+preparation/
+backups/
+*.sqlite3
+*.sqlite3-*
+*.db.zst
+*.worker-state.json
+*.worker-control.json
+*.bot-state.json
+*.worker.lock

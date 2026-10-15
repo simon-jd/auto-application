@@ -4,10 +4,12 @@ import pytest
 from typer.testing import CliRunner
 
 from auto_app.collect.store import PostingRef
+from auto_app.core.config import AppConfig
 from auto_app.core.db.store import DbStore
-from auto_app.core.models import CommonPosting
+from auto_app.core.models import Card, CommonPosting, RawCapture, utcnow
 from auto_app.process.link import link_jobs
 from auto_app.process.normalize import normalize_postings
+from auto_app.process.parse import parse_postings
 from auto_app.settings import Paths
 from auto_app.sources.api import RawJob
 from tests.helpers import test_registry
@@ -62,6 +64,44 @@ def test_first_run_creates_jobs_and_second_run_changes_nothing(db):
     again, created2 = run(db)
     assert again.new_postings == 0 and created2 == {}
     assert job_of(db, "linkedin/11") == j  # ids stable
+
+
+def test_reparsed_linked_posting_refreshes_projection_without_reassigning_job(db):
+    card = Card(source="linkedin", source_job_id="req", url="https://example.test/job/req",
+                page=0, rank=1, title="Engineer")
+    raw = RawCapture(source=card.source, source_job_id=card.source_job_id, requested_url=card.url,
+                     final_url=card.url, http_status=200, fetched_at=utcnow(), ready=True, detail_html="",
+                     page_text="Acme\nEngineer\nSeattle, WA · 1 hour ago · 3 applicants\nApply\n"
+                               "About the job\nPlease include the job id when applying.")
+    db.save_posting(card, raw, batch_id="b", search_run_id=1)
+    ref = PostingRef(card.source, card.source_job_id)
+    db.save_parsed(ref, CommonPosting(source=card.source, source_job_id=card.source_job_id,
+                   title="Old Engineer", company="Acme", locations=["Boston, MA"], req_id="WHEN"),
+                   f"linkedin:{REG.create('linkedin').parser_version}")
+    run(db)
+    job_id = job_of(db, "linkedin/req")
+    db.set_job_state(job_id, step2="recommended", decision="applied")
+    original_links = db.posting_links()
+    assert ("req_id", "acme|WHEN") in db.job_keys_of(job_id)
+
+    parse_postings(db, AppConfig(), REG)
+    normalize_postings(db, REG)
+    assert db.get_parsed(ref)["req_id"] is None
+    assert db.get_normalized(ref)["req_id"] is None
+    link_jobs(db, REG, dry_run=True)
+    assert ("req_id", "acme|WHEN") in db.job_keys_of(job_id)
+    assert db.job(job_id)["locations"] == ["boston, ma"]
+
+    plan, created = link_jobs(db, REG)
+    assert plan.new_postings == 0 and created == {}
+    assert ("req_id", "acme|WHEN") not in db.job_keys_of(job_id)
+    assert ("fingerprint", "acme|engineer") in db.job_keys_of(job_id)
+    assert ("fingerprint", "acme|old engineer") not in db.job_keys_of(job_id)
+    assert db.job(job_id)["locations"] == ["seattle, wa"]
+    assert db.job(job_id)["title_norm"] == "engineer"
+    assert db.job(job_id)["state"] == "applied"
+    assert db.job(job_id)["step2"] == "recommended"
+    assert db.posting_links() == original_links
 
 
 def test_new_posting_joins_existing_job_and_company_posting_becomes_primary(db):

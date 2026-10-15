@@ -10,6 +10,10 @@ from pathlib import Path
 import time
 
 
+STATE_SUFFIX = ".ingest-state.json"
+WATCH_LOCK_SUFFIX = ".ingest-watch.lock"
+
+
 class ImportLocked(OSError):
     """Another process owns this database's worker or import round."""
 
@@ -38,8 +42,8 @@ def import_lock(db_path: Path):
     return _lock(_path(db_path, ".ingest-import.lock"), "feed import")
 
 
-def _read_state(db_path: Path) -> dict:
-    path = _path(db_path, ".ingest-state.json")
+def _read_state(db_path: Path, suffix: str = STATE_SUFFIX) -> dict:
+    path = _path(db_path, suffix)
     if not path.exists():
         return {"status": "not_started", "last_run_at": None, "last_finished_at": None,
                 "next_run_at": None, "consecutive_failures": 0}
@@ -52,9 +56,9 @@ def _read_state(db_path: Path) -> dict:
         raise ValueError(f"cannot read scheduler state: {path}") from exc
 
 
-def _running(db_path: Path) -> bool:
+def _running(db_path: Path, suffix: str = WATCH_LOCK_SUFFIX) -> bool:
     try:
-        with _path(db_path, ".ingest-watch.lock").open("rb") as handle:
+        with _path(db_path, suffix).open("rb") as handle:
             try:
                 fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
             except BlockingIOError:
@@ -74,8 +78,8 @@ def status(db_path: Path) -> dict:
         return {"status": "error", "running": False, "error": str(exc)}
 
 
-def _write_state(db_path: Path, state: dict) -> None:
-    path = _path(db_path, ".ingest-state.json")
+def _write_state(db_path: Path, state: dict, suffix: str = STATE_SUFFIX) -> None:
+    path = _path(db_path, suffix)
     temporary = path.with_name(path.name + ".tmp")
     with temporary.open("w") as handle:
         json.dump(state, handle, ensure_ascii=False, indent=2)
@@ -116,7 +120,7 @@ def watch(config_path: Path, db_path: Path, *, interval_seconds: float = 1800,
     should_stop = should_stop or (lambda: False)
     config_path = Path(config_path).expanduser().resolve()
     db_path = Path(db_path).expanduser().resolve()
-    with _lock(_path(db_path, ".ingest-watch.lock"), "feed worker"):
+    with _lock(_path(db_path, WATCH_LOCK_SUFFIX), "feed worker"):
         state = _read_state(db_path)
         due = 0 if once else _due(state.get("next_run_at"))
         try:

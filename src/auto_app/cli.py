@@ -21,6 +21,11 @@ from auto_app.core.config import GENERIC_FIELDS, AppConfig, load_config, load_en
 from auto_app.core.logging import setup_logging
 from auto_app.core.models import utcnow
 from auto_app.ingest.cli import app as ingest_app
+from auto_app.bot.cli import app as bot_app
+from auto_app.worker.cli import app as worker_app
+from auto_app.handoff.cli import app as handoff_app
+from auto_app.track.cli import app as events_app
+from auto_app.ops.cli import app as ops_app
 from auto_app.settings import PROJECT_ROOT, get_paths
 from auto_app.sources import SOURCES, get_adapter
 from auto_app.sources.filters import describe
@@ -39,6 +44,11 @@ app.add_typer(schedule_app, name="schedule")
 app.add_typer(source_app, name="source")
 app.add_typer(collect_app, name="collect")
 app.add_typer(ingest_app, name="ingest")
+app.add_typer(worker_app, name="worker")
+app.add_typer(bot_app, name="bot")
+app.add_typer(handoff_app, name="handoff")
+app.add_typer(events_app, name="events")
+app.add_typer(ops_app, name="ops")
 app.add_typer(process_app, name="process")
 app.add_typer(job_app, name="job")
 app.add_typer(filter_app, name="filter")
@@ -54,6 +64,7 @@ _debug_files = False
 
 @app.callback()
 def main(
+    ctx: typer.Context,
     verbose: Annotated[bool, typer.Option("--verbose", "-v")] = False,
     debug_files: Annotated[
         bool, typer.Option("--debug-files", help="Write postings/batches as files under data/raw/ instead of the database")
@@ -61,7 +72,9 @@ def main(
 ):
     global _debug_files
     setup_logging(verbose)
-    load_env_file(get_paths().home / ".env")  # global settings + ANTHROPIC_API_KEY; the shell's variables win
+    if ctx.invoked_subcommand not in ("worker", "bot", "handoff", "events", "ops"):
+        load_env_file(get_paths().home / ".env")  # global settings; the shell's variables win
+    # The deterministic worker only uses its explicit runtime files and webhook environment.
     _debug_files = debug_files
 
 

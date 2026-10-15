@@ -2,12 +2,13 @@
 
 import json
 from datetime import datetime, timezone
-from urllib.parse import urlparse
 
 from auto_app.ingest.models import IngestRecord, ParsedFeed
+from auto_app.ingest.urls import canonical_url
 
 
-REPOSITORY_FORMATS = ("simplify", "speedyapply", "applyguy", "ricsign", "jobright")
+REPOSITORY_FORMATS = ("simplify", "speedyapply", "applyguy", "ricsign", "jobright",
+                      "greenhouse-board", "lever-board", "ashby-board")
 
 
 def validate_repository_format(format: str) -> None:
@@ -15,9 +16,12 @@ def validate_repository_format(format: str) -> None:
         raise ValueError("repository format must be one of: " + ", ".join(REPOSITORY_FORMATS))
 
 
-def parse_repository(content: bytes, *, format: str = "simplify") -> ParsedFeed:
+def parse_repository(content: bytes, *, format: str = "simplify", company: str | None = None) -> ParsedFeed:
     """Use explicit source format; existing configurations default to Simplify."""
     validate_repository_format(format)
+    if format.endswith("-board"):
+        from auto_app.ingest.repository_boards import parse_board
+        return parse_board(content, format=format, company=company)
     if format == "simplify":
         return _parse_simplify(content)
     if format in ("applyguy", "ricsign"):
@@ -69,13 +73,8 @@ def _record(row) -> IngestRecord:
     if not isinstance(row, dict):
         raise ValueError("listing must be an object")
     external_id = _text(row, "id", required=True)
-    url = _text(row, "url", required=True)
-    try:
-        parts = urlparse(url)
-        valid_url = parts.scheme in {"http", "https"} and bool(parts.hostname)
-    except ValueError:
-        valid_url = False
-    if not valid_url:
+    url = canonical_url(_text(row, "url", required=True))
+    if url is None:
         raise ValueError("url must be an absolute HTTP(S) URL")
     for flag in ("active", "is_visible"):
         if not isinstance(row.get(flag), bool):

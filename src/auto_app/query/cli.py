@@ -31,7 +31,9 @@ def parser() -> argparse.ArgumentParser:
     archive.add_argument("--all", action="store_true", help="Include active and archived jobs.")
     jobs.add_argument("--limit", type=int, default=50)
     jobs.add_argument("--cursor", help="Continue the same query using the returned next_cursor.")
-    jobs.add_argument("--include-excluded", action="store_true", help="Audit jobs hidden by country preferences.")
+    jobs.add_argument("--include-excluded", action="store_true", help="Audit jobs hidden by country preferences or screening rules.")
+    jobs.add_argument("--sponsorship", choices=["offers", "no", "unknown", "citizenship_required"],
+                      help="Only jobs with this visa-sponsorship signal from screening.")
     job = commands.add_parser("job", help="Job, postings, judgments and personal review history.")
     job.add_argument("job_id", type=int)
     serve = commands.add_parser("serve", help="Expose this read API (localhost by default).")
@@ -63,7 +65,7 @@ def main(argv: list[str] | None = None) -> int:
             elif args.command == "jobs":
                 result = service.jobs(query=args.query, state=args.state, company=args.company,
                                       source=args.source, archived=None if args.all else args.archived,
-                                      limit=args.limit, cursor=args.cursor, include_excluded=args.include_excluded)
+                                      limit=args.limit, cursor=args.cursor, include_excluded=args.include_excluded, sponsorship=args.sponsorship)
             else:
                 result = service.job(args.job_id)
                 if result is None:

@@ -40,10 +40,10 @@ def _canada(location: str) -> bool:
     if PROVINCE_CODES.search(text):
         return True
     # US cities can share province names (New Brunswick, NJ; Ontario, CA).
-    # An explicit Canadian country still wins; otherwise a US state disambiguates.
-    if US_LOCATION.search(text):
-        return False
-    return bool(PROVINCES.search(text))
+    # A state disambiguates only its own location, not a Canadian location in
+    # the same multi-location string ("Toronto, Ontario; Seattle, WA").
+    return any(PROVINCES.search(segment) and not US_LOCATION.search(segment)
+               for segment in re.split(r"[;/]", text))
 
 
 @dataclass(frozen=True)
@@ -56,15 +56,47 @@ class Preferences:
                 if (_canada(location) if country == "Canada" else
                     re.search(r"(?<!\w)" + re.escape(_text(country)) + r"(?!\w)", text))]
 
-    def evaluate(self, locations: list[str]) -> dict:
-        matched, countries = [], set()
+    def countries_for_code(self, code) -> list[str]:
+        """Codes come only from structured country fields; a location's CA is California."""
+        if not isinstance(code, str):
+            return []
+        canonical = "Canada" if code.strip().casefold() in {"ca", "can", "canada"} else code.strip()
+        return [country for country in self.exclude_countries if _text(country) == _text(canonical)]
+
+    def _excludes_us(self) -> bool:
+        return any(_text(country) in ("united states", "united states of america", "usa", "us")
+                   for country in self.exclude_countries)
+
+    @staticmethod
+    def _in_us(locations, countries) -> bool:
+        from auto_app.screen.locations import classify_location
+
+        return (any(isinstance(code, str) and code.strip().upper() in ("US", "USA") for code in countries)
+                or any(isinstance(location, str) and classify_location(location) == "us"
+                       for location in locations))
+
+    def evaluate(self, locations: list[str], *, countries=()) -> dict:
+        matched, excluded_countries, matched_codes = [], set(), []
         for location in dict.fromkeys(locations):
             excluded = self.countries_for(location)
             if excluded:
                 matched.append(location)
-                countries.update(excluded)
-        return {"excluded": bool(countries), "reasons": [f"excluded_country:{c}" for c in sorted(countries)],
-                "matched_locations": matched}
+                excluded_countries.update(excluded)
+        for code in countries:
+            excluded = self.countries_for_code(code)
+            if excluded:
+                matched_codes.append(code.strip().upper())
+                excluded_countries.update(excluded)
+        if excluded_countries and not self._excludes_us() and self._in_us(locations, countries):
+            # A job open in the US stays visible even when it also lists an excluded country
+            # ("Seattle, WA / Vancouver, BC"): you only exclude jobs with no US option.
+            excluded_countries, matched, matched_codes = set(), [], []
+        result = {"excluded": bool(excluded_countries),
+                  "reasons": [f"excluded_country:{c}" for c in sorted(excluded_countries)],
+                  "matched_locations": matched}
+        if matched_codes:
+            result["matched_countries"] = sorted(set(matched_codes))
+        return result
 
 
 def load_preferences(path: Path, *, required: bool = False) -> Preferences:

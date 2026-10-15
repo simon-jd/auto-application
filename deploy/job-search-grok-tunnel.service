@@ -1,0 +1,28 @@
+[Unit]
+OnFailure=auto-app-alert@%n.service
+Description=Job Search Grok named HTTPS tunnel
+Wants=network-online.target
+Requires=auto-app-agent-public.service
+After=network-online.target auto-app-agent-public.service
+ConditionPathExists=%h/Desktop/job-search/runtime/config/grok.env
+ConditionPathExists=%h/Desktop/job-search/runtime/config/grok-tunnel.yml
+ConditionPathExists=%h/Desktop/job-search/runtime/credentials/mcp-token
+ConditionFileIsExecutable=%h/Desktop/job-search/bin/cloudflared
+
+# A persistent failure must reach the failed state so OnFailure alerts: a crash loop stops after 10 starts in 30 minutes.
+StartLimitIntervalSec=1800
+StartLimitBurst=10
+
+[Service]
+Type=simple
+WorkingDirectory=%h/Desktop/job-search
+# Read only the non-secret YAML; inspect the referenced JSON's path/type/mode, not its contents.
+ExecCondition=%h/Desktop/job-search/auto-application/.venv/bin/python -c "import pathlib,sys,yaml; c=yaml.safe_load(pathlib.Path(sys.argv[1]).read_text()); v=c.get('credentials-file') if isinstance(c,dict) else None; p=pathlib.Path(v) if isinstance(v,str) else None; root=pathlib.Path(sys.argv[2]); sys.exit(0 if p is not None and p.is_absolute() and p.parent==root and p.suffix=='.json' and p.stem==str(c.get('tunnel')) and not p.is_symlink() and p.is_file() and p.stat().st_mode & 0o777 == 0o600 else 1)" %h/Desktop/job-search/runtime/config/grok-tunnel.yml %h/Desktop/job-search/runtime/credentials
+ExecStart=%h/Desktop/job-search/bin/cloudflared --config %h/Desktop/job-search/runtime/config/grok-tunnel.yml tunnel run
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=30
+UMask=0077
+
+[Install]
+WantedBy=default.target

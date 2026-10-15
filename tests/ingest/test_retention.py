@@ -95,7 +95,10 @@ def test_complete_unjudged_import_archives_instead_of_disappearing(store):
     with QueryService(store.db_path) as query:
         archived = query.jobs(archived=True)["items"]
         assert [job["job_id"] for job in archived] == [jid]
-        assert query.job(jid)["ingestion"]["entries"][0]["payload"]["description"] == "Build distributed systems."
+        archived_job = query.job(jid)
+        # The description survives on the posting; the import record keeps its fingerprint.
+        assert archived_job["parsed"]["description_text"] == "Build distributed systems."
+        assert archived_job["ingestion"]["entries"][0]["payload"]["description_chars"] == 26
 
 
 def test_complete_linked_source_removes_pending_hold_but_preserves_import_history(store):
@@ -115,7 +118,7 @@ def test_archiving_preserves_country_exclusion_from_nonprimary_raw_location(stor
     (config / "preferences.json").write_text('{"exclude_countries": ["Canada"]}')
     service = IngestService(store)
     for source, location, description in (
-        ("us-source", "Seattle, WA", "Build distributed systems. " * 30),
+        ("us-source", "Remote", "Build distributed systems. " * 30),  # a US place would keep the job
         ("ca-source", "Remote in Canada", ""),
     ):
         record = IngestRecord(
@@ -141,7 +144,7 @@ def test_archiving_preserves_country_exclusion_from_nonprimary_raw_location(stor
         assert audit["items"][0]["screening"]["matched_locations"] == ["Remote in Canada"]
         detail = query.job(jid)
         assert detail["screening"]["reasons"] == ["excluded_country:Canada"]
-        assert set(detail["archive"]["raw_locations"]) == {"Seattle, WA", "Remote in Canada"}
+        assert set(detail["archive"]["raw_locations"]) == {"Remote", "Remote in Canada"}
 
 
 def test_nonimported_unjudged_job_still_expires_by_deletion(store):

@@ -11,6 +11,7 @@
 import re
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from sqlalchemy import insert, select, update
 
@@ -19,7 +20,7 @@ USAGE = re.compile(r"usage limit|rate.?limit|too many requests|\b429\b|\b529\b|o
 BROKEN = re.compile(r"invalid.{0,20}(api.?key|x-api-key)|\b401\b|authentication|unauthori[sz]ed|not logged in|"
                     r"please (run )?/?login|log ?in again|permission denied|model.{0,40}not found|unknown model|"
                     r"invalid model|no such model|command not found|no such file or directory|not installed", re.I)
-RESET = re.compile(r"resets?\s+(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*([ap]m)?", re.I)
+RESET = re.compile(r"resets?\s+(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*([ap]m)?(?:\s*\(([^)]+)\))?", re.I)
 
 
 def kind_of(error: str) -> str:
@@ -31,18 +32,34 @@ def kind_of(error: str) -> str:
 
 
 def reset_time(error: str, now: datetime, retry_s: float) -> datetime:
-    """When usage comes back: the time the error names (today, or tomorrow if past), else now + retry_s."""
+    """Resolve a reset relative to when the failure was observed, in the stated timezone if present."""
     m = RESET.search(error or "")
     if m:
         h, mi, ap = int(m.group(1)), int(m.group(2) or 0), (m.group(3) or "").lower()
+        if not 0 <= mi < 60 or not (1 <= h <= 12 if ap else 0 <= h < 24):
+            return now + timedelta(seconds=retry_s)
+        local = now
+        if m.group(4):
+            try:
+                local = now.astimezone(ZoneInfo(m.group(4).strip()))
+            except (ZoneInfoNotFoundError, ValueError):
+                return now + timedelta(seconds=retry_s)
         if ap == "pm" and h < 12:
             h += 12
         if ap == "am" and h == 12:
             h = 0
-        if 0 <= h < 24:
-            at = now.replace(hour=h, minute=mi, second=0, microsecond=0)
-            return at if at > now else at + timedelta(days=1)
+        at = local.replace(hour=h, minute=mi, second=0, microsecond=0)
+        if at <= local:
+            at += timedelta(days=1)
+        return _clock_time(at, now)
     return now + timedelta(seconds=retry_s)
+
+
+def _clock_time(value: datetime, clock: datetime) -> datetime:
+    """Keep deadlines comparable with the caller's clock; naive clocks mean system-local time."""
+    if clock.tzinfo is not None:
+        return value.astimezone(clock.tzinfo)
+    return value.astimezone().replace(tzinfo=None) if value.tzinfo is not None else value
 
 
 @dataclass
@@ -55,15 +72,17 @@ class BatchHealth:
 
 
 def assess(rep, now: datetime, tries_per_job: int = 3, broken_after: int = 3, retry_s: float = 900,
-           store=None) -> BatchHealth:
+           store=None, started_at: datetime | None = None) -> BatchHealth:
     """What the batch's failures mean. With a store, job failures are counted (judge_tries) and given up after
-    tries_per_job; a usage limit or a broken filter never counts against a job."""
+    tries_per_job; a usage limit or a broken filter never counts against a job. For older/custom reports without
+    per-failure times, started_at is a best-effort reference; it cannot distinguish failures across a reset."""
     h = BatchHealth()
     by_filter: dict[str, list[tuple[int, str]]] = {}
     for job_id, flt, err in rep.failures:
         k = kind_of(err)
         if k == "usage":
-            until = reset_time(err, now, retry_s)
+            failed_at = getattr(rep, "failure_times", {}).get((job_id, flt)) or started_at or now
+            until = _clock_time(reset_time(err, failed_at, retry_s), now)
             h.usage_until = max(h.usage_until or until, until)
             h.usage_error = err[:200]
         elif k == "broken":

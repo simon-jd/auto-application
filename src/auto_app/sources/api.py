@@ -23,6 +23,7 @@ class RawJob(BaseModel):
     url: str  # public job page
     title: str
     locations: list[str] = []  # every location string the record gives (incl. countries)
+    country: str | None = None  # explicit country evidence, distinct from ambiguous state codes
     posted_at: datetime | None = None
     posted_text: str | None = None  # as shown, e.g. "Posted Yesterday"
     apply_url: str | None = None
@@ -81,6 +82,7 @@ class ApiSource:
 # ---- shared matching helpers ---------------------------------------------------------
 
 US_ALIASES = {"united states", "united states of america", "usa", "us", "u.s.", "u.s.a."}
+_US_COUNTRY = re.compile(r"(?<!\w)(?:united states(?: of america)?|usa|us|u\.s\.(?:a\.)?)(?!\w)", re.I)
 US_STATES = {
     "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA", "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA",
     "ME", "MD", "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ", "NM", "NY", "NC", "ND", "OH", "OK",
@@ -102,22 +104,26 @@ def keyword_match(title: str, keywords: list[str]) -> bool:
 
 
 def looks_us(text: str) -> bool:
-    low = text.lower().strip()
-    if any(a in low for a in ("united states", "usa", "u.s.")):
+    if _US_COUNTRY.search(text):
         return True
     parts = [p.strip() for p in re.split(r"[,;/|()-]", text) if p.strip()]
     return any(p.upper() in US_STATES and len(p) == 2 for p in parts) or any(p.lower() in US_ALIASES for p in parts)
 
 
-def location_match(job_locations: list[str], wanted: list[str], remote: bool | None = None) -> bool:
+def location_match(job_locations: list[str], wanted: list[str], remote: bool | None = None,
+                   country: str | None = None) -> bool:
     wanted = [w for w in wanted if w.strip()]
     if not wanted:
         return True
     for w in wanted:
         wl = w.lower().strip()
-        for loc in job_locations:
-            if wl in US_ALIASES and looks_us(loc):
+        if wl in US_ALIASES:
+            # A structured country takes precedence over a two-letter location
+            # fragment: IN/CA/DE/IL can be countries as well as US states.
+            if (country.strip().lower() in US_ALIASES if country else any(looks_us(loc) for loc in job_locations)):
                 return True
+            continue  # country aliases must never fall back to substring matching
+        for loc in job_locations:
             if wl == "remote" and ("remote" in loc.lower() or remote):
                 return True
             if wl in loc.lower():
@@ -138,7 +144,7 @@ def generic_local_filter(job: RawJob, search: ResolvedSearch, filters: dict[str,
     local = {k for k, f in filters.items() if f.level == "local"}
     if "keywords" in local and not keyword_match(job.title, search.keywords):
         return "keywords"
-    if "locations" in local and not location_match(job.locations, search.locations, job.remote):
+    if "locations" in local and not location_match(job.locations, search.locations, job.remote, job.country):
         return "location"
     if "posted_within_days" in local and not posted_within(job.posted_at, search.posted_within_days):
         return "posted date"

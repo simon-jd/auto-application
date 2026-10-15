@@ -43,7 +43,7 @@ class Applications:
     # ---- reading ----------------------------------------------------------------------------------
 
     def get(self, application_id: int) -> dict | None:
-        with self.store.engine.connect() as conn:
+        with self.store._conn() as conn:
             r = conn.execute(select(T.applications).where(T.applications.c.application_id == application_id)).mappings().first()
         return dict(r) if r else None
 
@@ -86,13 +86,13 @@ class Applications:
     # ---- writing ----------------------------------------------------------------------------------
 
     def _set(self, application_id: int, **values) -> None:
-        with self.store.engine.begin() as conn:
+        with self.store._conn() as conn:
             conn.execute(update(T.applications).where(T.applications.c.application_id == application_id)
                          .values(updated_at=utcnow(), **values))
 
     def _attempt(self, application_id: int, applier: str, pass_: str, outcome: Outcome) -> None:
         now = utcnow()
-        with self.store.engine.begin() as conn:
+        with self.store._conn() as conn:
             conn.execute(insert(T.attempts).values(application_id=application_id, applier=applier, **{"pass": pass_},
                                                    outcome=outcome.kind, reason=outcome.reason, started_at=now, ended_at=now))
 
@@ -186,21 +186,43 @@ class Applications:
 
     def applied_by_hand(self, job_id: int) -> int:
         """You applied yourself (manual applying): the application is recorded (manual) and the job marked applied."""
-        app = next((j["application"] for j in self.queue() if j["job_id"] == job_id and j["application"]), None)
-        if app is None:
-            [new] = self.enqueue([job_id]) or [None]
-            app = self.get(new) if new else None
-        if app is None:
-            raise ValueError(f"job {job_id} isn't queued")
-        self._set(app["application_id"], applier="manual", chain=["manual"], chain_pos=0)
-        self.applied(app["application_id"])
-        return app["application_id"]
+        from auto_app.track.events import write_transaction
+
+        with write_transaction(self.store) as conn:
+            job = self.store.job(job_id)
+            latest = conn.execute(select(T.applications).where(T.applications.c.job_id == job_id)
+                                  .order_by(T.applications.c.application_id.desc())).mappings().first()
+            if job and job.get("decision") == "applied" and latest and latest["status"] == "submitted":
+                return latest["application_id"]
+            if not job or job.get("archived_at") or job.get("decision") != "want_to_apply":
+                raise ValueError(f"job {job_id} isn't queued")
+            application_id = latest["application_id"] if latest and latest["status"] not in DONE else None
+            if application_id is None:
+                now = utcnow()
+                application_id = conn.execute(insert(T.applications).values(
+                    job_id=job_id, platform=platform_of(job.get("canonical_url")), apply_url=job.get("canonical_url"),
+                    status="queued", chain=["manual"], chain_pos=0, created_at=now, updated_at=now)).inserted_primary_key[0]
+            self._set(application_id, applier="manual", chain=["manual"], chain_pos=0)
+            self.applied(application_id)
+        if self.ttl is not None and self.store._tx is None:
+            self.store.refresh_job_dates(self.ttl)
+        return application_id
 
     def applied(self, application_id: int) -> None:
-        app = self.get(application_id)
-        self._set(application_id, status="submitted", submitted_at=utcnow())
-        self._attempt(application_id, app.get("applier") or "?", "handoff", Outcome("submitted", "you applied"))
-        self._job(app["job_id"], "applied")
+        from auto_app.track.events import write_transaction
+
+        with write_transaction(self.store):
+            app = self.get(application_id)
+            if app is None:
+                raise ValueError(f"unknown application #{application_id}")
+            if app["status"] == "submitted":
+                return
+            now = utcnow()
+            self._set(application_id, status="submitted", submitted_at=now)
+            self._attempt(application_id, app.get("applier") or "?", "handoff", Outcome("submitted", "you applied"))
+            self.store.mark_job(app["job_id"], "applied", occurred_at=now)
+        if self.ttl is not None and self.store._tx is None:
+            self.store.refresh_job_dates(self.ttl)
 
     def couldnt(self, application_id: int, reason: str = "") -> str:
         """The current applier didn't work for you → the next one in the chain."""

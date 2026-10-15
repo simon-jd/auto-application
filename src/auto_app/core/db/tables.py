@@ -162,6 +162,7 @@ jobs = Table(
     Column("duplicate_of", Integer),  # archived only: the earlier archived job this one duplicates (step2 §7.8)
     Column("warnings", JSON),  # e.g. [{"kind": "repost", "job_id": 12, "text": "looks like job #12, …"}]
     Column("notified_at", Ts),  # Step 4: when you were told about it (the manager's digest — `job notified`)
+    sqlite_autoincrement=True,  # retained timelines must never attach to a recycled job ID
 )
 
 job_locations = Table(
@@ -375,4 +376,80 @@ questions = Table(  # Step 3: each application's questions, with what was filled
     Column("confidence", Float),
     Column("seen", Boolean),  # drafts: shown to you in review?
     Column("note", Text),
+)
+
+
+# ---- Linux worker: JD enrichment and deterministic screening (docs/linux-worker.md) --------------
+
+enrichments = Table(  # one read of an imported job's official record, by the posting's canonical apply URL
+    "enrichments", metadata,
+    Column("url", Text, primary_key=True),
+    Column("platform", String),  # greenhouse | lever | ashby | workday; NULL when no API is known for the URL
+    Column("status", String, nullable=False),  # ok | failed | unsupported | gone
+    Column("attempts", Integer, nullable=False, default=0),  # failed reads so far
+    Column("next_attempt_at", Ts),  # failed only: when a later round may try again
+    Column("fetched_at", Ts),
+    Column("data", JSON),  # ok: the CommonPosting fields taken from the employer's record
+    Column("error", Text),
+    Column("updated_at", Ts, nullable=False),
+)
+
+job_screenings = Table(  # the rules' current verdict per active job: a view, never a decision
+    "job_screenings", metadata,
+    Column("job_id", Integer, primary_key=True),  # no FK: rows of deleted/archived jobs are dropped by the next pass
+    Column("rules_version", String, nullable=False),
+    Column("facts_hash", String, nullable=False),  # screened again when the job's facts change
+    Column("outcome", String, nullable=False, index=True),  # kept | excluded
+    Column("reasons", JSON, nullable=False),  # e.g. ["internship", "experience_required:5"]
+    Column("signals", JSON, nullable=False),  # {"role", "sponsorship", "years_required", "new_grad_title", …}
+    Column("screened_at", Ts, nullable=False),
+)
+
+# ---- Agent handoff ---------------------------------------------------------------------------
+
+handoff_claims = Table(
+    'handoff_claims', metadata,
+    Column('job_id', Integer, primary_key=True),
+    Column('agent', String, nullable=False),
+    Column('token_hash', String, nullable=False, unique=True),
+    Column('claimed_at', Ts, nullable=False),
+    Column('lease_until', Ts, nullable=False),
+)
+
+resume_artifacts = Table(
+    'resume_artifacts', metadata,
+    Column('artifact_id', Integer, primary_key=True, autoincrement=True),
+    Column('job_id', Integer, nullable=False, index=True),
+    Column('path', Text, nullable=False),
+    Column('sha256', String, nullable=False),
+    Column('bytes', Integer, nullable=False),
+    Column('note', Text),
+    Column('created_at', Ts, nullable=False),
+)
+
+# job_id: no FK — the timeline outlives the job (TTL).
+mail_updates = Table(
+    "mail_updates", metadata,
+    Column("update_id", Integer, primary_key=True, autoincrement=True),
+    Column("source", String, nullable=False),
+    Column("message_key", String, nullable=False, unique=True),
+    Column("received_at", Ts),
+    Column("sender", Text),
+    Column("subject", Text),
+    Column("kind", String, nullable=False),
+    Column("job_id", Integer),
+    Column("status", String, nullable=False),
+    Column("created_at", Ts, nullable=False),
+)
+
+application_events = Table(
+    "application_events", metadata,
+    Column("event_id", Integer, primary_key=True, autoincrement=True),
+    Column("job_id", Integer, nullable=False, index=True),
+    Column("kind", String, nullable=False),
+    Column("occurred_at", Ts, nullable=False),
+    Column("source", String, nullable=False),
+    Column("note", Text),
+    Column("mail_update_id", Integer, unique=True),
+    Column("created_at", Ts, nullable=False),
 )

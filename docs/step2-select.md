@@ -1,6 +1,15 @@
 # Step 2 — Select
 
+**2026-10-14 review update:** simultaneous mandatory experience requirements use the highest
+threshold; explicit qualification alternatives retain their lower viable route. Structured country
+evidence is preserved through enrichment and preferences; a job that also lists a US place stays visible.
+See [review/deployment record](updates/2026-10-14-review-deployment.md).
+
 **Goal:** from the pool of collected jobs, recommend the ones worth applying to, as **a list for you to decide on** — judged the way **you** describe it, and learning from your decisions.
+
+**2026-10-12 worker update:** the deterministic screening view hides explicitly excluded jobs and makes
+user-run `filter run` skip them. It never writes model verdicts or manual decisions; changing rules restores
+visibility on the next pass. Defaults, reasons and audit queries: [Linux worker](linux-worker.md#2-deterministic-screening).
 
 ```
 filters/<name>/  (one folder = one filter; you can have several)
@@ -37,7 +46,7 @@ Status: S1 ✅ (filters: loading, validation, versions, job details, `filters`);
 {"exclude_countries": ["Canada"]}
 ```
 
-Any matching location excludes the whole job, including mixed US/Canada jobs. The check uses all postings' raw locations alongside normalized/archived locations: Canadian remote evidence can survive normalization to plain `remote`. Canadian province names/codes count; California's `CA` does not, including `Ontario, CA`. Locations without country evidence remain visible. This is not full feasibility qualification.
+A matching location excludes the whole job unless the job also has a US place or a structured `US` country: "Seattle, WA / Vancouver, BC" stays visible, "Vancouver, BC" alone is hidden (excluding "United States" itself turns this exception off). The check uses all postings' raw locations alongside normalized/archived locations: Canadian remote evidence can survive normalization to plain `remote`. Canadian province names/codes count; California's `CA` does not, including `Ontario, CA`. Locations without country evidence remain visible. This is not full feasibility qualification.
 
 Ordinary CLI, TUI/web and agent read-only lists apply the file. Model selection skips excluded jobs even with explicit `--job`; it writes no synthetic model judgment or manual decision. Audit/evaluation, direct job details and ingestion retain the evidence. Use `auto-app-query jobs --include-excluded` for the complete audit view and `auto-app-query context` to inspect effective preferences/counts. An empty list restores visibility on the next operation. The JSON format preserves standard-library-only query scripts; invalid settings fail visibly. Search acquisition and semantic filters retain their existing files.
 
@@ -115,9 +124,10 @@ applies_to: [linkedin, nvidia]                 # sources, or searches as `source
 
 ### 2.3 Versions
 
-- A filter's **version** = a hash of everything that shapes the agent's answer except the job itself: `command.md`, the other files in the folder, and `filter.yaml`'s `job_details`, `max_description_chars`, `model`, `tools`, `max_turns`, `max_tool_calls`.
+- A filter's **version** = a hash scoped by its folder name, plus everything that shapes the agent's answer except the job itself: `command.md`, the other files in the folder, and `filter.yaml`'s `job_details`, `max_description_chars`, `model`, `tools`, `max_turns`, `max_tool_calls`. Identical copied filters have independent judgments and do not repeatedly overwrite each other.
 - **Not** in the version: `parser.py` (it only reads stored answers — §3.3) and `applies_to` (it only decides which jobs the filter judges).
 - Judgments are stored per **(job, filter version)**. Editing the command or another file makes a new version; older judgments are marked out of date and redone on `select --rescore` — never silently.
+- Review prefers a non-error current-version judgment, otherwise the newest non-error historical judgment. The same chosen version supplies implied labels when the user chooses to apply. Legacy hashes from before name scoping remain historical; `--rescore` explicitly refreshes them.
 
 ### 2.4 Several filters
 

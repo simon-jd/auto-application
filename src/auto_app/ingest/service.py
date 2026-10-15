@@ -30,6 +30,12 @@ def _payload(record):
     data = asdict(record)
     if record.posted_at is not None:
         data['posted_at'] = record.posted_at.isoformat()
+    if record.description:
+        # The text lives on the posting; import records keep only its fingerprint, which still changes
+        # the content hash when the description changes. Records without one keep their earlier shape.
+        del data['description']
+        data['description_sha256'] = hashlib.sha256(record.description.encode()).hexdigest()
+        data['description_chars'] = len(record.description)
     return data
 
 
@@ -247,8 +253,10 @@ class IngestService:
                     ).values(needs_reassessment=True))
             report['jobs_created'] = len(apply_plan(self.store, plan))
         if touched_jobs:
-            items = load_items(self.store, self.registry, job_ids=touched_jobs)
-            with self.store.transaction():
+            # Read after acquiring the write lock, so an enrichment committed
+            # before this transaction cannot be replaced by a stale projection.
+            with self.store.transaction(immediate=True):
+                items = load_items(self.store, self.registry, job_ids=touched_jobs)
                 refresh_job_projection(self.store, items, touched_jobs)
                 # A normalized linked posting marks a pending projection refresh.
                 # Clear only after it succeeds, so a failed import can retry it.

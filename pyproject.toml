@@ -7,6 +7,7 @@ dependencies = [
     "alembic>=1.13",
     "anthropic>=1.11.0",
     "claude-agent-sdk>=0.2.163",
+    "discord-py>=2.4,<3",
     "fastapi>=0.142.2",
     "httpx>=0.27",
     "mcp>=2.3,<3",

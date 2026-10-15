@@ -46,10 +46,11 @@ def create_app(db_path: Path, preferences_path: Path | None = None, *, port: int
     def jobs(query: str | None = None, state: str | None = None, company: str | None = None,
              source: str | None = None, archive: Literal["active", "archived", "all"] = "active",
              limit: int = Query(default=50, ge=1, le=200), cursor: str | None = None,
-             include_excluded: bool = False):
+             include_excluded: bool = False,
+             sponsorship: Literal["offers", "no", "unknown", "citizenship_required"] | None = None):
         return execute(lambda service: service.jobs(query=query, state=state, company=company,
                        source=source, archived={"active": False, "archived": True, "all": None}[archive],
-                       limit=limit, cursor=cursor, include_excluded=include_excluded))
+                       limit=limit, cursor=cursor, include_excluded=include_excluded, sponsorship=sponsorship))
 
     @app.get("/api/jobs/{job_id}")
     def job(job_id: int):

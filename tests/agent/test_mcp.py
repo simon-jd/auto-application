@@ -53,9 +53,9 @@ async def test_tool_schema_annotations_and_json_queries(mcp_db):
 
     async with Client(create_mcp_server(mcp_db)) as client:
         tools = {tool.name: tool for tool in (await client.list_tools()).tools}
-        assert set(tools) == {"get_job_context", "search_jobs", "get_job", "record_application_status"}
+        assert set(tools) == {"get_job_context", "search_jobs", "get_job", "record_application_status", "record_application_event"}
         for name, tool in tools.items():
-            assert tool.annotations.read_only_hint is (name != "record_application_status")
+            assert tool.annotations.read_only_hint is (name not in {"record_application_status", "record_application_event"})
             assert tool.annotations.open_world_hint is False
             assert tool.annotations.destructive_hint is False
             assert tool.annotations.idempotent_hint is True
@@ -71,6 +71,24 @@ async def test_tool_schema_annotations_and_json_queries(mcp_db):
                                                       "source": "ashby", "state": "recommended", "limit": 1})
         assert not page.is_error
         assert [job["job_id"] for job in page.structured_content["items"]] == [1]
+
+
+async def test_archived_state_overrides_default_archive_flag_and_paginates(mcp_db):
+    from auto_app.agent.mcp_server import create_mcp_server
+
+    with sqlite3.connect(mcp_db) as conn:
+        conn.execute("UPDATE jobs SET archived_at=?", (STAMP,))
+    async with Client(create_mcp_server(mcp_db)) as client:
+        first = await client.call_tool("search_jobs", {"state": "archived", "limit": 1})
+        assert not first.is_error
+        page = first.structured_content
+        assert page["total"] == 2
+        assert [job["job_id"] for job in page["items"]] == [2]
+        second = await client.call_tool("search_jobs", {"state": "archived", "limit": 1,
+                                                       "cursor": page["next_cursor"]})
+        assert not second.is_error
+        assert [job["job_id"] for job in second.structured_content["items"]] == [1]
+        assert second.structured_content["next_cursor"] is None
 
 
 def _environment():
@@ -127,7 +145,9 @@ async def test_real_client_initializes_reads_records_and_reports_errors(mcp_db, 
         initialized = await session.initialize()
         assert initialized.server_info.name == "auto-app-agent"
         tools = await session.list_tools()
-        assert len(tools.tools) == 4
+        assert {tool.name for tool in tools.tools} == {
+            "get_job_context", "search_jobs", "get_job", "record_application_status", "record_application_event",
+        }
         context = await session.call_tool("get_job_context", {})
         assert not context.is_error and context.structured_content["counts"]["total"] == 2
         result = await session.call_tool("get_job", {"job_id": 1})
@@ -142,6 +162,16 @@ async def test_real_client_initializes_reads_records_and_reports_errors(mcp_db, 
         assert not repeated.is_error and repeated.structured_content["changed"] is False
         updated = await session.call_tool("get_job", {"job_id": 1})
         assert updated.structured_content["decision"] == "applied"
+        assert [(event["kind"], event["source"]) for event in updated.structured_content["events"]] == [
+            ("applied", "manual"),
+        ]
+        milestone = await session.call_tool("record_application_event", {"job_id": 1, "kind": "interview"})
+        assert not milestone.is_error
+        duplicate = await session.call_tool("record_application_event", {"job_id": 1, "kind": "interview"})
+        assert not duplicate.is_error
+        assert duplicate.structured_content["event_id"] == milestone.structured_content["event_id"]
+        timeline = await session.call_tool("get_job", {"job_id": 1})
+        assert [event["kind"] for event in timeline.structured_content["events"]] == ["applied", "interview"]
         page = await session.call_tool("search_jobs", {"state": "applied"})
         assert [job["job_id"] for job in page.structured_content["items"]] == [1]
         for name, arguments, expected in [
@@ -157,6 +187,7 @@ async def test_real_client_initializes_reads_records_and_reports_errors(mcp_db, 
         assert conn.execute("SELECT decision FROM jobs WHERE job_id=1").fetchone() == ("applied",)
         assert conn.execute("SELECT COUNT(*) FROM reviews WHERE job_id=1").fetchone() == (1,)
         assert conn.execute("SELECT COUNT(*) FROM applications").fetchone() == (0,)
+        assert conn.execute("SELECT COUNT(*) FROM application_events WHERE job_id=1").fetchone() == (2,)
 
 
 def test_cli_rejects_public_bind_and_missing_database_without_creating_it(tmp_path):

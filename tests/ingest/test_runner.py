@@ -100,6 +100,31 @@ def test_partial_feed_keeps_revision_but_invalidates_validators_and_does_not_mar
     assert store.source_health("repo")["ingest"]["etag"] == '"v2"'
 
 
+@pytest.mark.parametrize("url", [
+    "https://user:password@careers.example.com/jobs/bad",
+    "https://bad host.example/jobs/bad",
+    "https://careers.example.com:invalid/jobs/bad",
+])
+def test_malformed_row_url_keeps_valid_siblings_and_retryable_checkpoint(store, url):
+    payloads = [[row("old")], [row("new"), row("bad", url=url)], [row("new"), row("bad")]]
+    validators = []
+
+    def handler(request):
+        validators.append(request.headers.get("if-none-match"))
+        return httpx.Response(200, json=payloads.pop(0), headers={"ETag": '"feed"'})
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        run_repository(store, "repo", URL, client=client)
+        partial = run_repository(store, "repo", URL, client=client)
+        assert partial["status"] == "partial" and partial["created"] == 1
+        assert partial["issues"][0]["index"] == 1
+        assert entries(store)["old"]["status"] == "active"
+        assert store.source_health("repo")["ingest"]["etag"] is None
+        repaired = run_repository(store, "repo", URL, client=client)
+    assert repaired["status"] == "ok" and repaired["created"] == 1
+    assert validators == [None, '"feed"', None]
+
+
 def test_changing_origin_does_not_send_previous_origin_validators(store):
     seen = []
 

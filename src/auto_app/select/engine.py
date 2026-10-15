@@ -3,7 +3,7 @@ budget, storing the answers, and setting each job's Step 2 state.
 
 A (job, filter) pair is judged when the job is active and undecided, the filter's `applies_to` covers it, and
 the filter hasn't judged it yet — or, with `rescore`, judged it with an older version. A failed run is
-retried on the next `select`.
+retried on the next `select`. Rule-excluded jobs are skipped unless requested by ID.
 
 Per filter: recommends = its answer says the job fits and has no dealbreaker, or couldn't be read (high recall).
 A job is recommended if any filter that judged it (current versions) recommends it; un_recommended when all
@@ -14,6 +14,7 @@ import logging
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
+from datetime import datetime
 
 from auto_app.collect.store import PostingRef
 from auto_app.process.normalize import pending_enrichment
@@ -58,6 +59,7 @@ class SelectReport:
     failures: list[tuple[int, str, str]] = field(default_factory=list)  # (job_id, filter, error) — for `serve`
     succeeded: dict[str, int] = field(default_factory=dict)  # filter → judgments that worked (ok / unparsed)
     previously_succeeded: set[str] = field(default_factory=set)  # persisted successes of these exact filter versions
+    failure_times: dict[tuple[int, str], datetime] = field(default_factory=dict)  # when each runner failed
 
 
 def applies(flt: Filter, scope: set[str]) -> bool:
@@ -72,12 +74,15 @@ def plan(store, filters: list[Filter], opts: SelectOptions) -> list[tuple[int, F
     for r in store.judgment_rows():
         done.setdefault((r["job_id"], r["filter"]), {})[r["filter_version"]] = r["status"]
     gave_up = unjudgeable(store)  # (job, filter) pairs that failed too often: skipped (`--job N` retries them)
+    screened_out = screened_out_jobs(store) if opts.jobs is None else set()
     pairs, picked_jobs = [], []
     if opts.jobs is not None:
         wanted = set(opts.jobs)
         jobs = [j for j in jobs if j["job_id"] in wanted]
     for j in jobs:
         if j.get("decision") and opts.jobs is None:
+            continue
+        if j["job_id"] in screened_out:
             continue
         if opts.jobs is None:
             parsed, _ = store.job_inputs(j["job_id"])
@@ -115,6 +120,15 @@ def unjudgeable(store) -> set[tuple[int, str]]:
     t = T.judge_tries
     with store.engine.connect() as conn:
         return {(r.job_id, r.filter) for r in conn.execute(sql(t.c.job_id, t.c.filter).where(t.c.unjudgeable_at.is_not(None)))}
+
+
+def screened_out_jobs(store) -> set[int]:
+    """Avoid model calls for jobs excluded by deterministic rules."""
+    if not hasattr(store, "engine"):
+        return set()
+    from auto_app.screen.store import excluded_job_ids
+
+    return excluded_job_ids(store)
 
 
 def decide_job(store, job_id: int, filters: list[Filter], scope: set[str]) -> str | None:
@@ -208,7 +222,7 @@ class StreamPrinter:
 
 
 def run_select(store, cfg, filters: list[Filter], runner, opts: SelectOptions, progress: Progress | None = None,
-               write=None) -> SelectReport:
+               write=None, clock=datetime.now) -> SelectReport:
     """runner(filter, prompt[, on_event]) -> RunResult: `api_runner(client)`, the claude-cli or DeepSeek runner.
     progress: told when the run starts, as each judgment starts and finishes, and at the end.
     With opts.stream, `write(text)` shows each run live (runs then go one at a time)."""
@@ -256,11 +270,12 @@ def run_select(store, cfg, filters: list[Filter], runner, opts: SelectOptions, p
                 result = runner(flt, prompt)
         except Exception as exc:
             result = RunResult(answer=None, status="error", error=f"{type(exc).__name__}: {exc}")
+        failed_at = clock() if result.status == "error" else None
         cost = result.cost_usd if result.cost_usd is not None else \
             cfg.select.cost(flt.config.model, result.input_tokens, result.output_tokens, result.web_searches)
         with lock:
             spent[0] += cost or 0.0
-        return job_id, flt, (result, cost)
+        return job_id, flt, (result, cost, failed_at)
 
     touched = []
     workers = 1 if printer else max(1, opts.parallel)
@@ -289,7 +304,7 @@ def run_select(store, cfg, filters: list[Filter], runner, opts: SelectOptions, p
 def _record(store, rep: SelectReport, touched: list, job_id: int, flt: Filter, done, n: int, total: int,
             spent: float, progress: Progress) -> None:
     """Save one finished judgment and count it."""
-    result, cost = done
+    result, cost, failed_at = done
     parsed = parse_answer(flt, result.answer)
     store.save_judgment(job_id, flt, result, parsed, cost)  # written here, on one thread
     touched.append(job_id)
@@ -305,6 +320,7 @@ def _record(store, rep: SelectReport, touched: list, job_id: int, flt: Filter, d
     if result.status == "error":
         rep.errors += 1
         rep.failures.append((job_id, flt.name, str(result.error or "")))
+        rep.failure_times[job_id, flt.name] = failed_at
         verdict = f"error: {result.error}"
     elif not parsed.ok:
         rep.unparsed += 1

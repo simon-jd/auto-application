@@ -125,6 +125,18 @@ def test_context_reports_counts_source_health_and_unimplemented_capabilities(db_
     json.dumps(result)
 
 
+def test_context_reports_pending_mail_retries_without_exposing_message_records(db_path):
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("INSERT INTO source_health (source,status,data) VALUES ('mail','partial',?)", (
+            json.dumps({"ingest_run": {"status": "partial", "messages_pending": 2, "messages_deferred": 1},
+                        "mailbox": {"has_more": False, "message_retries": {"opaque-key": {"message": "private"}}}}),))
+    with queries(db_path) as service:
+        mail = next(source for source in service.context()["sources"] if source["source"] == "mail")
+    assert mail["ingest_run"]["messages_pending"] == 2
+    assert mail["ingest_run"]["messages_deferred"] == 1
+    assert mail["mailbox"] == {"has_more": False}
+
+
 def test_pagination_visits_all_original_ids_and_ignores_new_insertions(db_path):
     with queries(db_path) as service:
         page = service.jobs(limit=2)
@@ -148,6 +160,9 @@ def test_pagination_visits_all_original_ids_and_ignores_new_insertions(db_path):
     ({"company": "ACM", "source": "ashby", "state": "recommended"}, [2]),
     ({"state": "want_to_apply"}, [4]),
     ({"state": "recommended"}, [2]),
+    ({"state": "archived"}, [6]),
+    ({"state": "archived", "archived": False}, [6]),
+    ({"state": "archived", "archived": None}, [6]),
     ({"source": "linkedin"}, [3, 1]),
     ({"archived": True, "company": "Old", "source": "nvidia", "query": "Archived"}, [6]),
     ({"archived": None}, [6, 5, 4, 3, 2, 1]),

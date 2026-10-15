@@ -1,0 +1,23 @@
+# deploy/auto-app-worker.service
+[Unit]
+OnFailure=auto-app-alert@%n.service
+Description=Job Search worker (screen, enrich, weekly summary, health)
+Wants=network-online.target
+After=network-online.target auto-app-ingest.service
+
+[Service]
+Type=simple
+WorkingDirectory=%h/Desktop/job-search/auto-application
+Environment=AUTO_APP_HOME=%h/Desktop/job-search/runtime
+EnvironmentFile=%h/Desktop/job-search/runtime/credentials/worker.env
+# Bot mode: the Discord bot sends new-job digests and handoff outcomes, so the worker has no
+# notify step (with it, both would post). Webhook-only setups without the bot add notify back.
+ExecStart=%h/Desktop/job-search/auto-application/.venv/bin/auto-app worker watch --db %h/Desktop/job-search/runtime/data/auto_app.db --interval 900 --steps screen,enrich,summary,health
+Restart=on-failure
+RestartSec=30
+KillMode=control-group
+TimeoutStopSec=120
+UMask=0077
+
+[Install]
+WantedBy=default.target

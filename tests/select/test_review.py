@@ -77,6 +77,37 @@ def test_lists_detail_and_filter_scope(env):
     assert [v.current for v in only.detail(jobs["ml"]).verdicts] == [False]  # its folder isn't loaded
 
 
+@pytest.mark.parametrize("loaded", ["missing", "unjudged", "older_current"])
+@pytest.mark.parametrize("job_name,latest_recommend", [("ml", False), ("sales", True)])
+def test_review_and_implied_labels_use_current_or_latest_success(env, loaded, job_name, latest_recommend):
+    db, _, jobs, folder = env
+    job_id = jobs[job_name]
+    old = load_filter(folder / "ml")
+    command = folder / "ml" / "command.md"
+    command.write_text(command.read_text() + "\nSecond version.\n")
+    latest = load_filter(folder / "ml")
+    run_select(db, CFG, [latest], api_runner(FakeClient(lambda kw: answer(latest_recommend, "latest verdict"))),
+               SelectOptions(jobs=[job_id]))
+    command.write_text(command.read_text() + "\nNot judged yet.\n")
+    filters = {"missing": [], "unjudged": [load_filter(folder / "ml")], "older_current": [old]}[loaded]
+    rv = Review(db, filters, only_filters=["ml"])
+    expected_version = old.version if loaded == "older_current" else latest.version
+    expected_recommend = not latest_recommend if loaded == "older_current" else latest_recommend
+
+    [verdict] = rv.detail(job_id).verdicts
+    assert (verdict.version, verdict.recommend, verdict.current) == (
+        expected_version, expected_recommend, loaded == "older_current")
+    rv.decide(job_id, "want_to_apply")
+    [review] = db.reviews(job_id)
+    assert review["filters"] == [{"filter": "ml", "version": expected_version, "recommend": expected_recommend}]
+    feedback = db.feedback_of(job_id)
+    if expected_recommend:
+        assert feedback == {}
+    else:
+        assert (feedback["ml"]["filter_version"], feedback["ml"]["verdict"], feedback["ml"]["origin"]) == (
+            expected_version, False, "implied")
+
+
 def test_decide_sets_state_records_review_and_never_expires(env):
     db, rv, jobs, _ = env
     rv.decide(jobs["ml"], "want_to_apply", "great team")

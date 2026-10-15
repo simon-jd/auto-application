@@ -87,6 +87,20 @@ def test_decide_with_a_reason_and_undo(web):
     assert c.post(f"/api/jobs/{jobs['ml']}/decide", json={"decision": "applied"}).status_code == 400
 
 
+def test_decision_response_and_undo_succeed_with_malformed_preferences(web):
+    db, jobs, client = web
+    db.paths.preferences.parent.mkdir(exist_ok=True)
+    db.paths.preferences.write_text('{broken')
+    result = client.post(f"/api/jobs/{jobs['ml']}/decide", json={"decision": "want_to_apply"})
+    assert result.status_code == 200
+    assert result.json()["can_undo"] is True
+    assert result.json()["job"]["state"] == "want_to_apply"
+    undone = client.post("/api/undo")
+    assert undone.status_code == 200
+    assert undone.json()["job"]["state"] == "recommended"
+    assert db.reviews(jobs["ml"]) == []
+
+
 def test_labels_one_filter_or_all_with_reasons(web):
     db, jobs, c = web
     r = c.post(f"/api/jobs/{jobs['ml']}/label", json={"filter": "research", "should": True, "reason": "it is research"})

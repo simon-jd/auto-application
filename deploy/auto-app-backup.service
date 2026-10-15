@@ -1,0 +1,10 @@
+[Unit]
+Description=Job Search nightly verified database backups
+OnFailure=auto-app-alert@%n.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/Desktop/job-search/auto-application
+Environment=AUTO_APP_HOME=%h/Desktop/job-search/runtime
+ExecStart=%h/Desktop/job-search/auto-application/.venv/bin/auto-app ops backup
+UMask=0077

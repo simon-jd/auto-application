@@ -1,6 +1,9 @@
 """After a filter batch: usage limits, unjudgeable jobs, broken filters (docs/step4-run.md §2.3)."""
 
-from datetime import datetime
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
+
+import pytest
 
 from auto_app.select.engine import SelectReport, unjudgeable
 from auto_app.select.health import assess, clear, kind_of, reset_time, unjudgeable_rows
@@ -23,6 +26,51 @@ def test_kinds_and_reset_times():
     assert reset_time("5-hour limit reached ∙ resets 3pm", NOW, 900) == datetime(2026, 10, 6, 15, 0)
     assert reset_time("resets at 9:30am", NOW, 900) == datetime(2026, 10, 7, 9, 30)  # past today: tomorrow
     assert reset_time("rate limited", NOW, 900) == datetime(2026, 10, 6, 13, 15)  # none given: retry interval
+
+
+@pytest.mark.parametrize("error,failed_at,assessed_at,expected", [
+    ("usage limit, resets 3pm", datetime(2026, 10, 6, 14, 59), datetime(2026, 10, 6, 15, 5),
+     datetime(2026, 10, 6, 15)),
+    ("usage limit, resets 12am", datetime(2026, 10, 6, 23, 59), datetime(2026, 10, 7, 0, 5),
+     datetime(2026, 10, 7)),
+    ("rate limited", datetime(2026, 10, 6, 15), datetime(2026, 10, 6, 15, 20),
+     datetime(2026, 10, 6, 15, 15)),
+])
+def test_usage_reset_is_anchored_to_failure_not_batch_end(error, failed_at, assessed_at, expected):
+    report = rep([(1, "ml", error)])
+    report.failure_times = {(1, "ml"): failed_at}
+    assert assess(report, assessed_at).usage_until == expected
+
+
+def test_usage_uses_each_failures_time_even_if_reset_has_passed():
+    report = rep([(1, "ml", "usage limit, resets 3pm"), (2, "ml", "usage limit, resets 3pm")])
+    report.failure_times = {(1, "ml"): datetime(2026, 10, 6, 14, 59),
+                            (2, "ml"): datetime(2026, 10, 6, 15, 1)}
+    assert assess(report, datetime(2026, 10, 6, 15, 5)).usage_until == datetime(2026, 10, 7, 15)
+
+
+def test_reset_uses_reported_timezone_and_returns_the_callers_timezone():
+    utc = timezone.utc
+    assert reset_time("usage limit, resets 3pm (America/Los_Angeles)",
+                      datetime(2026, 10, 6, 20, tzinfo=utc), 900) == datetime(2026, 10, 6, 22, tzinfo=utc)
+    # At 23:30 on Oct 6 in LA, midnight is Oct 7 (already Oct 7 in UTC).
+    assert reset_time("usage limit, resets 12am (America/Los_Angeles)",
+                      datetime(2026, 10, 7, 6, 30, tzinfo=utc), 900) == datetime(2026, 10, 7, 7, tzinfo=utc)
+    # The next 03:00 follows the DST fallback and therefore uses the new offset.
+    assert reset_time("usage limit, resets 3am (America/Los_Angeles)",
+                      datetime(2026, 11, 1, 7, 30, tzinfo=utc), 900) == datetime(2026, 11, 1, 11, tzinfo=utc)
+
+
+def test_failure_time_with_a_different_timezone_is_normalized_for_the_serve_clock():
+    report = rep([(1, "ml", "usage limit, resets 3pm")])
+    report.failure_times = {(1, "ml"): datetime(2026, 10, 6, 14, 59, tzinfo=ZoneInfo("America/Los_Angeles"))}
+    assert assess(report, datetime(2026, 10, 6, 22, 5, tzinfo=timezone.utc)).usage_until == \
+        datetime(2026, 10, 6, 22, tzinfo=timezone.utc)
+
+
+@pytest.mark.parametrize("error", ["usage limit, resets 9:99am", "usage limit, resets 13pm"])
+def test_invalid_reset_clock_uses_retry_interval(error):
+    assert reset_time(error, NOW, 900) == datetime(2026, 10, 6, 13, 15)
 
 
 def test_usage_never_counts_against_a_job(env):  # noqa: F811

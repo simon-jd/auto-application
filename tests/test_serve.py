@@ -102,6 +102,23 @@ def test_no_usage_left_waits_then_judges_again(make):
     assert not s.state.read().get("usage_until")
 
 
+@pytest.mark.parametrize("has_failure_time", [False, True])
+def test_reset_during_batch_retries_without_an_extra_day(make, has_failure_time):
+    def judge(n):
+        if n > 1:
+            return report()
+        result = report(judged=1, failures=[(1, "ml", "usage limit, resets 9:12am")])
+        if has_failure_time:
+            result.failure_times = {(1, "ml"): START + timedelta(minutes=11)}
+        return result
+
+    s = make(judge=judge)
+    r = s.step(["linkedin"])
+    assert s.calls["judge"] == 2
+    assert r.filtered_at == START + timedelta(minutes=20)
+    assert s.state.read().get("usage_until") is None
+
+
 def test_a_broken_filter_stops_collecting_until_you_resume(make, tmp_path):
     s = make(judge=lambda n: report(judged=1, failures=[(1, "ml", "Invalid API key · Please run /login")],
                                     succeeded={}))

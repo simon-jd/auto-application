@@ -37,7 +37,7 @@ def clean_lines(s: str) -> str:
 
 _PERIOD = {"yr": "year", "year": "year", "annually": "year", "annual": "year", "hr": "hour", "hour": "hour",
            "hourly": "hour", "mo": "month", "month": "month", "wk": "week", "week": "week"}
-_AMOUNT = r"\$\s?([\d,]+(?:\.\d+)?)\s*([kKmM])?"
+_AMOUNT = r"\$\s?([\d,]+(?:\.\d+)?)\s*([kKmM](?!\w))?"
 _SALARY = re.compile(
     _AMOUNT + r"\s*(?:/\s*([a-zA-Z]+))?\s*(?:-|–|—|to)\s*" + _AMOUNT + r"\s*(?:/\s*([a-zA-Z]+)|per\s+([a-zA-Z]+))?"
 )

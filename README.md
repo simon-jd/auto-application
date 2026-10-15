@@ -1,10 +1,23 @@
 # auto-application
 
+Latest review fixes and Linux/Dot verification: [2026-10-14 deployment record](docs/updates/2026-10-14-review-deployment.md).
+
 A personal pipeline that finds job postings, picks the ones worth applying to, and prepares applications. Design: [`docs/README.md`](docs/README.md) (overview) and one doc per step. Progress log: [`docs/updates/`](docs/updates/README.md).
 
 Source research: [2026-10-10 job and interview source catalog](docs/research/2026-10-10-source-catalog.md) and [machine-readable registry](docs/research/source-catalog.json). The registry records verified entry points, freshness, provenance and access gaps; it is research data and does not enable feeds.
 
-**Implemented: Step 1 — Collect.** Postings from **job sites** (LinkedIn, verified) and **company career sites** (one plugin per company on the Ashby, Greenhouse, Lever and Workday platforms — verified on UiPath, NVIDIA, Adobe, Palantir) are collected, parsed into common fields, normalized, and deduplicated into **jobs**, stored in a local SQLite database. **Implemented: Step 2 — Select.** **Filters** (one folder each — a command, its settings, optional parser) are written by you; `filter run` runs each filter's agent on the jobs (Claude API, your Claude Code login, or DeepSeek — with web lookups), which answers **fit** + **dealbreaker**; you review and label in `job browse`, audit rejections in `filter audit`, and measure each filter with `filter eval`. **Step 3 — Apply** is being built: the jobs you queued go through per-platform **applier chains** — **Greenhouse** is automated (questions answered from your profile, answer bank and Claude; what only you can answer is asked in the Apply section; the form filled and submitted when you say so), everything else uses the **Simplify hand-off** (your Chrome autofills, you submit) or **manual**; **Automated applying is off for now**: you apply by hand from the Apply section's queue. The browser agent, trial runs and submit come back with `AUTO_APP_APPLY__AUTOMATED=true`. **Step 4 — Run** has a working collection/filter loop and Claude Code skills ([`docs/step4-run.md`](docs/step4-run.md)); Slack remains deferred. The new agent foundation adds independent read-only queries and Linux service template generation. Repository/email ingestion now also feeds that library; Gmail/Outlook readers and a recurring feed worker are also available; public research and shared task progress follow; automated application interfaces remain available but off.
+Review follow-up: [decision/expiry safety, parsing, independent filters, archive queries and ingestion recovery](docs/updates/2026-10-12-review-followup.md). These local fixes preserve saved evidence and manual-only applications; the record distinguishes tests from deployment.
+
+The intended primary runtime is Linux: repository/employer-board collection, deterministic screening,
+public-API JD enrichment, Discord delivery and a shared SQLite library. It calls no model or agent.
+Manual application decisions remain supported; the historical automated appliers stay off. Optional
+model filters and external agents are arranged by the owner. Mac TUI, browser/model scheduling and
+launchd are development tools. As of 2026-10-14, the current source and schema are deployed on Linux;
+ingestion, screening/enrichment, private Dot MCP and fictional preparation workers are running.
+Discord and Grok dependencies/service units are installed but disabled pending owner configuration;
+handoff and mailbox access remain opt-in. See the [Linux configuration checklist](docs/linux-connectors-setup.md)
+and [deployment evidence](docs/updates/2026-10-14-review-deployment.md) for exact verification boundaries.
+The [roadmap](docs/superpowers/plans/2026-10-12-roadmap-p0-p3.md) defines their scope.
 
 ---
 
@@ -31,14 +44,19 @@ All query commands return JSON; failures go to stderr with a nonzero exit code. 
 
 The read API exposes GET `/api/context`, `/api/jobs`, and `/api/jobs/{job_id}`. List query parameters match the service; use `archive=active|archived|all` instead of the CLI flags. For another computer, keep it on localhost and use an SSH tunnel: `ssh -N -L 8766:127.0.0.1:8766 user@linux-host`. It currently has no authentication or write endpoints.
 
+An explicit `--state archived` (or `state="archived"` in MCP/API calls) selects archived jobs even when the archive flag has its default active-only value.
+
 `uv run auto-app serve systemd --project /srv/auto-application --home /srv/auto-app-home --uv /home/jobs/.local/bin/uv` prints a Linux service template. It does not install or start it. See [Linux configuration](docs/step4-run.md#14-agent-query-and-linux-foundation-2026-10-09) for deployment details.
 
-**Dot / MCP tools:** `auto-app-agent` exposes `get_job_context`, `search_jobs`,
-`get_job`, and `record_application_status` over stdio (default) or loopback
+**Local MCP tools:** `auto-app-agent` exposes `get_job_context`, `search_jobs`,
+`get_job`, `record_application_status`, and `record_application_event` over stdio (default) or loopback
 Streamable HTTP. It uses the same job library and preferences, with no browser,
 model, mailbox credentials or automatic submission. Manual states are
 `want_to_apply`, `applied`, and `not_applied`; an identical status/reason retry is
 a no-op. `applied` records the user's report of applying.
+
+The current Dot backend schema has 18 tools, including events and control tools. Cloud context,
+search and detail calls passed after deployment; new control tools were protocol-tested on Linux.
 
 ```bash
 uv run auto-app-agent serve --db /srv/job-search/runtime/data/auto_app.db \
@@ -72,7 +90,7 @@ See [setup and result states](docs/dot-setup.md#fictional-ashby-preparation-v1)
 and the [verification record](docs/updates/2026-10-11-ashby-preparation.md).
 On 2026-10-11 the Ubuntu worker was deployed with Claude, Chrome and a 240-second
 task limit. A live Ramp Sales test matched all six required fields and stopped
-before submit. The MCP protocol exposes six tools; plugin `0.2.0` is uploaded,
+before submit. That 2026-10-11 MCP check exposed six tools; plugin `0.2.0` was uploaded,
 and the refreshed cloud app lists four read/two write tools. Both new tools were
 then called through the connected cloud backend: `prepare_application` reused
 the existing completed run and `get_application_run` returned the same result.
@@ -101,7 +119,7 @@ cp config/preferences.example.json config/preferences.json
 
 Any Canadian location excludes the **whole job**, including jobs with both US and Canadian locations. Matching checks merged locations and every posting's original locations, so `Remote in Canada` still works after normalization to `remote`. Canadian province names/codes are recognized; `San Jose, CA`, `Ontario, CA` and `Vancouver, WA` remain visible. Unknown locations remain visible. This is a country preference, not full opportunity qualification.
 
-The agent query CLI/API, ordinary `job list`, the TUI/web job lists, and model filter planning apply these preferences. Sources still collect the original evidence; exclusions do not delete records, alter existing recommendations or overwrite manual decisions. Audit/evaluation and direct job details retain the original library. Setting `exclude_countries` to `[]` removes the exclusion on the next query/filter run; no ingestion restart is needed. Excluded collected jobs archive at TTL expiry even when never judged; use the archived/all view after removing the exclusion to see expired records.
+The agent query CLI/API, ordinary `job list`, the TUI/web job lists, and model filter planning apply these preferences. Sources still collect the original evidence; exclusions do not delete records, alter existing recommendations or overwrite manual decisions. Audit/evaluation and direct job details retain the original library. Setting `exclude_countries` to `[]` removes the exclusion on the next query/filter run; no ingestion restart is needed. A job that also lists a US location is never excluded ("Seattle, WA / Vancouver, BC" stays). Excluded collected jobs archive at TTL expiry even when never judged; use the archived/all view after removing the exclusion to see expired records.
 
 `auto-app-query` automatically reads `<database runtime home>/config/preferences.json` (`data/auto_app.db` uses its parent's parent; other database paths use their parent). Override with `--preferences PATH` **before** the command. Only this non-secret JSON file is loaded; `python3 -S scripts/job_view.py` still works. An explicit missing/invalid file fails visibly. `jobs --include-excluded` (API: `include_excluded=true`) provides an audit view; `--all` only controls archived records and does not bypass preferences. Results include `screening.excluded`, `reasons` and `matched_locations`. `context.preferences` reports the effective settings and excluded/included active-job counts; `context.counts` remains the raw library count. Changing preferences invalidates an old pagination cursor.
 
@@ -123,13 +141,13 @@ uv run auto-app-query jobs --source recommendations
 
 These commands **write** to the chosen database and may initialize/migrate it. They return JSON reports; each source in a config runs independently, with partial/failed imports reported and a nonzero exit code. Use a scratch `--db` to try them. Relative paths and email globs in the feed config are relative to that config file.
 
-Each observation keeps its source ID, origin, content hash/version, source fields, status and change history. Reimporting the same content retains the job ID and your decision; changed content refreshes current fields and flags `needs_reassessment` while keeping past judgments. HTTP feeds use conditional requests. Malformed or failed snapshots do not mark previous records missing; absence in a complete snapshot means **missing from that source**, not confirmed closed by the employer. Initially inactive/hidden rows are recorded without creating a new opportunity.
+Each observation keeps its source ID, origin, content hash/version, source fields, status and change history (a description is stored on the posting; the import record keeps its SHA-256 and length). Reimporting the same content retains the job ID and your decision; changed content refreshes current fields and flags `needs_reassessment` while keeping past judgments. HTTP feeds use conditional requests. Malformed or failed snapshots do not mark previous records missing; absence in a complete snapshot means **missing from that source**, not confirmed closed by the employer. Initially inactive/hidden rows are recorded without creating a new opportunity.
 
 Set `format` alongside `kind: repository` and `location` in feeds YAML. Changing format or URL forces a complete fetch before reusing HTTP validators. ApplyGuy uses `listingUrl`, Ricsign uses `apply_url`, SpeedyApply uses its apply link, and Jobright retains its public detail URL until employer-link enrichment. Exact known identities merge across sources; matching titles alone do not. Relative ages, yearless dates and refresh clocks stay in `metadata.source_observation` without triggering content changes. Date-only JSON values retain day precision. Original locations remain available to the shared Canada exclusion. [Provider details and deployment verification](docs/updates/2026-10-10-priority-repository-feeds.md).
 
 Email parsing extracts job links and any observed titles, cleans known tracking links and deduplicates repeated links within a message. It does not connect to your inbox or fetch the linked website. Missing title/JD is explicitly **pending enrichment**, visible in query output, and skipped by automatic model filtering. Pending imports without a manual decision do not expire; other imported jobs archive on expiry to retain their history. Exact official job identities can still merge across a repository and email; unrelated sparse listings are not merged by similar titles. The query detail includes saved provenance and changes. Archived imported identities stay attached to the same archived job on reimport.
 
-Gmail/Outlook connections and scheduled ingestion are now available below. Generic IMAP, fetching missing JDs and verifying authenticated LinkedIn/Jobright/Simplify website access remain subsequent work. See [ingestion behavior](docs/step1-collect.md#14-repository-and-email-ingestion) and the [implementation record](docs/superpowers/plans/2026-10-09-multisource-ingestion.md).
+Gmail/Outlook connections and scheduled ingestion are available below; IMAP is implemented locally but remains unconnected to a real mailbox. The Linux worker below fills missing JDs from supported public employer APIs. Verifying authenticated LinkedIn/Jobright/Simplify website access remains subsequent work. See [ingestion behavior](docs/step1-collect.md#14-repository-and-email-ingestion) and the [implementation record](docs/superpowers/plans/2026-10-09-multisource-ingestion.md).
 
 ## Gmail, Outlook and recurring ingestion
 
@@ -148,6 +166,128 @@ The worker runs once immediately, then waits 30 minutes after each completed rou
 
 Mailbox sources require a credential file plus an explicit Gmail `query`/`label_ids` or Outlook `folder`/`senders`. Defaults: `lookback_days: 14`, `page_size: 50`, `max_pages: 4`. Relative credential paths are relative to feeds YAML. Read [authorization and Linux deployment instructions](docs/mailbox-linux-setup.md), including the Google Testing-mode token lifetime, sender/folder setup, timestamps and user-service installation. The repository worker is now deployed on `home-ubuntu` under its desktop `job-search` directory; [deployment checks and operating commands](docs/updates/2026-10-10-linux-deployment.md) record the observed state. Real Gmail/Outlook authorization remains pending.
 
+## Linux worker: screening, JD enrichment and Discord
+
+`auto-app worker` runs next to the feed worker and calls no model or agent. Its default round screens active
+jobs with deterministic rules, fills missing descriptions through Greenhouse, Lever, Ashby and Workday
+public APIs, screens again, then sends new kept jobs and reported handoff outcomes to Discord, checks a rolling seven-day summary
+and disk health. Default steps are `screen,enrich,notify,summary,health`. `watch` starts rounds 15 minutes apart;
+long rounds finish before another starts. Sponsorship offers sort first, and recommendations from your
+own filters are marked ⭐. Exclusions are a reversible view: jobs and manual decisions are preserved.
+`auto-app filter run`, which you run when desired, skips rule-excluded jobs and those awaiting enrichment.
+
+The optional `$AUTO_APP_HOME/config/screening.json` controls internship, senior-title, non-CS,
+citizenship/clearance and outside-the-US exclusions (`us_only`: a job whose explicit places are all abroad
+is excluded; US, US-remote and unknown places stay). A clear requirement of at least 3 years' experience excludes by default,
+including new-grad titles; lack of sponsorship alone does not. See the template and rule explanations below.
+
+```bash
+# Optional project-local rules file (use $AUTO_APP_HOME/config on Linux):
+cp config/screening.example.json config/screening.json
+uv run auto-app worker run --steps screen
+uv run auto-app worker run --steps screen,enrich --enrich-limit 20
+uv run auto-app worker status
+uv run auto-app-query jobs --sponsorship offers
+```
+
+The query CLI, HTTP API and MCP `search_jobs` hide rule-excluded jobs by default; `--include-excluded` /
+`include_excluded=true` exposes audit evidence including `screening.reasons`. The first worker round saves
+a cutoff to avoid announcing the backlog, and a feed added later (such as an employer board) gets its
+own cutoff, so its existing jobs are not pushed either. Title-only arrivals wait two hours. Discord is optional until
+`AUTO_APP_DISCORD_WEBHOOK_URL` is configured; no applications are submitted.
+
+**Implemented locally; deployment and live acceptance pending.** Setup, state files, delivery limitations,
+deployment backup/restart behavior and the 24-hour acceptance criteria: [Linux worker](docs/linux-worker.md).
+
+### Employer boards
+
+Find Greenhouse, Lever and Ashby boards from already saved jobs, then review the generated feed entries.
+Enabled entries in `runtime/config/feeds.yaml` are pulled by the ingest worker every 30 minutes; this
+feature has not yet been activated on Linux. [Board setup and limits](docs/linux-worker.md#6-employer-boards).
+
+```bash
+uv run auto-app worker boards --yaml --top 30
+```
+
+### IMAP
+
+The local IMAP provider can read scoped Gmail recommendation mail with EXAMINE and BODY.PEEK; real mailbox
+credentials and unread-state acceptance remain pending. Its disabled feed example keeps the existing
+repository sources intact. [Gmail IMAP setup](docs/mailbox-linux-setup.md).
+
+```bash
+uv run auto-app ingest status --db data/auto_app.db
+```
+
+### Public MCP and control tools
+
+A separate token-protected MCP listener can be placed behind a public HTTPS tunnel; the existing Dot
+listener stays on its private path. Pause, status, rule preview and digest tools are optional. A Grok
+connection has not been tested; its Bearer-token compatibility must be checked live. [Remote MCP guide](docs/remote-mcp.md).
+
+```bash
+uv run auto-app-agent serve --db data/auto_app.db --transport streamable-http --port 8769 --auth-token-file PATH --public-url https://YOUR-TUNNEL-HOST --control-tools
+```
+
+### Discord bot
+
+The owner-only bot adds `/jobs`, `/job`, `/status`, `/pause`, `/resume` and decision buttons. In bot mode,
+the screening worker runs `--steps screen,enrich,summary,health` and the bot owns digest delivery; no live bot account or
+message has been configured yet. [Discord bot setup](docs/discord-bot.md).
+
+```bash
+uv run auto-app bot run --db data/auto_app.db --credentials PATH/TO/bot.env
+```
+
+
+## Application handoff
+
+`handoff` provides an eligible queue, quota-reserving leases, claim-gated JD/profile packets, external
+outcome recording, account metadata and resume registration. It does not call an agent/model or submit
+forms. Only allowed profile fields are exported; passwords are never accepted. Defaults are 20 per local
+calendar day (the host's zone, or `timezone` in `handoff.json`), 3 per company in 30 days and a 30-minute lease. Runtime `config/handoff.json` overrides the
+[example](config/handoff.example.json). Network tools require authenticated `--handoff-tools`.
+[Contract and command mapping](docs/agent-handoff.md).
+
+```bash
+uv run auto-app handoff queue --limit 20
+# Fictional example: reserve a wanted job and use the returned token:
+uv run auto-app handoff claim 123 --agent example-agent
+uv run auto-app handoff packet CLAIM_TOKEN
+uv run auto-app handoff release CLAIM_TOKEN
+```
+
+## Tracking after you apply
+
+`events` records applied/assessment/interview/rejected/offer/withdrawn timelines. Manual applied reports
+and agent outcomes retain distinct sources. Disabled `purpose: updates` mailbox examples recognize
+concrete status evidence; ambiguous job matches remain for review and body text is not persisted.
+Base MCP includes `record_application_event`; `--control-tools` adds unmatched update review.
+[Tracking and mail matching](docs/application-tracking.md).
+
+```bash
+uv run auto-app events list 123
+uv run auto-app events unmatched
+# Writes a reported event; never submits an application:
+uv run auto-app events add 123 interview --note "phone screen"
+```
+
+## Operations
+
+`ops backup` makes private online SQLite copies of the main DB and an existing optional preparation
+ledger, verifies every new archive, then keeps 14 recent daily and 8 older weekly representatives per
+DB. Attachments/screenshots/resume files are outside SQLite backup coverage. Templates add nightly
+backups and service-failure alerts; worker health checks free disk below 2 GiB. Private SSH backup pull
+and optional clean-checkout Git deployment are available; rsync remains default. No deployment or real
+backup/alert/pull was performed in P2/P3. [Operator procedures](docs/operations.md).
+
+```bash
+uv run auto-app ops backup
+uv run auto-app ops verify /srv/job-search/runtime/backups/auto_app-20261013T033000Z.db.zst
+# Future operation, when authorized:
+scripts/pull_backups.sh home-ubuntu
+```
+
 ---
 
 ## Contents
@@ -160,6 +300,11 @@ Mailbox sources require a credential file plus an explicit Gmail `query`/`label_
   - [`source`](#source--step-1-setup-where-jobs-come-from) — `list`, `show`, `add`, `login`, `health`, `plan`
   - [`collect`](#collect--step-1a-run-the-searches) — `run`, `probe`, `stats`
   - [`process`](#process--step-1b-postings--jobs) — `parse`, `normalize`, `dedup`
+  - [`worker`](#linux-worker-screening-jd-enrichment-and-discord) — `run`, `watch`, `status`, `boards`
+  - [`bot`](#discord-bot) — `run`
+  - [`handoff`](#application-handoff) — `queue`, `claim`, `packet`, `record`, `release`, `requeue`, `account`, `resume`
+  - [`events`](#tracking-after-you-apply) — `add`, `list`, `unmatched`, `assign`, `dismiss`
+  - [`ops`](#operations) — `backup`, `verify`, `prune`, `alert`
   - [`web`](#web--the-app-in-your-browser) — the app in your browser (Jobs; Apply, Audit, Status to come)
   - [`ui`](#ui--every-interactive-part-in-one-app) — Jobs (F1), Audit (F2), Apply (F3)
 - [The manager: Claude Code](#the-manager-claude-code) — talk to the app; project skills
@@ -176,6 +321,9 @@ Mailbox sources require a credential file plus an explicit Gmail `query`/`label_
 ---
 
 ## Setup
+
+The instructions below initialize a development checkout. Linux runtime configuration and services
+are described in [Linux worker](docs/linux-worker.md) and [operations](docs/operations.md).
 
 ```bash
 uv sync
@@ -340,7 +488,7 @@ uv run auto-app process dedup --preview && uv run auto-app process dedup
 
 ## Command reference
 
-Commands are grouped: `uv run auto-app <group> <command> [options]` — `source`, `collect`, `process`, `job`, `filter`, `data`, `schedule` — plus `run` on its own. A group by itself (`uv run auto-app job`) shows its commands; every command has `--help`.
+Commands are grouped: `uv run auto-app <group> <command> [options]` — `source`, `collect`, `process`, `job`, `filter`, `data`, `schedule`, `worker`, `bot`, `handoff`, `events`, `ops` — plus `run` on its own. A group by itself (`uv run auto-app job`) shows its commands; every command has `--help`.
 
 ```
 auto-app run                     all of Step 1          auto-app job      list · show · mark
@@ -348,6 +496,11 @@ auto-app schedule                install · show · remove auto-app filter   lis
 auto-app source                  list · show · add · login · health · plan
 auto-app collect                 run · probe · stats    auto-app data     inspect · export · import · purge
 auto-app process                 parse · normalize · dedup
+auto-app worker                  run · watch · status · boards   deterministic screening, enrichment and board suggestions
+auto-app bot                     run   owner-only Discord digest and decisions
+auto-app handoff                 queue · claim · packet · record · release · requeue · account · resume
+auto-app events                  add · list · unmatched · assign · dismiss
+auto-app ops                     backup · verify · prune · alert
 auto-app ui                      the TUI                auto-app web      the app in your browser
 ```
 
@@ -361,6 +514,9 @@ Given before the command, e.g. `uv run auto-app --debug-files collect run`.
 | `--debug-files` | **file-only mode**: postings, batches, parse and normalize results are written as browsable files under `data/raw/` **instead of** the database (same as `AUTO_APP_DEBUG_FILES=true` in `.env`). Nothing touches the database. Jobs need the database, so in this mode `process dedup` can only `--preview` (`run` previews its dedup step), and `job`, `data purge`, `data export` and `data import` stop with a message. Load the files into the database later with `auto-app data import` |
 
 Most commands also accept `--config PATH` (default `config/searches.yaml`) and `--db PATH` (default `data/auto_app.db`).
+
+`handoff`, `events`, and `ops` select their database through `$AUTO_APP_HOME`, rather than `--db`;
+their operations emit JSON without `--json` and skip the legacy model environment-file loader.
 
 ---
 
@@ -559,6 +715,8 @@ A web app next to the TUI ([docs/web-frontend.md](docs/web-frontend.md)), on **t
 
 ### `ui` — every interactive part in one app
 
+The Mac TUI is development tooling; Linux is the intended primary runtime.
+
 ```bash
 uv run auto-app ui
 ```
@@ -586,6 +744,9 @@ One full-screen app (in your terminal) with a section for each interactive part 
 
 ### `run` and `schedule` — all of Step 1, automatically
 
+Mac launchd scheduling and the browser/model loop are development tooling. The Linux deterministic
+worker is documented [above](#linux-worker-screening-jd-enrichment-and-discord).
+
 #### `run`
 The whole of Step 1 in one command: **collect → parse → normalize → dedup** (→ purge). Prints a section per stage and any problems (blocked sources, parse failures). Only one run at a time (`data/run.lock`).
 
@@ -607,6 +768,8 @@ uv run auto-app run --no-collect
 ```
 
 #### `serve` — the app running by itself
+
+The Mac launchd `serve` instructions here are for development use.
 One long-running loop (design: [`docs/step4-run.md`](docs/step4-run.md)): **collect** (`auto-app run`, until every search is caught up, or the time cap), then **judge the round's new jobs as one batch** (`filter run`), then a **pause counted from the end of collecting**. The next round also waits until the batch is judged, so collecting never outpaces filtering. Rounds only run inside your daily window.
 
 **When filtering can't keep up:**
@@ -791,7 +954,7 @@ mkdir -p filters && cp -r filters.example/ml-engineer filters/
 | `parser.py` (optional) | `parse(answer) -> {"fit": bool, "dealbreaker": bool, "reason": str}` (or the older `{"recommend": bool, "reason": str}`) for a command with its own output format (see `filters.example/verdict-format/`) |
 | any other files | notes the command refers to (e.g. `sponsorship-notes.md`); the agent may read files in its own folder. Under 200 KB each |
 
-A filter's **version** is a hash of its command, its other files and the agent settings in `filter.yaml` (not `parser.py`, not `applies_to`); judgments will be stored per version, so editing a command marks old judgments out of date.
+A filter's **version** is a hash of its folder name, its command, its other files and the agent settings in `filter.yaml` (not `parser.py`, not `applies_to`); judgments are stored per version, so copied filters have independent results and editing a command marks old judgments out of date. Versions from before name scoping remain readable as historical judgments; `--rescore` refreshes them explicitly.
 
 #### `filter list` · `filter show NAME`
 Lists the filters: version, model, tools, how the answer is read (output convention or `parser.py`), which jobs each judges, its description, and any problem (✗ — e.g. an `applies_to` naming no configured source or search) or warning (! — e.g. a command that doesn't mention the output convention, still asks for the older `{"recommend": …}` answer, or has no `$ARGUMENTS`). Folders that don't load are listed with the reason (file and field). With a name: that filter's settings and files; with `--job`: **exactly the text the agent would get for that job** — the command with the job details in place of `$ARGUMENTS`, inside a block marked as data from the posting (legal boilerplate removed, original casing kept, long descriptions cut and marked).
@@ -1103,6 +1266,8 @@ uv run auto-app data import
 
 #### `data purge`
 Expired jobs don't wait for a purge: they're archived or deleted whenever job dates are refreshed (after collecting, judging, a decision), and `serve` applies the retention below once a day. `data purge` does both now, with a report. Two passes:
+
+Country exclusions are checked only for expired jobs otherwise eligible for deletion. If `preferences.json` cannot be read, those deletions are deferred with a warning; saved decisions and undo remain usable. Judged/decided/imported jobs can still be archived safely. Excluded never-judged jobs are archived to preserve reversible visibility.
 
 1. **Job TTL** (`AUTO_APP_JOBS__TTL_DAYS__*` in `.env`; the clock is the time since any of the job's postings was last seen — refreshed whenever collect sees them, including as `known`):
    - jobs a filter **judged** — recommended (30 days) or un-recommended (7 days) — and jobs you decided on are **archived**, never deleted: they're **training data** for evaluation and the preference model. Kept: a record (summary, Step 2 result, your decision, the original posting identities, matching keys) plus what a filter reads (the primary posting's parsed fields, description included); dropped: raw data, normalized data, the other postings' parsed data. Archived jobs are hidden from `job list` (see `--archived`), never judged again and **never merged with active jobs** — a listing seen again becomes a new job. Among themselves they're **deduplicated**: one with the same title and a shared matching key as an earlier archived job is linked to it (one training example);

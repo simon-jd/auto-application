@@ -1,10 +1,25 @@
 # Dot connected to the Ubuntu job library
 
-The job database and feed worker stay on Ubuntu. Dot calls four library and
-manual-tracking tools by default. An explicit preparation directory adds two
-fictional Ashby preparation tools and a separate browser worker. The Skill
-explains how to use the tools actually discovered in the current session.
-The Mac is only used during setup.
+**Current state (2026-10-14):** updated source is deployed on Ubuntu with schema
+`8d4e0f2a5b31`; the existing private MCP service is active with `--control-tools`.
+The backend UI refresh shows all 18 configured tools, classified **Read 8 / Write 10**.
+Plugin **0.3.0** was uploaded and its version read back. Actual connected-cloud
+`get_job_context`, `search_jobs` and `get_job` calls succeeded against the new code.
+The already-running Codex session still has the older six-tool catalog; no new
+control tool has been verified through that cloud session. Refreshing backend
+metadata and having a callable tool in a running chat are separate checks.
+
+The job database and feed worker stay on Ubuntu. Current code has five base
+library/tracking tools, two optional fictional Ashby preparation tools and eleven
+opt-in control/review tools. The installed private service enables all three groups;
+application handoff tools remain disabled. The Skill follows the tools actually
+discovered in each session. The Mac is only used during setup.
+
+Discord and Grok units are installed and systemd-verified but disabled/inactive;
+only configuration examples are staged. Discord.py 2.7.1, MCP 2.3.0 and
+checksum-verified cloudflared 2026.10.0 are installed. The owner fills real values
+on Linux using the [connector setup checklist](linux-connectors-setup.md).
+No public tunnel, Discord message or Grok call has been performed.
 
 ```text
 Dot + cloud Job Search Skill
@@ -23,12 +38,29 @@ Dot + cloud Job Search Skill
 | `search_jobs` | Search by query/company/source/state, with cursor pagination |
 | `get_job` | Stable job ID, source evidence, judgments and manual history |
 | `record_application_status` | Record `want_to_apply`, `applied` or `not_applied`, with an optional user-supplied reason |
+| `record_application_event` | Record an owner-reported application milestone in the timeline |
 | `prepare_application` (opt-in) | Queue one Ashby form using the fixed fictional candidate; supply exactly one saved `job_id` or official `application_url` |
 | `get_application_run` (opt-in) | Read the durable preparation status, field checks and missing questions |
+| `get_pipeline_status` (controls) | Read ingestion, worker and pause state |
+| `get_screening_rules` (controls) | Read effective screening rules and revision |
+| `get_digest` (controls) | Read eligible pending digest jobs without marking them notified |
+| `pause_pipeline` (controls) | Pause screening/enrichment/notification work and the bot digest |
+| `resume_pipeline` (controls) | Resume those components; ingestion is independent |
+| `propose_screening_change` (controls) | Save a proposed rule change and its preview |
+| `apply_screening_change` (controls) | Apply the owner's confirmed proposal with the expected revision |
+| `record_filter_feedback` (controls) | Save the owner's verdict about a filter result |
+| `list_unmatched_updates` (controls) | Read saved application updates awaiting matching |
+| `assign_update` (controls) | Assign an update to the job explicitly identified by the owner |
+| `dismiss_update` (controls) | Dismiss an update the owner identifies as unrelated |
+
+This table describes the deployed 18-tool inventory, not a guarantee that an
+already-open chat exposes each tool. The backend UI inventory and the three
+actual cloud read calls above are the current evidence; newly added control calls
+still require discovery and direct verification in a refreshed client session.
 
 Searches exclude Canada using the existing preferences. Direct details retain
 the original evidence. Pagination must reuse the same filters. Read tools never
-migrate, expire, or modify the database. The write tool changes one job and its
+migrate, expire, or modify the database. `record_application_status` changes one job and its
 review/feedback in one transaction. Repeating the same current status and reason
 does not create another review. An applied job cannot be moved back by this tool.
 Writing `applied` records the user's report; no application is submitted.
@@ -102,7 +134,7 @@ Use the same preparation directory for MCP and worker:
   --db /home/postedism/Desktop/job-search/runtime/data/auto_app.db \
   --preferences /home/postedism/Desktop/job-search/runtime/config/preferences.json \
   --preparation-dir /home/postedism/Desktop/job-search/runtime/preparation \
-  --transport streamable-http --host 127.0.0.1 --port 8767
+  --transport streamable-http --host 127.0.0.1 --port 8767 --control-tools
 
 .venv/bin/auto-app-agent prepare-worker \
   --preparation-dir /home/postedism/Desktop/job-search/runtime/preparation \
@@ -128,9 +160,11 @@ one worker per ledger. Startup recovery happens only after acquiring that lock;
 an interrupted task may have at most two total attempts. This does not change
 the ingestion service or its schedule.
 
-The 2026-10-11 deployment has the preparation worker enabled alongside ingestion,
+### Historical preparation acceptance (2026-10-11)
+
+The 2026-10-11 deployment had the preparation worker enabled alongside ingestion,
 MCP and tunnel services; all four were active with zero automatic restarts at
-the deployment check. The actual Ubuntu MCP protocol lists six tools. A live
+the deployment check. The actual Ubuntu MCP protocol then listed six tools. A live
 Claude/Chrome Ramp Sales fill-only probe matched all six required fields, with
 no missing questions and verified location/upload/attachment acknowledgements.
 See the [preparation verification record](updates/2026-10-11-ashby-preparation.md)
@@ -141,7 +175,7 @@ the same run without another browser execution. The full Ubuntu regression
 recorded 951 passed, two failures and one skip; both failures were fixed, then
 all 132 preparation tests passed again. See the dated record for exact scope.
 
-The private cloud plugin `0.2.0` was uploaded and its version checked in the UI.
+At that checkpoint, private cloud plugin `0.2.0` was uploaded and its version checked in the UI.
 Refreshing the connected backend succeeded; the UI lists four read/two write
 tools, including both preparation tools. The runtime subsequently discovered all
 six tools. At 23:15 PDT on 2026-10-11, actual connected-cloud calls to
@@ -163,7 +197,8 @@ From the deployed source directory, after `uv sync --frozen --python 3.12`:
 .venv/bin/auto-app-agent serve \
   --db /home/postedism/Desktop/job-search/runtime/data/auto_app.db \
   --preferences /home/postedism/Desktop/job-search/runtime/config/preferences.json \
-  --transport streamable-http --host 127.0.0.1 --port 8767
+  --preparation-dir /home/postedism/Desktop/job-search/runtime/preparation \
+  --transport streamable-http --host 127.0.0.1 --port 8767 --control-tools
 ```
 
 Default transport is `stdio`. HTTP is restricted to loopback and uses `/mcp`.
@@ -220,8 +255,12 @@ user services to survive logout and start without an interactive login.
 In ChatGPT Plugins, select the **Personal** directory, then choose
 **Add → Add custom MCP server**, select **Tunnel**,
 use the real tunnel ID, choose **No authentication** within this private tunnel,
-and register the app. Verify the four base tools appear (six when preparation
-is configured). Keep the plugin private.
+and register the app. The current deployed private service has five base tools,
+two preparation tools and eleven control/review tools. Its refreshed backend UI
+lists all 18. The dated 2026-10-11 six-tool acceptance record above describes the
+earlier deployed version; the running Codex session's cached six-tool catalog
+has not yet demonstrated callability of the newly added controls.
+Keep the plugin private.
 
 Build the Skill plugin using the registered `asdk_app_...` ID:
 
@@ -232,7 +271,8 @@ python3 scripts/build_dot_plugin.py \
 ```
 
 Upload the archive through ChatGPT's **Add → Upload plugin archive** and install
-it. The package uses `.app.json` to refer to the registered cloud connection. It
+it. The 2026-10-14 upload/readback confirmed version 0.3.0. The package uses `.app.json`
+to refer to the registered cloud connection. It
 does not contain `mcp.json` or `.mcp.json`: those are desktop-only plugin paths.
 A `--skills-only` bundle contains instructions but does not connect a database.
 The [official plugin management guide](https://learn.chatgpt.com/docs/enterprise/plugin-management)

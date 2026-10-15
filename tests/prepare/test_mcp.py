@@ -39,7 +39,7 @@ async def test_opt_in_tools_enqueue_idempotently_and_return_persisted_result(pre
     async with Client(create_mcp_server(preparation_db, preparation_dir=root)) as client:
         tools = {tool.name: tool for tool in (await client.list_tools()).tools}
         assert set(tools) == {"get_job_context", "search_jobs", "get_job", "record_application_status",
-                              "prepare_application", "get_application_run"}
+                              "record_application_event", "prepare_application", "get_application_run"}
         prepare = tools["prepare_application"]
         assert prepare.annotations.read_only_hint is False
         assert prepare.annotations.open_world_hint is True
@@ -126,7 +126,10 @@ async def _session(transport, db, root):
 @pytest.mark.parametrize("transport", ["stdio", "streamable-http"])
 async def test_preparation_over_real_mcp_transport(preparation_db, tmp_path, transport):
     async with _session(transport, preparation_db, tmp_path / "runs") as session:
-        assert len((await session.list_tools()).tools) == 6
+        assert {tool.name for tool in (await session.list_tools()).tools} == {
+            "get_job_context", "search_jobs", "get_job", "record_application_status", "record_application_event",
+            "prepare_application", "get_application_run",
+        }
         queued = await session.call_tool("prepare_application", {"application_url": URL})
         assert not queued.is_error
         run = queued.structured_content

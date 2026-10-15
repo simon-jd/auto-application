@@ -187,8 +187,12 @@ def job_keys_for(items: dict[str, Item], postings: list[str]) -> set[tuple[str, 
     return keys
 
 
-def apply_plan(store, plan: LinkPlan) -> dict[str, int]:
-    """Write the plan in one transaction. Returns {"new:<n>": job id} for the jobs it created."""
+def apply_plan(store, plan: LinkPlan, *, refresh_existing: bool = False) -> dict[str, int]:
+    """Write the plan in one transaction. Returns {"new:<n>": job id} for the jobs it created.
+
+    A full processing pass refreshes existing projections after re-parsing or
+    normalization. Incremental imports retain their scoped refresh behavior.
+    """
     items = plan.items
     created: dict[str, int] = {}
     with store.transaction():
@@ -201,6 +205,8 @@ def apply_plan(store, plan: LinkPlan) -> dict[str, int]:
         for a in plan.assigns:
             links[a.pid] = {"job_id": created[a.job] if isinstance(a.job, str) else a.job}
         affected = set(created.values()) | set(plan.joined)
+        if refresh_existing:
+            affected.update(link["job_id"] for pid, link in plan.existing_links.items() if pid in items)
         refresh_job_projection(store, items, affected, links=links)
         for key, postings in plan.new_jobs.items():
             store.add_repost_warnings(created[key], job_keys_for(items, postings))
@@ -248,7 +254,7 @@ def link_jobs(store, registry, dry_run: bool = False, ttl=None) -> tuple[LinkPla
     if not dry_run and not hasattr(store, "create_job"):
         raise RuntimeError("writing jobs needs the database store")
     plan = plan_links(load_items(store, registry), store.posting_links())
-    created = {} if dry_run else apply_plan(store, plan)
+    created = {} if dry_run else apply_plan(store, plan, refresh_existing=True)
     if not dry_run and ttl is not None:
         store.refresh_job_dates(ttl)
     return plan, created

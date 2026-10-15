@@ -21,12 +21,18 @@ def build_systemd_unit(project: Path, home: Path, uv: str, *, config: Path | Non
     for value in (project, home, uv, config, db):
         if value is not None and any(ord(char) < 32 or ord(char) == 127 for char in str(value)):
             raise ValueError("service paths must not contain control characters")
+    if "/" not in uv:
+        executable = shutil.which(uv)
+        if not executable:
+            raise ValueError(f"{uv} was not found on PATH; pass its Linux path with --uv.")
+        uv = executable
     project, home = Path(project).expanduser().absolute(), Path(home).expanduser().absolute()
     uv = str(Path(uv).expanduser().absolute())
     config = Path(config).expanduser().absolute() if config is not None else home / "config" / "feeds.yaml"
     db = Path(db).expanduser().absolute() if db is not None else home / "data" / "auto_app.db"
     directory = str(project).rstrip("/").replace("%", "%%") + "/"
     return f"""[Unit]
+OnFailure=auto-app-alert@%n.service
 Description=Auto-app repository and recommended-job mail ingestion
 Wants=network-online.target
 After=network-online.target
@@ -94,7 +100,7 @@ def register(app: typer.Typer) -> None:
     def systemd(project: Annotated[Path | None, typer.Option("--project", help="Project checkout path on Linux.")] = None,
                 home: Annotated[Path | None, typer.Option("--home", help="Runtime home path on Linux.")] = None,
                 config: ConfigOption = None, db: DbOption = None,
-                uv: Annotated[str | None, typer.Option("--uv", help="Absolute uv executable path on Linux.")] = None,
+                uv: Annotated[str | None, typer.Option("--uv", help="uv command on PATH or executable path on Linux.")] = None,
                 interval: IntervalOption = 1800) -> None:
         """Print a user service for systemctl --user; does not install or start it."""
         executable = uv or shutil.which("uv")

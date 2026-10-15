@@ -1,5 +1,7 @@
 from datetime import timedelta
 
+import pytest
+
 from auto_app.collect.apply_link import decode_redirect
 from auto_app.collect.filters import reject_reason
 from auto_app.collect.store import FileStore
@@ -22,6 +24,27 @@ def test_company_filter_matches_card_lines():
     f = CardFilters(exclude_companies=["SomeAgency"])
     assert reject_reason(card("ML Engineer", ["ML Engineer", "SomeAgency Inc", "Remote"]), f) == "company: SomeAgency"
     assert reject_reason(card("ML Engineer", ["ML Engineer", "Acme"]), f) is None
+
+
+@pytest.mark.parametrize("title,visible_title", [
+    ("Salesforce Developer", "Salesforce Developer"),
+    (None, "Salesforce Developer"),
+    ("Salesforce Developer", "Salesforce Developer (Verified job)"),
+])
+def test_company_filter_ignores_the_title_line(title, visible_title):
+    f = CardFilters(exclude_companies=["Salesforce"])
+    assert reject_reason(card(title, [visible_title, "Acme", "Remote"]), f) is None
+    assert reject_reason(card("Engineer", ["Engineer", "Salesforce Inc", "Remote"]), f) == "company: Salesforce"
+
+
+@pytest.mark.parametrize("term,title,other", [
+    ("Sr.", "Sr. Backend Engineer", "Research Engineer"),
+    ("C++", "C++ Engineer", "C Engineer"),
+])
+def test_title_filter_handles_terms_ending_in_punctuation(term, title, other):
+    f = CardFilters(exclude_title_words=[term])
+    assert reject_reason(card(title), f) == f"title word: {term}"
+    assert reject_reason(card(other), f) is None
 
 
 def test_decode_redirect():

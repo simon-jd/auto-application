@@ -82,13 +82,27 @@ def parse_jsonld(raw: RawPosting) -> CommonPosting:
     )
 
 
-REQ_ID = re.compile(r"\b(?:job\s*(?:req(?:uisition)?)?\s*id|req(?:uisition)?\s*(?:id|#|number))\s*[:#]?\s*([A-Z0-9][A-Z0-9-]{3,})",
-                    re.I)
+# Bump when shared helpers change persisted fields, including salary parsing.
+SHARED_PARSER_VERSION = "shared-2"
+
+REQ_ID = re.compile(
+    r"\b(?:job\s*(?:req(?:uisition)?)?\s*id\b|req(?:uisition)?\s*(?:id\b|#|number\b))"
+    r"\s*[:#]?\s*([A-Z0-9][A-Z0-9-]{3,})(?![\w-])", re.I,
+)
 
 
 def req_id_from_text(text: str) -> str | None:
-    m = REQ_ID.search(text or "")
-    return m.group(1) if m else None
+    for match in REQ_ID.finditer(text or ""):
+        value = match.group(1)
+        if any(char.isdigit() for char in value):
+            return value
+        # Alphabetic IDs need an explicit field boundary; ordinary prose such
+        # as "include the job id WHEN applying" is not an identity signal.
+        label = text[match.start():match.start(1)]
+        rest_of_line = text[match.end():].split("\n", 1)[0].strip()
+        if any(mark in label for mark in (":", "#", "\n")) and value.isupper() and not rest_of_line:
+            return value
+    return None
 
 
 def require_title(p: CommonPosting) -> CommonPosting:

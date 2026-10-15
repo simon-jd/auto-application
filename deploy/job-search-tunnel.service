@@ -1,4 +1,5 @@
 [Unit]
+OnFailure=auto-app-alert@%n.service
 Description=Job Search OpenAI private MCP tunnel
 Wants=network-online.target auto-app-agent.service
 After=network-online.target auto-app-agent.service

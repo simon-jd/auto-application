@@ -22,7 +22,7 @@ def configured(db_path):
     config.write_text(json.dumps({"exclude_countries": ["Canada"]}))
     with sqlite3.connect(db_path) as conn:
         conn.executemany("INSERT INTO job_locations (job_id,location_norm) VALUES (?,?)",
-                         [(1, "toronto, on"), (2, "san jose, ca"), (2, "vancouver, bc"),
+                         [(1, "toronto, on"), (2, "montreal, qc"), (2, "vancouver, bc"),
                           (3, "ontario, ca"), (5, "remote")])
         # The normalizer drops the country from remote locations. Raw evidence
         # from a non-primary posting must still exclude the whole job.
@@ -67,6 +67,16 @@ def test_changed_preferences_invalidate_old_cursor(configured):
     with QueryService(path, preferences_path=config) as service:
         with pytest.raises(QueryError, match="cursor"):
             service.jobs(cursor=cursor)
+
+
+def test_a_job_with_a_us_location_beside_canada_stays_visible(configured):
+    path, config = configured
+    with sqlite3.connect(path) as conn:
+        conn.execute("INSERT INTO job_locations (job_id,location_norm) VALUES (2, 'san jose, ca')")
+    with QueryService(path, preferences_path=config) as service:
+        assert 2 in [job["job_id"] for job in service.jobs()["items"]]
+        assert service.job(2)["screening"]["excluded"] is False
+        assert service.context()["preferences"]["excluded_active_jobs"] == 2
 
 
 def test_http_adapter_obeys_same_preferences(configured):

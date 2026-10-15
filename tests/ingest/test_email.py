@@ -156,10 +156,25 @@ def test_canonical_url_strips_only_tracking_and_preserves_job_identity(url, expe
     "https://jobs.ashbyhq.com/acme/11111111-2222-3333-4444-555555555555/application",
     "https://careers.acme.example/jobs/12345",
     "https://acme.example/careers?gh_jid=12345",
+    "https://www.google.com/about/careers/applications/jobs/results/123456-software-engineer",
+    "https://www.tesla.com/careers/search/job/software-engineer-123456",
 ])
 def test_recognizes_specific_job_urls(url):
     parsed = parse_email(make_email(plain=url))
     assert len(parsed.records) == 1
+
+
+@pytest.mark.parametrize("url", [
+    "https://www.google.com/about/careers/applications/jobs/results",
+    "https://www.google.com/about/careers/applications/jobs/results?search=engineer",
+    "https://www.tesla.com/careers/search",
+    "https://www.tesla.com/careers/search/job",
+    "https://www.tesla.com/careers/search/benefits",
+    "https://acme.example/careers/about",
+    "https://acme.example/jobs/search/engineer",
+])
+def test_specific_career_routes_do_not_admit_navigation(url):
+    assert parse_email(make_email(plain=url)).records == []
 
 
 def test_bad_date_does_not_become_job_posting_date_or_drop_job():

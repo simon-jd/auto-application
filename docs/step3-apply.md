@@ -1,5 +1,13 @@
 # Step 3 — Apply
 
+**2026-10-13 P2/P3 update:** [application handoff](agent-handoff.md) supplies a guarded queue,
+claim-token packet and outcome recording for the owner's external agent, with account metadata and
+resume registration. It does not invoke an agent, write its prompt, open a browser or submit forms.
+`submitted` is a reported external outcome; manual and agent applied history have separate sources.
+The [timeline/mail review](application-tracking.md) follows OA/interview/rejection/offer status.
+These additions are local; deployment and real-agent/mail/Discord acceptance remain pending.
+Historical automated appliers below remain off under the existing repository policy.
+
 **2026-10-11 update:** the authorized fictional Ashby preparation path is deployed
 as a separate `auto_app.prepare` worker (§14). Dot can queue one fixed test
 candidate, receive field checks/missing questions, and stop before submission.

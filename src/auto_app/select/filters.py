@@ -6,7 +6,7 @@
       parser.py      optional: parse(answer) -> {"fit": bool, "dealbreaker": bool, "reason": str}
       <other files>  anything the command refers to; the agent may read them
 
-A filter's version is a hash of everything that shapes the agent's answer except the job:
+A filter's version is a hash scoped to its name, covering everything that shapes the agent's answer except the job:
 command.md, the other files, and filter.yaml's agent-facing settings. Not parser.py (it only re-reads
 stored answers) and not applies_to (it only picks which jobs are judged).
 """
@@ -137,8 +137,9 @@ def _other_files(folder: Path) -> dict[str, bytes]:
     return out
 
 
-def filter_version(command_md: bytes, files: dict[str, bytes], config: FilterConfig) -> str:
+def filter_version(name: str, command_md: bytes, files: dict[str, bytes], config: FilterConfig) -> str:
     h = hashlib.sha256()
+    h.update(b"filter\0" + name.encode() + b"\0")
     h.update(b"command.md\0" + command_md + b"\0")
     for rel, data in sorted(files.items()):
         h.update(rel.encode() + b"\0" + hashlib.sha256(data).digest())
@@ -161,7 +162,7 @@ def load_filter(folder: Path) -> Filter:
     files = _other_files(folder)
     parser = _load_parser(folder / "parser.py", name) if (folder / "parser.py").is_file() else None
     flt = Filter(name, folder, description, command, config, files, parser,
-                 version=filter_version(cmd_path.read_bytes(), files, config))
+                 version=filter_version(name, cmd_path.read_bytes(), files, config))
     if parser is None and not CONVENTION.search(command):
         flt.warnings.append('command.md doesn\'t mention the output convention: end the answer with '
                             '{"fit": true | false, "dealbreaker": true | false, "reason": "…"} — or add a parser.py')

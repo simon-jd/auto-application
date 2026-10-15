@@ -449,10 +449,17 @@ class DbStore:
                                             .distinct().order_by(p.c.source)):
                 srcs.setdefault(job_id, []).append(src)
             raw_locations: dict[int, list[str]] = {}
+            countries: dict[int, list[str]] = {}
             if preferences and preferences.exclude_countries:
-                for job_id, raw in conn.execute(select(p.c.job_id, func.json_extract(p.c.parsed, '$.locations'))
+                for job_id, raw, country in conn.execute(select(p.c.job_id, func.json_extract(p.c.parsed, '$.locations'),
+                                                               func.json_extract(p.c.parsed, '$.extras.country'))
                                                .where(p.c.job_id.is_not(None))):
                     raw_locations.setdefault(job_id, []).extend(json.loads(raw) if raw else [])
+                    countries.setdefault(job_id, []).append(country)
+                for job_id, country in conn.execute(select(p.c.job_id,
+                        func.json_extract(T.ingest_entries.c.payload, '$.metadata.upstream.country'))
+                        .join(p, p.c.posting_id == T.ingest_entries.c.posting_id).where(p.c.job_id.is_not(None))):
+                    countries.setdefault(job_id, []).append(country)
         out = []
         for r in rows:
             row = {k: iso(v) for k, v in r.items() if k != "archive_description"}
@@ -466,7 +473,9 @@ class DbStore:
                            posted_at=row.get("posted_at") or arch.get("posted_at"))
             if preferences and preferences.evaluate([*raw_locations.get(r["job_id"], []), *row["locations"],
                                                      *((arch or {}).get("locations") or []),
-                                                     *((arch or {}).get("raw_locations") or [])])["excluded"]:
+                                                     *((arch or {}).get("raw_locations") or [])],
+                                                    countries=[*countries.get(r["job_id"], []),
+                                                               *((arch or {}).get("countries") or [])])["excluded"]:
                 continue
             out.append(row)
         return out
@@ -625,7 +634,8 @@ class DbStore:
         with self._conn() as conn:
             conn.execute(update(T.jobs).where(T.jobs.c.job_id == job_id).values(**values))
 
-    def mark_job(self, job_id: int, to: str) -> tuple[str | None, str | None]:
+    def mark_job(self, job_id: int, to: str, *, event_source: str = "manual",
+                 occurred_at: datetime | None = None, note: str | None = None) -> tuple[str | None, str | None]:
         """Set a job's state by hand (`job mark`, `job browse`). Returns its previous (step2, decision).
         A decision keeps Step 2's verdict (or marks the job recommended if it has none)."""
         step2, decision = {
@@ -636,14 +646,25 @@ class DbStore:
             "applied": ("recommended", "applied"),
             "not_applied": ("recommended", "not_applied"),
         }[to]
-        j = self.job(job_id)
-        if not j:
-            raise ValueError(f"no job #{job_id}")
-        if j.get("archived_at"):
-            raise ValueError(f"job #{job_id} is archived (a record); its state can't change")
-        keep_step2 = decision and j.get("step2") in ("recommended", "un_recommended")
-        self.set_job_state(job_id, step2=... if keep_step2 else step2, decision=decision)
-        return j.get("step2"), j.get("decision")
+        from auto_app.track.events import record_event, valid_date, write_transaction
+
+        with write_transaction(self):
+            j = self.job(job_id)
+            if not j:
+                raise ValueError(f"no job #{job_id}")
+            if j.get("archived_at"):
+                raise ValueError(f"job #{job_id} is archived (a record); its state can't change")
+            previous = j.get("step2"), j.get("decision")
+            # Retrying the same applied decision must not shift its date or create
+            # another event, even outside the event recorder's 24-hour window.
+            if decision == "applied" and j.get("decision") == "applied":
+                return previous
+            when = valid_date(occurred_at) if occurred_at is not None else utcnow()
+            keep_step2 = decision and j.get("step2") in ("recommended", "un_recommended")
+            self.set_job_state(job_id, step2=... if keep_step2 else step2, decision=decision, now=when)
+            if decision == "applied":
+                record_event(self, job_id, "applied", occurred_at=when, source=event_source, note=note)
+            return previous
 
     def refresh_job_dates(self, ttl, now: datetime | None = None, expire: bool = True) -> int:
         """Active jobs: last_seen_at = the latest last-seen of any of their postings; expires_at = that + the

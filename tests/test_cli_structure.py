@@ -6,6 +6,11 @@ from typer.testing import CliRunner
 from auto_app.cli import app
 
 TREE = {
+    "handoff": ["queue", "claim", "packet", "record", "release", "requeue", "account", "resume"],
+    "events": ["add", "list", "unmatched", "assign", "dismiss"],
+    "ops": ["backup", "verify", "prune", "alert"],
+    "worker": ["run", "watch", "status", "boards"],
+    "bot": ["run"],
     "ingest": ["repository", "email", "run", "watch", "status", "systemd", "auth"],
     "source": ["list", "show", "add", "login", "health", "plan"],
     "collect": ["run", "probe", "stats"],
@@ -45,3 +50,17 @@ def test_old_flat_names_are_gone(old):
 def test_legacy_option_aliases_are_gone():
     assert "No such option" in CliRunner().invoke(app, ["collect", "run", "-c", "nvidia"]).output
     assert "No such option" in CliRunner().invoke(app, ["source", "plan", "--site", "linkedin"]).output
+
+
+def test_new_deterministic_commands_do_not_read_model_environment(tmp_path, monkeypatch):
+    from auto_app import cli
+    from tests.imported_jobs import make_store
+
+    store = make_store(tmp_path)
+    store.engine.dispose()
+    reads = []
+    monkeypatch.setattr(cli, "load_env_file", lambda p: reads.append(p))
+    for command in (["handoff", "queue"], ["events", "unmatched"], ["ops", "prune"]):
+        result = CliRunner().invoke(app, command, env={"AUTO_APP_HOME": str(tmp_path)})
+        assert result.exit_code == 0, result.output
+    assert reads == []

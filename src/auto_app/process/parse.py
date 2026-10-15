@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from auto_app.collect.store import RawPurged
 from auto_app.core.config import AppConfig
 from auto_app.core.models import CommonPosting
-from auto_app.sources.parsing import ParseError
+from auto_app.sources.parsing import SHARED_PARSER_VERSION, ParseError
 from auto_app.sources.registry import Registry
 
 log = logging.getLogger(__name__)
@@ -81,6 +81,7 @@ def parse_postings(
                     continue
                 plugin, hint = plugins[source]
                 parser = f"{getattr(plugin, 'platform', None) or getattr(plugin, 'name', source)}:{plugin.parser_version}"
+                parser = f"{parser}:{SHARED_PARSER_VERSION}"
             done = posting.get("state") in ("parsed", "normalized", "linked") and posting.get("parser") == parser
             if not reparse and done:
                 st.skipped += 1

@@ -1,6 +1,6 @@
 # Gmail / Outlook 接入与 Linux 定时运行
 
-**最新决定（2026-10-10）：** 用户已停止 OAuth 应用创建，暂不启用邮箱来源。以下 OAuth 步骤保留作备选；当前考虑把 LinkedIn、Jobright、Simplify 的推荐邮件集中到 Gmail，再走 IMAP。通用 IMAP 适配器尚未实现，不能把该方案当作已经接通。
+**状态（2026-10-12）：** 用户已停止 OAuth 应用创建，暂不启用邮箱来源。以下 OAuth 步骤保留作备选。通用 IMAP 适配器现已在本地实现和测试；真实 Gmail 登录、凭据安装及 Linux 邮件验收仍待用户操作。优先考虑把 LinkedIn、Jobright、Simplify 的推荐邮件集中到 Gmail，再使用下文 §7 IMAP。
 
 不创建 OAuth 应用的两条路线：
 
@@ -168,7 +168,47 @@ OAuth 授权本身是邮箱级只读；query/folder/senders 限制程序实际�
 |---|---|
 | Gmail API / Outlook Graph OAuth | 已实现，支持后台刷新；首选长期运行方式。Outlook public-client device flow 不需要 client secret，实际遇到组织授权限制时再处理 |
 | 导出 `.eml` 到固定目录 | 已实现导入及定时扫描；无需项目在线邮箱授权，导出动作需另行完成 |
-| Gmail IMAP + App Password | 尚未实现；账号必须开启两步验证且允许 App Password，不能假设每个账号都有。见[官方说明](https://support.google.com/accounts/answer/185833) |
+| Gmail IMAP + App Password | 已本地实现，真实邮箱未接通；账号必须开启两步验证且允许 App Password，不能假设每个账号都有。见[官方说明](https://support.google.com/accounts/answer/185833) |
 | Gmail / Outlook IMAP OAuth | 尚未实现，仍需 OAuth 应用；已有 API 路线更直接。见 [Google](https://developers.google.com/workspace/gmail/imap/xoauth2-protocol)、[Microsoft](https://learn.microsoft.com/en-us/exchange/client-developer/legacy-protocols/how-to-authenticate-an-imap-pop-smtp-application-by-using-oauth) |
 
 Exchange Online 的 IMAP Basic Auth / App Password 不能作为组织邮箱 OAuth 的通用替代，见[停用说明](https://learn.microsoft.com/en-us/exchange/clients-and-mobile-in-exchange-online/deprecation-of-basic-authentication-exchange-online)。当前重新授权会生成新的账户实例标识并重扫配置窗口；这是身份隔离机制，不应在未核实同一账户前复用旧标识。重复岗位仍依实际职位身份去重。
+
+## 7. IMAP：个人 Gmail 与只读采集
+
+IMAP 路径不需要创建 Google Cloud OAuth 应用。Google 要求先给账号开启[两步验证，再创建应用专用密码](https://support.google.com/accounts/answer/185833)；如果账号只用安全密钥、受组织管理或启用了 Advanced Protection，入口可能不存在。Google 说明个人 Gmail 的 [IMAP 访问默认已开启](https://support.google.com/mail/answer/7126229)，无需寻找旧的“开启 IMAP”开关。应用密码本身有邮箱级能力，并非只读权限；本程序通过 **EXAMINE** 只读打开文件夹，使用 **BODY.PEEK** 读取正文，不发出标记已读、移动、删除或发送命令。要核实“仍未读”，须在真实邮件上验收。
+
+在 Linux 的 `runtime/credentials/imap.json` 私下写入下面的格式，替换示例值；不要把密码发到聊天或提交到 Git。文件必须是常规文件、权限恰为 `0600`，否则程序拒绝读取。
+
+```json
+{
+  "host": "imap.gmail.com",
+  "port": 993,
+  "username": "YOUR_GMAIL_ADDRESS",
+  "password": "YOUR_GOOGLE_APP_PASSWORD"
+}
+```
+
+```bash
+chmod 600 ~/Desktop/job-search/runtime/credentials/imap.json
+```
+
+在现有 `runtime/config/feeds.yaml` 的 `sources:` 下添加一个**初始禁用**的来源，不要覆盖原有仓库 feeds。`credentials` 相对于 feeds 文件解析。`senders` 的完整 From 地址须从用户实际收到的 LinkedIn、Jobright 推荐邮件核对后填入；不要把下面的占位值当成已验证发件人。也可用 Gmail 的 `gmail_raw` 查询限定 Jobs 标签或发件人。
+
+```yaml
+  imap-jobs:
+    enabled: false
+    kind: mailbox
+    provider: imap
+    credentials: ../credentials/imap.json
+    folder: INBOX
+    senders:
+      - REPLACE_WITH_LINKEDIN_FROM_ADDRESS
+      - REPLACE_WITH_JOBRIGHT_FROM_ADDRESS
+    # Gmail-specific alternative/additional scope, after checking your mailbox:
+    # gmail_raw: 'label:Jobs'
+    lookback_days: 14
+    page_size: 50
+    max_pages: 4
+```
+
+凭据和范围由用户配置并确认后，才把该项的 `enabled` 改为 `true`。现有 ingest worker 每 30 分钟重新读取 feeds；`ingest status` 和 `auto-app-query context` 可核对 `messages_processed`、来源健康和重试进度。成功邮件使用已有收据避免重复导入，失败邮件保留重试。验收用一封事先确认未读的真实推荐邮件：观察 30 分钟内入库且没有重复 job，再在 Gmail 确认仍未读。此项目前**未执行**。

@@ -1,0 +1,10 @@
+[Unit]
+Description=Job Search failure alert for %i
+ConditionPathExists=%h/Desktop/job-search/runtime/credentials/worker.env
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/Desktop/job-search/auto-application
+EnvironmentFile=%h/Desktop/job-search/runtime/credentials/worker.env
+ExecStart=%h/Desktop/job-search/auto-application/.venv/bin/auto-app ops alert --unit %i
+UMask=0077

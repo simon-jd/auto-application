@@ -231,3 +231,35 @@ def test_import_source_cannot_take_over_browser_collector_records(store):
     assert store.jobs() == before
     with store.engine.connect() as conn:
         assert conn.execute(select(T.ingest_entries)).first() is None
+
+
+def test_projection_reads_enrichment_committed_before_ingest_transaction(store, monkeypatch):
+    from contextlib import contextmanager
+
+    from auto_app.enrich.service import enrich_jobs
+    from tests.imported_jobs import FakeFetcher, ok
+
+    url = "https://jobs.lever.co/acme/00000000-0000-0000-0000-000000000123"
+    ingest(store, [record(url=url)])
+    original_transaction = store.transaction
+    injected = False
+
+    @contextmanager
+    def enrich_before_transaction(**kwargs):
+        nonlocal injected
+        if not injected:
+            injected = True
+            result = enrich_jobs(store, FakeFetcher(ok("Build APIs with Python.", req_id="REQ_123")))
+            assert result["jobs_enriched"] == 1
+        with original_transaction(**kwargs):
+            yield
+
+    monkeypatch.setattr(store, "transaction", enrich_before_transaction)
+    assert ingest(store, [record(url=url, locations=["Austin, TX"])])["updated"] == 1
+    with store.engine.connect() as conn:
+        posting = conn.execute(select(T.postings.c.req_id, T.postings.c.state, T.postings.c.parsed)).one()
+        keys = set(conn.execute(select(T.job_keys.c.key_type, T.job_keys.c.key_value)))
+    assert posting.req_id == "REQ_123" and posting.state == "linked"
+    assert posting.parsed["description_text"] == "Build APIs with Python."
+    assert ("req_id", "acme|REQ_123") in keys
+    assert enrich_jobs(store, FakeFetcher(ok("unused")))["candidates"] == 0

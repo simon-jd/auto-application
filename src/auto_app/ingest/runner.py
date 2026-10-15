@@ -11,7 +11,7 @@ import yaml
 
 from auto_app.core.db import tables as T
 from auto_app.core.models import utcnow
-from auto_app.ingest.email import parse_email
+from auto_app.ingest.email import EMAIL_PARSER_VERSION, parse_email
 from auto_app.ingest.reader import read_feed
 from auto_app.ingest.repository import parse_repository, validate_repository_format
 from auto_app.ingest.service import IngestService
@@ -54,12 +54,16 @@ def _check_kind(store, source: str, kind: str) -> dict:
 
 
 def run_repository(store, source: str, location: str, client: httpx.Client | None = None,
-                   *, format: str = "simplify") -> dict:
+                   *, format: str = "simplify", company: str | None = None) -> dict:
     validate_repository_format(format)
+    if company is not None and (not isinstance(company, str) or not company.strip()):
+        raise ValueError("company must be a nonempty string")
+    company = company.strip() if company else None
     location = resolve_location(location)
     previous = _check_kind(store, source, "repository")
     checkpoint = previous if (previous.get("location") == location
-                              and previous.get("format", "simplify") == format) else {}
+                              and previous.get("format", "simplify") == format
+                              and previous.get("company") == company) else {}
     result = read_feed(location, etag=checkpoint.get("etag"),
                        last_modified=checkpoint.get("last_modified"), client=client)
     service = IngestService(store)
@@ -69,7 +73,7 @@ def run_repository(store, source: str, location: str, client: httpx.Client | Non
         report = service.checked_unchanged(source)
         report.update(kind="repository", origin=location, revision=checkpoint["revision"], status="ok", issues=[])
     else:
-        parsed = parse_repository(result.content, format=format)
+        parsed = parse_repository(result.content, format=format, company=company)
         # Even a complete snapshot commits before linking finishes. Invalidate
         # the old validators before any import writes so an interruption and
         # upstream rollback cannot turn a stale 304 into a consistency claim.
@@ -77,6 +81,7 @@ def run_repository(store, source: str, location: str, client: httpx.Client | Non
         store.update_health(source, ingest={
             "kind": "repository", "location": previous.get("location") or location,
             "format": previous.get("format", "simplify"),
+            "company": previous.get("company"),
             "revision": previous.get("revision"), "etag": None, "last_modified": None,
         })
         report = service.ingest(source, parsed, kind="repository", origin=location,
@@ -86,6 +91,7 @@ def run_repository(store, source: str, location: str, client: httpx.Client | Non
         store.update_health(source, ingest={
             "kind": "repository", "location": location,
             "format": format,
+            "company": company,
             "etag": result.etag, "last_modified": result.last_modified,
             "revision": result.revision or checkpoint.get("revision"),
         })
@@ -112,7 +118,8 @@ def run_email(store, source: str, paths: list[Path]) -> dict:
             result = read_feed(str(path))
             saved = saved_files.get(str(path))
             if (saved and saved.get("revision") == result.revision
-                    and saved.get("normalizer_version") == NORMALIZER_VERSION):
+                    and saved.get("normalizer_version") == NORMALIZER_VERSION
+                    and saved.get("email_parser_version") == EMAIL_PARSER_VERSION):
                 report = {"source": source, "kind": "email", "origin": str(path),
                           "revision": result.revision, "status": "ok", "issues": [],
                           **{key: 0 for key in COUNTERS}, "records": saved["records"],
@@ -131,6 +138,7 @@ def run_email(store, source: str, paths: list[Path]) -> dict:
                 issues.extend({**issue, "path": str(path)} for issue in parsed.issues)
                 if not parsed.issues:
                     saved_files[str(path)] = {"revision": result.revision, "normalizer_version": NORMALIZER_VERSION,
+                                              "email_parser_version": EMAIL_PARSER_VERSION,
                                               "records": report["records"], "inactive": report["inactive"]}
                     checkpoint_changed = True
         except READ_ERRORS as exc:
@@ -164,7 +172,10 @@ def load_feed_config(config_path: Path) -> dict[str, dict]:
         if kind == "repository":
             format = definition.get("format", "simplify")
             validate_repository_format(format)
-            sources[source] = {"kind": kind, "format": format,
+            company = definition.get("company")
+            if company is not None and (not isinstance(company, str) or not company.strip()):
+                raise ValueError(f"{source}: company must be a nonempty string")
+            sources[source] = {"kind": kind, "format": format, "company": company.strip() if company else None,
                                "location": resolve_location(definition.get("location"), config_path.parent)}
         elif kind == "email":
             paths = definition.get("paths")
@@ -191,7 +202,7 @@ def run_config(store, config_path: Path, client: httpx.Client | None = None) -> 
         try:
             if definition["kind"] == "repository":
                 report = run_repository(store, source, definition["location"], client=client,
-                                        format=definition["format"])
+                                        format=definition["format"], company=definition.get("company"))
             elif definition["kind"] == "mailbox":
                 from auto_app.ingest.mailbox import run_mailbox
                 report = run_mailbox(store, source, definition, client=client)
@@ -208,7 +219,8 @@ def run_config(store, config_path: Path, client: httpx.Client | None = None) -> 
         progress = {
             "status": report["status"], "last_run_at": started, "finished_at": utcnow().isoformat(),
             "last_ok_at": started if report["status"] == "ok" else previous.get("last_ok_at"),
-            **{key: report[key] for key in (*COUNTERS, "has_more", "messages_processed", "messages_skipped", "messages_gone")
+            **{key: report[key] for key in (*COUNTERS, "has_more", "messages_processed", "messages_skipped", "messages_gone",
+                                          "messages_pending", "messages_deferred")
                if key in report},
         }
         if report.get("error"):
@@ -217,5 +229,7 @@ def run_config(store, config_path: Path, client: httpx.Client | None = None) -> 
             errors = report.get("errors") or report.get("issues") or []
             if errors:
                 progress["error"] = errors[0].get("error") or errors[0].get("reason") or "Some inputs failed"
+            elif report.get("messages_pending"):
+                progress["error"] = "Unresolved messages remain in the durable retry queue"
         store.update_health(source, status=report["status"], ingest_run=progress)
     return {"status": _status(list(reports.values())), "sources": reports}

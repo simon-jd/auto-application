@@ -169,3 +169,37 @@ def test_saved_email_checkpoint_reimports_after_normalizer_upgrade(store, tmp_pa
         assert norm['source_key'] == 'linkedin:jobs:100'
     assert store.source_health('mail')['ingest']['files'][str(path.resolve())]['normalizer_version'] == NORMALIZER_VERSION
     assert run_email(store, 'mail', [path])['files'][0]['not_modified'] is True
+
+
+def test_saved_email_checkpoint_reimports_after_email_parser_upgrade(store, tmp_path):
+    from auto_app.ingest.email import EMAIL_PARSER_VERSION
+
+    path = message(tmp_path / 'mail.eml')
+    run_email(store, 'mail', [path])
+    checkpoint = store.source_health('mail')['ingest']
+    checkpoint['files'][str(path.resolve())]['email_parser_version'] = 'old'
+    store.update_health('mail', ingest=checkpoint)
+    report = run_email(store, 'mail', [path])
+    assert report['unchanged'] == 1 and not report['files'][0].get('not_modified')
+    assert store.source_health('mail')['ingest']['files'][str(path.resolve())]['email_parser_version'] == EMAIL_PARSER_VERSION
+    assert run_email(store, 'mail', [path])['files'][0]['not_modified'] is True
+
+
+def test_mailbox_repeated_page_does_not_write_checkpoint_per_receipt(store, tmp_path):
+    import httpx
+    from auto_app.ingest.mailbox import run_mailbox
+    from tests.ingest.test_mailbox import NOW, definition, gmail_message
+
+    config = definition(tmp_path)
+
+    def handler(request):
+        if request.url.path.endswith('/messages'):
+            return httpx.Response(200, json={'messages': [{'id': str(i)} for i in range(30)]})
+        return httpx.Response(200, json=gmail_message(request.url.path.rsplit('/', 1)[-1], no_jobs=True))
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        run_mailbox(store, 'mail', config, client=client, now=NOW)
+        with statements(store) as calls:
+            report = run_mailbox(store, 'mail', config, client=client, now=NOW)
+    assert report['messages_skipped'] == 30
+    assert sum(q.startswith('insert into source_health') for q in calls) <= 2

@@ -6,6 +6,7 @@ are read afresh on each call: the cursor is not a revision or a frozen snapshot.
 
 import base64
 import binascii
+from collections import Counter
 from contextlib import contextmanager
 from datetime import datetime, timezone
 import json
@@ -27,12 +28,22 @@ STATE_SQL = """CASE WHEN j.archived_at IS NOT NULL THEN 'archived'
 TITLE_SQL = "COALESCE(NULLIF(p.title, ''), json_extract(j.archive, '$.title'), j.title_norm)"
 COMPANY_SQL = "COALESCE(NULLIF(p.company, ''), json_extract(j.archive, '$.company'), j.company_norm)"
 JOIN_SQL = "FROM jobs j LEFT JOIN postings p ON p.posting_id = j.primary_posting_id"
-# Raw locations matter: normalization deliberately collapses remote countries.
-EXCLUDED_SQL = """(EXISTS (SELECT 1 FROM job_locations l WHERE l.job_id=j.job_id AND excluded_country(l.location_norm))
+# Raw locations matter: normalization deliberately collapses remote countries. The same evidence
+# answers "names an excluded country" and "names a US place", via different SQL functions.
+EVIDENCE_SQL = """(EXISTS (SELECT 1 FROM job_locations l WHERE l.job_id=j.job_id AND {loc}(l.location_norm))
     OR EXISTS (SELECT 1 FROM postings ep, json_each(ep.parsed, '$.locations') el
-               WHERE ep.job_id=j.job_id AND excluded_country(el.value))
-    OR EXISTS (SELECT 1 FROM json_each(j.archive, '$.locations') al WHERE excluded_country(al.value))
-    OR EXISTS (SELECT 1 FROM json_each(j.archive, '$.raw_locations') ar WHERE excluded_country(ar.value)))"""
+               WHERE ep.job_id=j.job_id AND {loc}(el.value))
+    OR EXISTS (SELECT 1 FROM postings ep WHERE ep.job_id=j.job_id
+               AND {code}(json_extract(ep.parsed, '$.extras.country')))
+    OR EXISTS (SELECT 1 FROM json_each(j.archive, '$.locations') al WHERE {loc}(al.value))
+    OR EXISTS (SELECT 1 FROM json_each(j.archive, '$.raw_locations') ar WHERE {loc}(ar.value))
+    OR EXISTS (SELECT 1 FROM json_each(j.archive, '$.countries') ac WHERE {code}(ac.value)))"""
+INGEST_EVIDENCE_SQL = """EXISTS (SELECT 1 FROM ingest_entries ce JOIN postings cp ON cp.posting_id=ce.posting_id
+    WHERE cp.job_id=j.job_id AND {code}(json_extract(ce.payload, '$.metadata.upstream.country')))"""
+EXCLUDED_SQL = EVIDENCE_SQL.format(loc="excluded_country", code="excluded_country_code")
+INGEST_COUNTRY_SQL = INGEST_EVIDENCE_SQL.format(code="excluded_country_code")
+US_SQL = EVIDENCE_SQL.format(loc="us_location", code="us_country_code")
+INGEST_US_SQL = INGEST_EVIDENCE_SQL.format(code="us_country_code")
 
 JOB_COLUMNS = """job_id primary_posting_id company_norm title_norm canonical_url step2 step2_at decision
     decided_at first_seen_at last_seen_at expires_at archived_at archive duplicate_of warnings notified_at""".split()
@@ -44,7 +55,8 @@ REVIEW_COLUMNS = "review_id job_id decision reason filters created_at".split()
 FEEDBACK_COLUMNS = "job_id filter filter_version verdict correct label origin reason created_at".split()
 HEALTH_FIELDS = "cooldown_until last_block_at last_block_reason last_ok_at last_run_at".split()
 INGEST_RUN_FIELDS = """status last_run_at finished_at last_ok_at error records created updated unchanged
-    restored inactive missing jobs_created has_more messages_processed messages_skipped messages_gone""".split()
+    restored inactive missing jobs_created has_more messages_processed messages_skipped messages_gone
+    messages_pending messages_deferred""".split()
 MAILBOX_PROGRESS_FIELDS = "window_start window_end watermark in_progress has_more".split()
 PARSED_FIELDS = """source source_job_id title company locations workplace_type employment_type seniority salary
     posted_at posted_at_precision posted_text reposted reposted_at applicants applicants_text apply_url apply_kind
@@ -57,6 +69,12 @@ INGEST_OPTIONAL = {
     "ingest_entries": [*INGEST_ENTRY_FIELDS, "payload"],
     "ingest_changes": INGEST_CHANGE_FIELDS,
 }
+SCREENING_COLUMNS = {"job_id", "rules_version", "outcome", "reasons", "signals", "screened_at"}
+SPONSORSHIP = ("offers", "no", "unknown", "citizenship_required")
+SCREENED_OUT_SQL = ("EXISTS (SELECT 1 FROM job_screenings s WHERE s.job_id=j.job_id AND s.outcome='excluded') "
+                    "AND COALESCE(j.decision, '') = ''")
+SPONSORSHIP_SQL = ("EXISTS (SELECT 1 FROM job_screenings s WHERE s.job_id=j.job_id "
+                   "AND json_extract(s.signals, '$.sponsorship')=?)")
 PENDING_SQL = "COALESCE(json_extract(p.parsed, '$.extras.ingestion.enrichment_status'), '') = 'pending'"
 COMPLETENESS_SQL = f"""SELECT p.job_id,
     MAX(CASE WHEN {PENDING_SQL} THEN 1 ELSE 0 END) AS has_pending,
@@ -127,6 +145,16 @@ class QueryService:
             self._conn.create_function("excluded_country", 1,
                                        lambda location: bool(self.preferences.countries_for(location)) if location else False,
                                        deterministic=True)
+            self._conn.create_function("excluded_country_code", 1,
+                                       lambda code: bool(self.preferences.countries_for_code(code)), deterministic=True)
+            from auto_app.screen.locations import classify_location
+
+            self._conn.create_function("us_location", 1,
+                                       lambda location: bool(location) and classify_location(location) == "us",
+                                       deterministic=True)
+            self._conn.create_function("us_country_code", 1,
+                                       lambda code: isinstance(code, str) and code.strip().upper() in ("US", "USA"),
+                                       deterministic=True)
             for table, required in REQUIRED.items():
                 columns = {row["name"] for row in self._conn.execute(f'PRAGMA table_info("{table}")')}
                 missing = set(required) - columns
@@ -140,7 +168,16 @@ class QueryService:
                 table: {row["name"] for row in self._conn.execute(f'PRAGMA table_info("{table}")')}
                 for table in INGEST_OPTIONAL
             }
+            screening_columns = {row["name"] for row in self._conn.execute('PRAGMA table_info("job_screenings")')}
+            event_columns = {row["name"] for row in self._conn.execute('PRAGMA table_info("application_events")')}
+            self.events_available = {"event_id", "job_id", "kind", "occurred_at", "source", "note"} <= event_columns
+            self.screening_available = SCREENING_COLUMNS <= screening_columns
             self.ingestion_available = all(optional_columns.values())
+            excluded, in_us = ((f"({EXCLUDED_SQL} OR {INGEST_COUNTRY_SQL})", f"({US_SQL} OR {INGEST_US_SQL})")
+                               if self.ingestion_available else (EXCLUDED_SQL, US_SQL))
+            # Same rule as Preferences.evaluate: a job with any US place is kept.
+            self._excluded_sql = (excluded if self.preferences._excludes_us()
+                                  else f"({excluded} AND NOT {in_us})")
             if self.ingestion_available:
                 for table, required in INGEST_OPTIONAL.items():
                     missing = set(required) - optional_columns[table]
@@ -200,7 +237,7 @@ class QueryService:
                                  "evidence": False, "tasks": False, "resume_providers": False,
                                  "ingestion": self.ingestion_available},
             }
-            excluded = (self._conn.execute(f"SELECT COUNT(*) FROM jobs j WHERE j.archived_at IS NULL AND {EXCLUDED_SQL}").fetchone()[0]
+            excluded = (self._conn.execute(f"SELECT COUNT(*) FROM jobs j WHERE j.archived_at IS NULL AND {self._excluded_sql}").fetchone()[0]
                         if self.preferences.exclude_countries else 0)
             result["preferences"] = {"path": str(self.preferences_path),
                                      "configured": self.preferences_path.exists(),
@@ -209,6 +246,9 @@ class QueryService:
                                      "included_active_jobs": result["counts"]["active"] - excluded}
             if self.ingestion_available:
                 result["ingestion"] = self._ingestion_summary()
+            result["capabilities"]["rules_screening"] = self.screening_available
+            if self.screening_available:
+                result["screening"] = self._screening_summary(result["counts"]["active"])
             return result
 
     def _ingestion_summary(self):
@@ -226,9 +266,34 @@ class QueryService:
         return {"entries": sum(by_status.values()), "by_status": by_status,
                 "pending_jobs": pending, "needs_reassessment_jobs": reassessment}
 
+    def _screening_summary(self, active):
+        """Current verdicts of active jobs; unscreened jobs stay visible."""
+        live = "FROM job_screenings s JOIN jobs j ON j.job_id=s.job_id WHERE j.archived_at IS NULL"
+        counts = dict(self._conn.execute(f"SELECT s.outcome, COUNT(*) {live} GROUP BY s.outcome"))
+        reasons = Counter()
+        for (value,) in self._conn.execute(f"SELECT s.reasons {live} AND s.outcome='excluded'"):
+            reasons.update(r.split(":", 1)[0] for r in _json(value, list, "job_screenings.reasons") or [])
+        sponsorship = dict(self._conn.execute(
+            f"SELECT COALESCE(json_extract(s.signals, '$.sponsorship'), 'unknown'), COUNT(*) "
+            f"{live} AND s.outcome='kept' GROUP BY 1"))
+        kept, excluded = counts.get("kept", 0), counts.get("excluded", 0)
+        return {"kept": kept, "excluded": excluded, "unscreened": max(0, active - kept - excluded),
+                "excluded_by_reason": dict(reasons.most_common()), "kept_by_sponsorship": sponsorship}
+
+    def _screening_projection(self, job_ids):
+        placeholders = ",".join("?" for _ in job_ids)
+        result = {}
+        for row in self._conn.execute(f"""SELECT job_id, rules_version, outcome, reasons, signals, screened_at
+                                          FROM job_screenings WHERE job_id IN ({placeholders})""", job_ids):
+            entry = _dates(row)
+            entry["reasons"] = _json(entry["reasons"], list, "job_screenings.reasons") or []
+            entry["signals"] = _json(entry["signals"], dict, "job_screenings.signals") or {}
+            result[entry.pop("job_id")] = entry
+        return result
+
     def jobs(self, query=None, state=None, company=None, source=None, archived=False, limit=50, cursor=None,
-             include_excluded=False) -> dict:
-        """Return matching jobs by descending ID. archived=None includes active and archived."""
+             include_excluded=False, sponsorship=None) -> dict:
+        """Return jobs by descending ID. Explicit archived state overrides the archive default."""
         if type(limit) is not int or not 1 <= limit <= 200:
             raise QueryError("limit must be an integer between 1 and 200")
         if archived is not None and type(archived) is not bool:
@@ -237,17 +302,28 @@ class QueryService:
             raise QueryError("include_excluded must be true or false")
         if state is not None and state not in STATES:
             raise QueryError(f"state must be one of: {', '.join(STATES)}")
+        if sponsorship is not None and sponsorship not in SPONSORSHIP:
+            raise QueryError(f"sponsorship must be one of: {', '.join(SPONSORSHIP)}")
+        if sponsorship is not None and not self.screening_available:
+            raise QueryError("sponsorship requires a database with screening results")
         for name, value in (("query", query), ("company", company), ("source", source)):
             if value is not None and not isinstance(value, str):
                 raise QueryError(f"{name} must be a string")
+        if state == "archived":
+            archived = True
         filters = {"query": query, "state": state, "company": company, "source": source, "archived": archived,
-                   "include_excluded": include_excluded, "exclude_countries": list(self.preferences.exclude_countries)}
+                   "include_excluded": include_excluded, "sponsorship": sponsorship, "exclude_countries": list(self.preferences.exclude_countries)}
         saved = self._cursor(cursor, filters) if cursor is not None else None
         with self._read():
             max_id = saved["max_id"] if saved else self._conn.execute("SELECT COALESCE(MAX(job_id), 0) FROM jobs").fetchone()[0]
             conditions, args = ["j.job_id <= ?"], [max_id]
             if self.preferences.exclude_countries and not include_excluded:
-                conditions.append(f"NOT {EXCLUDED_SQL}")
+                conditions.append(f"NOT {self._excluded_sql}")
+            if self.screening_available and not include_excluded:
+                conditions.append(f"NOT ({SCREENED_OUT_SQL})")
+            if sponsorship is not None:
+                conditions.append(SPONSORSHIP_SQL)
+                args.append(sponsorship)
             if archived is not None:
                 conditions.append("j.archived_at IS " + ("NOT NULL" if archived else "NULL"))
             if state is not None:
@@ -297,15 +373,22 @@ class QueryService:
             return []
         ids = [row["job_id"] for row in rows]
         placeholders = ",".join("?" for _ in ids)
-        locations, raw_locations, sources, counts = {}, {}, {}, {}
+        locations, raw_locations, countries, sources, counts = {}, {}, {}, {}, {}
         for row in self._conn.execute(f"SELECT job_id, location_norm FROM job_locations WHERE job_id IN ({placeholders}) ORDER BY location_norm", ids):
             locations.setdefault(row["job_id"], []).append(row["location_norm"])
-        for row in self._conn.execute(f"SELECT job_id, json_extract(parsed, '$.locations') AS locations FROM postings WHERE job_id IN ({placeholders}) ORDER BY posting_id", ids):
+        for row in self._conn.execute(f"SELECT job_id, json_extract(parsed, '$.locations') AS locations, json_extract(parsed, '$.extras.country') AS country FROM postings WHERE job_id IN ({placeholders}) ORDER BY posting_id", ids):
             raw_locations.setdefault(row["job_id"], []).extend(_json(row["locations"], list, "postings.parsed.locations") or [])
+            countries.setdefault(row["job_id"], []).append(row["country"])
+        if self.ingestion_available and self.preferences.exclude_countries:
+            for row in self._conn.execute(f"""SELECT p.job_id, json_extract(e.payload, '$.metadata.upstream.country') AS country
+                    FROM ingest_entries e JOIN postings p ON p.posting_id=e.posting_id
+                    WHERE p.job_id IN ({placeholders})""", ids):
+                countries.setdefault(row["job_id"], []).append(row["country"])
         for row in self._conn.execute(f"SELECT job_id, source, COUNT(*) AS n FROM postings WHERE job_id IN ({placeholders}) GROUP BY job_id, source ORDER BY source", ids):
             sources.setdefault(row["job_id"], []).append(row["source"])
             counts[row["job_id"]] = counts.get(row["job_id"], 0) + row["n"]
         ingestion = self._ingestion_projection(ids) if self.ingestion_available else {}
+        screenings = self._screening_projection(ids) if self.screening_available else {}
         result = []
         for row in rows:
             item = _dates(row)
@@ -322,7 +405,15 @@ class QueryService:
             item["canonical_url"] = item["canonical_url"] or (archive or {}).get("apply_url")
             item["screening"] = self.preferences.evaluate([*raw_locations.get(jid, []), *item["locations"],
                                                            *((archive or {}).get("locations") or []),
-                                                           *((archive or {}).get("raw_locations") or [])])
+                                                           *((archive or {}).get("raw_locations") or [])],
+                                                          countries=[*countries.get(jid, []),
+                                                                     *((archive or {}).get("countries") or [])])
+            rule = screenings.get(jid)
+            if rule is not None:
+                country = item["screening"]
+                item["screening"] = {**country, "excluded": country["excluded"] or rule["outcome"] == "excluded",
+                                     "reasons": [*country["reasons"], *rule["reasons"]], "signals": rule["signals"],
+                                     "rules_version": rule["rules_version"], "screened_at": rule["screened_at"]}
             if self.ingestion_available:
                 item["ingestion"] = ingestion[jid]
             result.append(item)
@@ -383,6 +474,9 @@ class QueryService:
             for posting in postings:
                 posting["source_job_id"] = posting["source_job_id"].split("#archived", 1)[0]
             item["posting_details"] = postings or (item["archive"] or {}).get("postings") or []
+            item["events"] = ([_dates(r) for r in self._conn.execute(
+                "SELECT event_id, kind, occurred_at, source, note FROM application_events "
+                "WHERE job_id=? ORDER BY occurred_at, event_id", (job_id,))] if self.events_available else [])
             if self.ingestion_available:
                 item["ingestion"] = self._ingestion_projection([job_id], details=True)[job_id]
             for name, columns, order in (("judgments", JUDGMENT_COLUMNS, "filter, created_at, filter_version"),

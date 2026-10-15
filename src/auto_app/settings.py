@@ -11,6 +11,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 @dataclass(frozen=True)
 class Paths:
     home: Path
+    preferences_file: Path | None = None
 
     @property
     def config_file(self) -> Path:
@@ -18,7 +19,7 @@ class Paths:
 
     @property
     def preferences(self) -> Path:
-        return self.home / "config" / "preferences.json"
+        return self.preferences_file if self.preferences_file is not None else self.home / "config" / "preferences.json"
 
     @property
     def profiles(self) -> Path:

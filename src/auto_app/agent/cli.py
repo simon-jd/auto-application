@@ -50,6 +50,12 @@ def parser() -> argparse.ArgumentParser:
     serve.add_argument("--host", type=_loopback_host, default="127.0.0.1",
                        help="HTTP loopback bind address (default: 127.0.0.1).")
     serve.add_argument("--port", type=_port, default=8767, help="HTTP port (default: 8767); endpoint is /mcp.")
+    serve.add_argument("--auth-token-file", type=Path, help="Require a bearer token from a private mode-600 file.")
+    serve.add_argument("--public-url", help="The tunnel's https://host; required with --auth-token-file.")
+    serve.add_argument("--control-tools", action="store_true",
+                       help="Expose pause/resume, previewed rule changes, feedback and digest tools.")
+    serve.add_argument("--handoff-tools", action="store_true",
+                       help="Expose application handoff interfaces (requires --auth-token-file and --public-url).")
     worker = commands.add_parser("prepare-worker", help="Run the exclusive fictional Ashby preparation worker.")
     worker.add_argument("--preparation-dir", type=Path, required=True, help="Preparation ledger and artifacts directory.")
     worker.add_argument("--once", action="store_true", help="Process at most one queued task, then exit.")
@@ -74,16 +80,33 @@ def main(argv: list[str] | None = None) -> int:
         from auto_app.agent.mcp_server import create_mcp_server
         from auto_app.agent.service import AgentService
 
+        auth = None
+        if args.auth_token_file or args.public_url:
+            if not (args.auth_token_file and args.public_url) or args.transport != "streamable-http":
+                raise ValueError("--auth-token-file and --public-url go together, with --transport streamable-http")
+            from auto_app.agent.auth import PublicAuth, load_token
+
+            auth = PublicAuth(load_token(args.auth_token_file), args.public_url)
+
+        if args.handoff_tools and auth is None:
+            raise ValueError("--handoff-tools requires --auth-token-file and --public-url")
         # Validate the selected database before starting either transport.
         AgentService(args.db, preferences_path=args.preferences).context()
         server = create_mcp_server(args.db, preferences_path=args.preferences,
-                                   preparation_dir=args.preparation_dir)
+                                   preparation_dir=args.preparation_dir, auth=auth, control_tools=args.control_tools,
+                                   handoff_tools=args.handoff_tools)
         if args.transport == "stdio":
             server.run(transport="stdio")
         else:
-            server.run(transport="streamable-http", host=args.host, port=args.port, json_response=True)
+            extra = {"transport_security": auth.transport_security(args.port)} if auth else {}
+            server.run(transport="streamable-http", host=args.host, port=args.port, json_response=True, **extra)
         return 0
-    except (OSError, ValueError) as exc:
+    except ValueError as exc:
+        # A serve configuration error (token file, public URL, database) exits 2 so systemd does not
+        # retry it (RestartPreventExitStatus=2) and the unit's OnFailure alert fires.
+        print(f"Agent {args.command} failed: {exc}", file=sys.stderr)
+        return 2 if args.command == "serve" else 1
+    except OSError as exc:
         print(f"Agent {args.command} failed: {exc}", file=sys.stderr)
         return 1
     except KeyboardInterrupt:

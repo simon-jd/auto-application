@@ -254,7 +254,7 @@ def test_jobs_expire_on_any_refresh_without_a_purge(db):
 @pytest.mark.parametrize('raw_only', [False, True])
 def test_excluded_never_judged_jobs_archive_instead_of_being_deleted(db, raw_only):
     import json
-    add(db, 'nvidia', 'CA1', url=wd('CA1'))
+    add(db, 'nvidia', 'CA1', url=wd('CA1'), locations=('Remote',))  # no US place keeps it visible
     run(db)
     jid = job_of(db, 'nvidia/CA1')
     db.paths.preferences.parent.mkdir(exist_ok=True)
@@ -280,8 +280,8 @@ def test_excluded_never_judged_jobs_archive_instead_of_being_deleted(db, raw_onl
 
 
 def test_archived_exclusion_keeps_nonprimary_raw_location_evidence(db):
-    add(db, 'nvidia', 'CA2', url=wd('CA2'))
-    add(db, 'linkedin', 'CA3', apply_url=wd('CA2'))
+    add(db, 'nvidia', 'CA2', url=wd('CA2'), locations=('Remote',))  # no US place keeps it visible
+    add(db, 'linkedin', 'CA3', apply_url=wd('CA2'), locations=('Remote',))
     run(db)
     jid = job_of(db, 'nvidia/CA2')
     db.paths.preferences.parent.mkdir(exist_ok=True)
@@ -298,3 +298,19 @@ def test_archived_exclusion_keeps_nonprimary_raw_location_evidence(db):
     assert db.get_parsed(PostingRef('linkedin', f'CA3#archived{jid}')) is None
     assert db.job(jid)['archive']['raw_locations']
     assert db.jobs(archived=True, include_excluded=False) == []
+
+
+def test_never_judged_job_with_a_us_place_beside_canada_expires_like_any_visible_job(db):
+    add(db, 'nvidia', 'CA9', url=wd('CA9'))  # Santa Clara, CA
+    run(db)
+    jid = job_of(db, 'nvidia/CA9')
+    db.paths.preferences.parent.mkdir(exist_ok=True)
+    db.paths.preferences.write_text('{"exclude_countries": ["Canada"]}')
+    parsed = db.job_inputs(jid)[0]
+    parsed['locations'] = ['Santa Clara, CA', 'Remote in Canada']
+    with db.engine.begin() as conn:
+        conn.execute(update(T.postings).where(T.postings.c.job_id == jid).values(parsed=parsed))
+    assert [job['job_id'] for job in db.jobs(include_excluded=False)] == [jid]
+    seen_days_ago(db, 'nvidia/CA9', 20)
+    report = purge(db, AppConfig().retention, ttl=TTL, dry_run=True)
+    assert [e.job_id for e in report.jobs.deleted] == [jid] and report.jobs.archived == []

@@ -1,0 +1,7 @@
+# Replace all three placeholders with your existing Cloudflare named tunnel values.
+tunnel: REPLACE-WITH-TUNNEL-UUID
+credentials-file: /home/postedism/Desktop/job-search/runtime/credentials/REPLACE-WITH-TUNNEL-UUID.json
+ingress:
+  - hostname: REPLACE-WITH-YOUR-HOST
+    service: http://127.0.0.1:8769
+  - service: http_status:404

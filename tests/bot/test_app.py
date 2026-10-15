@@ -1,0 +1,222 @@
+"""Bot guards and delivery, with Discord transport replaced by a local channel."""
+
+import json
+import re
+from datetime import UTC, datetime
+from types import SimpleNamespace
+
+import pytest
+from sqlalchemy import insert, update
+
+from auto_app.agent.service import AgentService
+from auto_app.bot.actions import BotSettings
+from auto_app.bot.app import JobBot, JobButton, digest_ready
+from auto_app.core.db import tables as T
+from auto_app.ingest.scheduler import _lock, _path
+from auto_app.worker import loop
+from auto_app.worker.control import write_control
+from tests.imported_jobs import ingest, job_id_of, make_store, record
+
+NOW = datetime(2026, 10, 12, 12, 0, tzinfo=UTC)
+
+
+def test_digest_waits_for_successful_completed_screening_and_unpaused_control():
+    state = {"status": "ok", "running": False, "notify_since": "2026-10-12T00:00:00+00:00",
+             "last_report": {"steps": {"screen": {"status": "ok"}}}}
+    assert digest_ready(state, {"paused": False}, NOW)
+    assert digest_ready({**state, "running": True}, {"paused": False}, NOW)
+    assert not digest_ready({**state, "status": "running"}, {"paused": False}, NOW)
+    # An enrichment outage leaves the round partial, but its screening verdicts are current.
+    enrich_outage = {**state, "status": "partial",
+                     "last_report": {"steps": {"screen": {"status": "ok"}, "enrich": {"status": "error"}}}}
+    assert digest_ready(enrich_outage, {"paused": False}, NOW)
+    assert not digest_ready({**state, "status": "partial", "last_report": {"steps": {
+        "screen": {"status": "ok"}, "rescreen": {"status": "error"}}}}, {"paused": False}, NOW)
+    assert not digest_ready({**state, "status": "error", "last_report": {"status": "error"}}, {"paused": False}, NOW)
+    assert not digest_ready({**state, "status": "waiting"}, {"paused": False}, NOW)
+    assert not digest_ready({**state, "last_report": {"steps": {"screen": {"status": "error"}}}},
+                            {"paused": False}, NOW)
+    assert not digest_ready(state, {"paused": True, "paused_until": None}, NOW)
+
+
+def test_idle_worker_daemon_lock_does_not_block_digest(tmp_path):
+    db_path = tmp_path / "auto_app.db"
+    db_path.with_name(db_path.name + loop.STATE).write_text(json.dumps({
+        "status": "ok", "notify_since": "2026-10-12T00:00:00+00:00",
+        "last_report": {"steps": {"screen": {"status": "ok"}}}}))
+    with _lock(_path(db_path, loop.LOCK), "worker"):
+        state = loop.status(db_path)
+        assert state["running"] is True and state["status"] == "ok"
+        assert digest_ready(state, {"paused": False}, NOW)
+
+
+@pytest.mark.asyncio
+async def test_post_digest_marks_only_accepted_discord_messages(tmp_path, monkeypatch):
+    store = make_store(tmp_path)
+    ingest(store, [record(str(100 + i), f"Engineer {i}") for i in range(7)])
+    with store.engine.begin() as conn:
+        conn.execute(update(T.jobs).values(first_seen_at=NOW))
+        for i in range(7):
+            job_id = job_id_of(store, f"Engineer {i}")
+            conn.execute(insert(T.job_screenings).values(
+                job_id=job_id, rules_version="t", facts_hash="h", outcome="kept", reasons=[],
+                signals={"sponsorship": "offers", "has_description": True}, screened_at=NOW))
+    store.engine.dispose()
+    db_path = tmp_path / "data" / "auto_app.db"
+    db_path.with_name(db_path.name + ".worker-state.json").write_text(json.dumps({
+        "status": "ok", "notify_since": "2026-10-12T00:00:00+00:00",
+        "last_report": {"steps": {"screen": {"status": "ok"}}}}))
+
+    class Channel:
+        guild = SimpleNamespace(id=456)
+
+        def __init__(self):
+            self.sent = []
+
+        async def send(self, **kwargs):
+            if self.sent:
+                raise RuntimeError("Discord unavailable")
+            self.sent.append(kwargs)
+
+    channel = Channel()
+    bot = JobBot(BotSettings("local.test.token", 123, 456, 789, db_path))
+    monkeypatch.setattr(bot, "get_channel", lambda channel_id: channel)
+    with pytest.raises(RuntimeError, match="Discord unavailable"):
+        await bot.post_digest()
+    assert len(channel.sent) == 1
+    assert len(channel.sent[0]["embeds"]) == 5
+    reopened = make_store(tmp_path)
+    assert len([job for job in reopened.jobs() if job["notified_at"]]) == 5
+    reopened.engine.dispose()
+    write_control(db_path, paused=True)
+    await bot.post_digest()
+    assert len(channel.sent) == 1
+    write_control(db_path, paused=False)
+    channel.guild = SimpleNamespace(id=999)
+    with pytest.raises(ValueError, match="configured server"):
+        await bot.post_digest()
+    await bot.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("intervention", ["completed_screen", "manual_decision"])
+async def test_later_digest_batch_uses_current_eligibility(tmp_path, monkeypatch, intervention):
+    store = make_store(tmp_path)
+    ingest(store, [record(str(100 + i), f"Engineer {i}") for i in range(7)])
+    ids = [job_id_of(store, f"Engineer {i}") for i in range(7)]
+    with store.engine.begin() as conn:
+        conn.execute(update(T.jobs).values(first_seen_at=NOW))
+        for job_id in ids:
+            conn.execute(insert(T.job_screenings).values(
+                job_id=job_id, rules_version="t", facts_hash="h", outcome="kept", reasons=[],
+                signals={"sponsorship": "offers", "has_description": True}, screened_at=NOW))
+    store.engine.dispose()
+    db_path = tmp_path / "data" / "auto_app.db"
+    state_path = db_path.with_name(db_path.name + loop.STATE)
+    state = {"status": "ok", "notify_since": "2026-10-12T00:00:00+00:00",
+             "last_run_at": "2026-10-12T12:00:00+00:00",
+             "last_report": {"steps": {"screen": {"status": "ok"}}}}
+    state_path.write_text(json.dumps(state))
+
+    class Channel:
+        guild = SimpleNamespace(id=456)
+
+        def __init__(self):
+            self.sent = []
+            self.handled = None
+
+        async def send(self, **kwargs):
+            self.sent.append(kwargs)
+            if len(self.sent) != 1:
+                return
+            first_ids = {int(embed.footer.text.split()[-1]) for embed in kwargs["embeds"]}
+            remaining = [job_id for job_id in ids if job_id not in first_ids]
+            if intervention == "completed_screen":
+                state_path.write_text(json.dumps({**state, "status": "running"}))
+                updated = make_store(tmp_path)
+                with updated.engine.begin() as conn:
+                    conn.execute(update(T.job_screenings).where(T.job_screenings.c.job_id.in_(remaining))
+                                 .values(outcome="excluded", reasons=["new rule"]))
+                updated.engine.dispose()
+                state_path.write_text(json.dumps({**state, "last_run_at": "2026-10-12T12:15:00+00:00"}))
+            else:
+                self.handled = remaining[0]
+                AgentService(db_path).record_application_status(self.handled, "not_applied", reason="manual")
+
+    channel = Channel()
+    bot = JobBot(BotSettings("local.test.token", 123, 456, 789, db_path))
+    monkeypatch.setattr(bot, "get_channel", lambda _: channel)
+    await bot.post_digest()
+    delivered = [int(embed.footer.text.split()[-1]) for message in channel.sent for embed in message["embeds"]]
+    checked = make_store(tmp_path)
+    notified = {job["job_id"] for job in checked.jobs() if job["notified_at"]}
+    checked.engine.dispose()
+    if intervention == "completed_screen":
+        assert len(channel.sent) == 1
+        assert set(delivered) == notified and len(notified) == 5
+    else:
+        assert len(channel.sent) == 2
+        assert channel.handled not in delivered and channel.handled not in notified
+        assert set(delivered) == notified and len(notified) == 6
+    await bot.close()
+
+
+@pytest.mark.asyncio
+async def test_persistent_button_rebuilds_after_restart_and_rejects_unauthorized_users(tmp_path):
+    bot = JobBot(BotSettings("local.test.token", 123, 456, 789, tmp_path / "missing.db"))
+
+    class Response:
+        def __init__(self):
+            self.sent = []
+
+        async def send_message(self, message, **kwargs):
+            self.sent.append(message)
+
+    response = Response()
+    interaction = SimpleNamespace(client=bot, guild_id=999, user=SimpleNamespace(id=123), response=response)
+    match = re.fullmatch(r"job:(?P<job>[1-9][0-9]{0,11}):(?P<action>want|skip|applied)",
+                         "job:41:want")
+    button = await JobButton.from_custom_id(interaction, None, match)
+    assert button.item.custom_id == "job:41:want"
+    await button.callback(interaction)
+    assert response.sent == ["Owner only in the configured server."]
+    response.sent.clear()
+    interaction.guild_id = 456
+    interaction.user.id = 999
+    await button.callback(interaction)
+    assert response.sent == ["Owner only in the configured server."]
+    await bot.close()
+
+
+@pytest.mark.asyncio
+async def test_post_digest_holds_back_a_newly_added_feed(tmp_path, monkeypatch):
+    store = make_store(tmp_path)
+    ingest(store, [record("101", "Engineer 0")], source="board-greenhouse-acme")
+    with store.engine.begin() as conn:
+        conn.execute(update(T.jobs).values(first_seen_at=NOW))
+        conn.execute(insert(T.job_screenings).values(
+            job_id=job_id_of(store, "Engineer 0"), rules_version="t", facts_hash="h", outcome="kept", reasons=[],
+            signals={"sponsorship": "offers", "has_description": True}, screened_at=NOW))
+    store.engine.dispose()
+    db_path = tmp_path / "data" / "auto_app.db"
+    state_path = db_path.with_name(db_path.name + loop.STATE)
+    state = {"status": "ok", "notify_since": "2026-10-12T00:00:00+00:00",
+             "last_report": {"steps": {"screen": {"status": "ok"}}},
+             "source_since": {"board-greenhouse-acme": "2026-10-12T13:00:00+00:00"}}  # added after the job
+    state_path.write_text(json.dumps(state))
+
+    class Channel:
+        guild = SimpleNamespace(id=456)
+        sent = []
+
+        async def send(self, **kwargs):
+            self.sent.append(kwargs)
+
+    bot = JobBot(BotSettings("local.test.token", 123, 456, 789, db_path))
+    monkeypatch.setattr(bot, "get_channel", lambda _: Channel())
+    await bot.post_digest()
+    assert Channel.sent == []
+    state_path.write_text(json.dumps({**state, "source_since": {"board-greenhouse-acme": None}}))
+    await bot.post_digest()
+    assert len(Channel.sent) == 1
+    await bot.close()

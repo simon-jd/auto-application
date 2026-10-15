@@ -377,6 +377,33 @@ def test_systemd_generation_quotes_explicit_linux_paths_and_uses_user_target(tmp
     assert list(tmp_path.iterdir()) == []
 
 
+def test_systemd_bare_uv_is_resolved_from_path(tmp_path, monkeypatch):
+    binary = tmp_path / "bin" / "uv"
+    binary.parent.mkdir()
+    binary.write_text("#!/bin/sh\n")
+    binary.chmod(0o755)
+    monkeypatch.setenv("PATH", str(binary.parent))
+    result = CliRunner().invoke(schedule_app(), ["systemd", "--uv", "uv"])
+    assert result.exit_code == 0, result.output
+    assert f'ExecStart=:"{binary}" run ' in result.stdout
+
+
+def test_systemd_missing_bare_uv_reports_actionable_error(tmp_path, monkeypatch):
+    monkeypatch.setenv("PATH", str(tmp_path))
+    result = CliRunner().invoke(schedule_app(), ["systemd", "--uv", "uv"])
+    assert result.exit_code == 2
+    assert "not found" in result.output and "--uv" in result.output
+    assert "ExecStart" not in result.output
+
+
+def test_systemd_explicit_relative_uv_remains_a_path(tmp_path, monkeypatch):
+    from auto_app.ingest.schedule_cli import build_systemd_unit
+
+    monkeypatch.chdir(tmp_path)
+    text = build_systemd_unit(tmp_path, tmp_path, "./tools/uv")
+    assert f'ExecStart=:"{tmp_path}/tools/uv" run ' in text
+
+
 def test_systemd_paths_do_not_follow_generating_host_symlinks(tmp_path):
     from auto_app.ingest.schedule_cli import build_systemd_unit
 

@@ -155,24 +155,27 @@ def test_three_import_rounds_preserve_manual_mark_and_review_without_duplicate_h
     assert payloads["ricsign"]["metadata"]["source_observation"]["last_verified"] == "2026-10-03"
 
 
-def test_default_query_excludes_merged_canadian_evidence_but_keeps_california_and_audit(store):
+def test_merged_us_and_canadian_evidence_stays_visible_and_canada_only_is_audited(store):
     import_source(store, "simplify", location="Toronto, ON, Canada")
     import_source(store, "applyguy", location="Seattle, WA")
     california_url = "https://job-boards.greenhouse.io/example/jobs/789012"
     import_source(store, "ricsign", california_url, location="San Jose, CA")
+    canada_url = "https://job-boards.greenhouse.io/example/jobs/345678"
+    import_source(store, "simplify", canada_url, source="simplify-canada", location="Vancouver, BC")
     with QueryService(store.db_path) as query:
         normal = query.jobs()
         audit = query.jobs(include_excluded=True)
-        assert normal["total"] == 1
-        assert normal["items"][0]["canonical_url"] == california_url
-        assert normal["items"][0]["screening"]["excluded"] is False
-        assert audit["total"] == 2
+        # A job that is also open in Seattle stays visible; only the Canada-only job is hidden.
+        assert {item["canonical_url"] for item in normal["items"]} == {GREENHOUSE, california_url}
+        assert audit["total"] == 3
         mixed = next(item for item in audit["items"] if item["canonical_url"] == GREENHOUSE)
+        canadian = next(item for item in audit["items"] if item["canonical_url"] == canada_url)
         detail = query.job(mixed["job_id"])
     assert mixed["sources"] == ["applyguy", "simplify"]
     assert set(mixed["locations"]) == {"seattle, wa", "toronto, on, canada"}
-    assert mixed["screening"]["excluded"] is True
-    assert mixed["screening"]["reasons"] == ["excluded_country:Canada"]
+    assert mixed["screening"]["excluded"] is False
+    assert canadian["screening"]["excluded"] is True
+    assert canadian["screening"]["reasons"] == ["excluded_country:Canada"]
     assert len(detail["ingestion"]["entries"]) == 2
     assert detail["decision"] is None
 

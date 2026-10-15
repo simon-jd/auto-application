@@ -40,6 +40,28 @@ sources:
     kind: repository
     format: jobright
     location: https://raw.githubusercontent.com/jobright-ai/2026-Software-Engineer-Internship/master/README.md
+
+  # Employer board examples are disabled. Replace the board slug and company
+  # only after reviewing `auto-app worker boards --yaml` and the public API.
+  board-greenhouse-example:
+    enabled: false
+    kind: repository
+    format: greenhouse-board
+    company: Example Employer
+    location: https://boards-api.greenhouse.io/v1/boards/example/jobs?content=true
+  board-lever-example:
+    enabled: false
+    kind: repository
+    format: lever-board
+    company: Example Employer
+    location: https://api.lever.co/v0/postings/example?mode=json
+  board-ashby-example:
+    enabled: false
+    kind: repository
+    format: ashby-board
+    company: Example Employer
+    location: https://api.ashbyhq.com/posting-api/job-board/example?includeCompensation=true
+
   recommendation-mail:
     enabled: false
     kind: email
@@ -51,6 +73,7 @@ sources:
     enabled: false  # authorize first, then enable in your config/feeds.yaml
     kind: mailbox
     provider: gmail
+    purpose: jobs  # default; recommendation links become jobs
     credentials: ../credentials/gmail.json
     # Adjust sender domains to the recommendations you actually receive.
     # Alternatively: query: 'label:Jobs'
@@ -59,14 +82,47 @@ sources:
     page_size: 50
     max_pages: 4
 
+  # Personal Gmail IMAP. Supply real From addresses or a reviewed gmail_raw
+  # scope, and create a private mode-600 credentials file before enabling.
+  imap-jobs:
+    enabled: false
+    kind: mailbox
+    provider: imap
+    purpose: jobs
+    credentials: ../credentials/imap.json
+    folder: INBOX
+    senders:
+      - REPLACE_WITH_LINKEDIN_FROM_ADDRESS
+      - REPLACE_WITH_JOBRIGHT_FROM_ADDRESS
+    # gmail_raw: 'label:Jobs'
+    lookback_days: 14
+    page_size: 50
+    max_pages: 4
+
   outlook-jobs:
     enabled: false
     kind: mailbox
     provider: outlook
+    purpose: jobs
     credentials: ../credentials/outlook.json
     folder: inbox  # a well-known Graph folder name or folder ID
     # Replace with actual From addresses (not domains); or select a dedicated folder ID.
     senders: [recommendations@example.com]
+    lookback_days: 14
+    page_size: 50
+    max_pages: 4
+
+  # Application receipts / OA / interviews / rejections / offers.
+  # Deliberately disabled; review scope and credentials before enabling.
+  # See docs/application-tracking.md. Status mail never creates job leads.
+  application-mail:
+    enabled: false
+    kind: mailbox
+    provider: imap
+    purpose: updates
+    credentials: ../credentials/imap.json
+    folder: INBOX
+    senders: [recruiting@example.com]  # replace with reviewed actual From addresses
     lookback_days: 14
     page_size: 50
     max_pages: 4

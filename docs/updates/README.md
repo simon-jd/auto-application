@@ -9,6 +9,14 @@ One entry per feature or significant fix, newest first. Design lives in the step
 
 | Date | Feature | Step | Status | Entry |
 |---|---|---|---|---|
+| 2026-10-14 | Connector review fixes: bot-mode worker unit, deploy restores Grok tunnel, failing units alert, any US location keeps a job, polite-modal rejections | 1, 2, 4 | Deployed 2026-10-15 with new units; 1912 local passes; first v7 round ok | [2026-10-14-connector-review-fixes](2026-10-14-connector-review-fixes.md) |
+| 2026-10-14 | Country provenance, projection concurrency, manual timelines, rejection negation, backup integrity, Git private-file protection and experience rules; Dot 0.3.0 | 1–4 | Deployed; 1,871 full-suite + 278 final-boundary + 551 Linux passes; Dot refreshed to 18 tools; Discord/Grok installed awaiting owner config | [2026-10-14-review-deployment](2026-10-14-review-deployment.md) |
+| 2026-10-13 | P2/P3 review fixes: reported submissions always recorded, local-day quota, narrower lock-time scans, requeue check, employer sender normalization, malformed update mail, distinct interview events, summary mark | 3, 4 | Local; tests pass, live acceptance pending | [2026-10-13-p2-p3-review-fixes](2026-10-13-p2-p3-review-fixes.md) |
+| 2026-10-13 | P3 application timelines, conservative mailbox updates, weekly summaries, disk health, verified backups and optional Git deployment | 3, 4 | Local scopes checked; final integrated verification and live acceptance pending | [2026-10-13-p3-tracking-and-operations](2026-10-13-p3-tracking-and-operations.md) |
+| 2026-10-13 | P2 guarded application handoff: quota-reserving claims, packets, outcome/account/resume interfaces and notifications | 3, 4 | Local implementation; final integrated verification and live acceptance pending | [2026-10-13-agent-handoff](2026-10-13-agent-handoff.md) |
+| 2026-10-12 | P1 employer boards, read-only IMAP, token-protected MCP/control tools and owner-only Discord bot; seven P0 repairs, digest optimization deferred | 1, 2, 4 | Implemented locally; 1,579 tests passed; deployment and live acceptance pending | [2026-10-12-p1-coverage-and-control](2026-10-12-p1-coverage-and-control.md) |
+| 2026-10-12 | Deterministic Linux screening, public-API JD enrichment, sponsorship-first Discord and deployment artifact | 1, 2, 4 | Implemented; deployment and live acceptance pending | [2026-10-12-linux-worker](2026-10-12-linux-worker.md) |
+| 2026-10-12 | Follow-up: safe TTL maintenance, parser boundaries, isolated filters, archived queries and resilient mailbox scanning | 1, 2, 4 | Local; 1,151 full-suite tests passed; independently reviewed | [2026-10-12-review-followup](2026-10-12-review-followup.md) |
 | 2026-10-12 | Fifteen review findings: collection/identity/retention/selection/readiness/security/performance | 1–4 | Local: 1,035 full-suite passes; final cache fix 404 related passes; frontend build passed | [2026-10-12-review-remediation](2026-10-12-review-remediation.md) |
 | 2026-10-11 | Fictional Ashby preparation queue, field verification and opt-in Dot tools | 3, 4 | Deployed; live/queued fill-only and restart verified; 132 preparation tests passed; both new cloud calls verified with idempotent result reuse | [2026-10-11-ashby-preparation](2026-10-11-ashby-preparation.md) |
 | 2026-10-10 | Dot MCP tools, atomic manual application tracking and cloud Skill packaging | 4 | Deployed; cloud tools and Skill installed; 821 passed, 1 skipped | [2026-10-10-dot-tools](2026-10-10-dot-tools.md) |
@@ -86,7 +94,7 @@ One entry per feature or significant fix, newest first. Design lives in the step
 
 | Feature | Step | Design |
 |---|---|---|
-| Next: authorize Gmail/Outlook on the deployed Linux worker; website inputs and JD enrichment, complete feasible opportunities, public evidence, resume providers, then persistent tasks and chat adapters | 1, 2, 4 | [Agent plan](../superpowers/plans/2026-10-09-agent-foundation.md) |
+| Next: deploy and accept the P0 screening/enrichment/Discord worker; authorize Gmail/Outlook; broader website inputs and opportunity evidence | 1, 2, 4 | [Linux worker acceptance](../linux-worker.md#5-deployment-and-pending-live-acceptance), [agent plan](../superpowers/plans/2026-10-09-agent-foundation.md) |
 | Dedup calibration on overlapping LinkedIn + company data | 1 | [step1 §7.6](../step1-collect.md#76-rollout-and-calibration) |
 | Step 2 S5 (deferred — evaluation decides): preference model, fit only, dealbreaker veto | 2 | [step2 §7.5–7.6](../step2-select.md) |
 | Deferred: Step 3 A4/A5 appliers and auto-submit; retain interfaces with automated applying off | 3 | [step3 §10](../step3-apply.md) |

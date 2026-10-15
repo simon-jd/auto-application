@@ -1,0 +1,6 @@
+{
+  "daily_submissions": 20,
+  "company_window_days": 30,
+  "company_limit": 3,
+  "lease_minutes": 30
+}
