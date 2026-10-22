@@ -107,3 +107,33 @@ def test_health_still_reports_the_disk_when_the_pipeline_query_fails(tmp_path, m
     health = run_round(store, opts, fetcher=None, discord=FakeDiscord(), state=state, now=NOW)["steps"]["health"]
     assert health["status"] == "ok" and health["pipeline_error"] == "RuntimeError" and "free_gb" in health
     store.engine.dispose()
+
+
+def test_stalled_follows_the_oldest_wait_not_whether_anything_was_judged(tmp_path):
+    """One judged job among thousands read as not stalled while the oldest had waited eleven days."""
+    from sqlalchemy import update
+
+    from auto_app.core.db import tables as T
+    from auto_app.worker.round import STALLED_AFTER_DAYS
+    from tests.imported_jobs import ingest, job_id_of, record
+
+    store, state = make_store(tmp_path), {}
+    ingest(store, [record("101", "Backend Engineer"), record("102", "Data Engineer")])
+    store.update_job(job_id_of(store, "Backend Engineer"), step2="recommended")  # one of two is judged
+    opts = WorkerOptions(screening_path=tmp_path / "s.json", steps=("health",))
+
+    def health(age_days):
+        with store.engine.begin() as conn:
+            conn.execute(update(T.jobs).values(first_seen_at=NOW - timedelta(days=age_days)))
+        return run_round(store, opts, fetcher=None, discord=FakeDiscord(), state=state,
+                         now=NOW)["steps"]["health"]
+
+    fresh = health(STALLED_AFTER_DAYS - 1)
+    assert (fresh["judged_jobs"], fresh["unjudged_jobs"]) == (1, 1)
+    assert fresh["stalled"] is False and fresh["oldest_unjudged_days"] == STALLED_AFTER_DAYS - 1
+    assert health(STALLED_AFTER_DAYS)["stalled"] is True  # judged_jobs is still 1
+
+    store.update_job(job_id_of(store, "Data Engineer"), step2="un_recommended")
+    done = health(365)
+    assert done["oldest_unjudged_days"] is None and done["stalled"] is False  # nothing to be behind on
+    store.engine.dispose()

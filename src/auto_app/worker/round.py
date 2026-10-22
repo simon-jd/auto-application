@@ -15,6 +15,7 @@ from auto_app.core.models import utcnow
 from auto_app.core.discord import redact_webhook_secrets
 
 STEPS = ("screen", "enrich", "notify", "summary", "health")
+STALLED_AFTER_DAYS = 7  # how long the oldest unjudged kept job may wait before `stalled` is reported
 
 
 @dataclass
@@ -163,6 +164,10 @@ def _pipeline(store, now: datetime) -> dict:
     Every step can report ok while the library is inert: for weeks every kept job sat unjudged with nothing
     recommended, and this step said ok because the disk was fine. `stalled` is informational, not an error --
     the step 2 verdicts are the owner's own manual run, so an empty backlog is a normal state, not a fault.
+
+    `stalled` is how long the oldest unjudged job has waited, not whether anything was ever judged: on the
+    live database one judged job among 5,265 kept ones read as not stalled while the oldest had waited
+    eleven days. With nothing unjudged there is nothing to be behind on, so it is false.
     """
     from sqlalchemy import func, select
 
@@ -189,7 +194,7 @@ def _pipeline(store, now: datetime) -> dict:
         waiting_days = max(0, (now - oldest).days)
     return {"kept_jobs": total, "judged_jobs": judged, "unjudged_jobs": total - judged,
             "oldest_unjudged_days": waiting_days, "pending_enrichment": pending, "expired_claims": expired,
-            "stalled": total > 0 and judged == 0}
+            "stalled": waiting_days is not None and waiting_days >= STALLED_AFTER_DAYS}
 
 
 def _health(store, opts: WorkerOptions, now: datetime) -> dict:

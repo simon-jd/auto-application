@@ -485,9 +485,12 @@ Five are fixed here. The others wait on a condition stated with each.
 - **`health` only measured the disk.** It now also reports what the library holds: `kept_jobs`, `judged_jobs`,
   `unjudged_jobs`, `oldest_unjudged_days`, `pending_enrichment`, `expired_claims` and a `stalled` flag. Every
   step reported `ok` for weeks while 5,249 kept jobs sat unjudged and nothing was ever recommended; the numbers
-  now appear in each round. `stalled` does **not** raise an alert: the step 2 verdicts are the owner's own
-  manual run, so an empty backlog is a normal state. A failure inside the new query still leaves the disk check
-  reporting, as `pipeline_error`.
+  now appear in each round. `stalled` is **how long the oldest unjudged job has waited**
+  (`STALLED_AFTER_DAYS`, 7), not whether anything was ever judged: the first live reading showed one judged job
+  among 5,265 kept ones, which a `judged == 0` test called healthy while the oldest had waited eleven days.
+  With nothing unjudged it is false — there is nothing to be behind on. It raises **no alert**: the step 2
+  verdicts are the owner's own manual run, so a backlog is a normal state. A failure inside the new query still
+  leaves the disk check reporting, as `pipeline_error`.
 - **`failed` returned a job to the queue with no cap.** The `FAILED_ATTEMPT_LIMIT`-th (3rd) consecutive failure
   parks the job (`action_needed`) with the count in its note, so a job that cannot be filled stops cycling and
   waits for `handoff requeue`.
