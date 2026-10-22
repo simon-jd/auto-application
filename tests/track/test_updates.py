@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from email.message import EmailMessage
 
 import pytest
@@ -20,7 +20,7 @@ def store(tmp_path):
     ingest(result, [record("101", "Backend Engineer"), record("102", "Data Engineer"),
                    record("103", "ML Engineer", company="Beta", url="https://jobs.lever.co/beta/test")])
     for title in ("Backend Engineer", "Data Engineer", "ML Engineer"):
-        result.mark_job(job_id_of(result, title), "applied")
+        result.mark_job(job_id_of(result, title), "applied", occurred_at=NOW - timedelta(days=1))
     yield result
     result.engine.dispose()
 

@@ -117,7 +117,7 @@ cp config/preferences.example.json config/preferences.json
 {"exclude_countries": ["Canada"]}
 ```
 
-Any Canadian location excludes the **whole job**, including jobs with both US and Canadian locations. Matching checks merged locations and every posting's original locations, so `Remote in Canada` still works after normalization to `remote`. Canadian province names/codes are recognized; `San Jose, CA`, `Ontario, CA` and `Vancouver, WA` remain visible. Unknown locations remain visible. This is a country preference, not full opportunity qualification.
+Canada-only jobs are excluded; a job with a US option remains visible even when it also lists Canada. Matching checks merged locations and every posting's original locations, so `Remote in Canada` still works after normalization to `remote`. Canadian province names/codes are recognized; `San Jose, CA`, `Ontario, CA` and `Vancouver, WA` remain visible. Unknown locations remain visible. This is a country preference, not full opportunity qualification.
 
 The agent query CLI/API, ordinary `job list`, the TUI/web job lists, and model filter planning apply these preferences. Sources still collect the original evidence; exclusions do not delete records, alter existing recommendations or overwrite manual decisions. Audit/evaluation and direct job details retain the original library. Setting `exclude_countries` to `[]` removes the exclusion on the next query/filter run; no ingestion restart is needed. A job that also lists a US location is never excluded ("Seattle, WA / Vancouver, BC" stays). Excluded collected jobs archive at TTL expiry even when never judged; use the archived/all view after removing the exclusion to see expired records.
 

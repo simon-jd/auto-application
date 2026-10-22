@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "job-search",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Review screened jobs, track manual applications and milestones, inspect the pipeline, and use explicitly enabled controls or fictional Ashby tests.",
   "extensions": {
     "com.openai": {

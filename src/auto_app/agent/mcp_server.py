@@ -68,6 +68,13 @@ def create_mcp_server(
     def get_job_context() -> dict[str, Any]:
         """Get job counts, source health, country preferences, screening counts and available capabilities."""
         result = _call(service.context)
+        # Configuration describes this endpoint, not tools cached by a cloud client.
+        result["capabilities"]["agent_interface"] = {
+            "version": 1,
+            "control_tools": control_tools,
+            "handoff_tools": handoff_tools,
+            "preparation_tools": preparation is not None,
+        }
         if preparation is not None:
             result["capabilities"]["preparation"] = preparation.capabilities()
         return result

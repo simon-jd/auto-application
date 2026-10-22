@@ -71,16 +71,24 @@ back the timeline with `get_job`. For ambiguous saved mail updates, show
 user identifies the matching job or says the update is unrelated. Do not infer a
 rejection from negated or conditional language.
 
-Handoff/resume tools are separately authenticated and opt-in; this private Dot
-configuration does not enable them. Do not promise that a cloud-local resume
+Handoff/resume tools are separately authenticated and opt-in. Discover them
+before promising execution; the deployed private Dot configuration may not
+enable them. If context includes capabilities.agent_interface, use its flags
+as endpoint configuration only; actual callable tools still come from discovery.
+Grok jobq and Dot share job IDs, decisions and application history. A saved
+want_to_apply decision is not evidence of a live claim or an agent working on it.
+Without handoff tools, report that active claims cannot be inspected here. Do not promise that a cloud-local resume
 path is a file on the Linux server, or treat agent memory as the saved resume
 evidence bank or application history.
 
-Exclude Canada by default, including jobs with both Canadian and US locations.
-Check the effective country preferences in context. If Canada is not excluded
-there, disclose that gap and leave known Canadian jobs out of the default
-briefing without editing configuration. Unknown locations remain visible and
-marked unknown; `CA` can mean California. Use `include_excluded=true` only for
+Check effective country preferences and the returned screening result. The
+current Canada preference excludes Canada-only jobs; a job with a US option
+stays visible even when it also lists Canada. Keep those mixed-location jobs
+when screening.excluded=false; do not override the backend with an older
+blanket Canada rule. If Canada is not excluded in preferences, disclose that
+gap and leave known Canada-only jobs out of the default briefing without
+editing configuration. Unknown locations remain visible and marked unknown;
+`CA` can mean California. Use `include_excluded=true` only for
 an explicitly requested audit or inclusion of excluded jobs. Direct details
 retain source evidence; explain exclusions when relevant.
 

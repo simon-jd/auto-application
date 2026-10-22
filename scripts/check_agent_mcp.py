@@ -14,35 +14,41 @@ async def inspect_server(url: str) -> dict:
     async with streamable_http_client(url) as (reader, writer):
         async with ClientSession(reader, writer, read_timeout_seconds=30) as session:
             initialized = await session.initialize()
-            tools = {tool.name: tool for tool in (await session.list_tools()).tools}
-            expected = {"get_job_context", "search_jobs", "get_job", "record_application_status"}
-            if set(tools) != expected:
-                raise RuntimeError(f"unexpected tool set: {sorted(tools)}")
+            return await inspect_session(session, initialized.server_info.name)
 
-            async def call(name: str, arguments: dict) -> dict:
-                result = await session.call_tool(name, arguments)
-                if result.is_error or result.structured_content is None:
-                    raise RuntimeError(f"{name} failed: {result.content}")
-                return result.structured_content
 
-            context = await call("get_job_context", {})
-            page = await call("search_jobs", {"limit": 5})
-            sample = None
-            if page["items"]:
-                job_id = page["items"][0]["job_id"]
-                detail = await call("get_job", {"job_id": job_id})
-                if detail["job_id"] != job_id:
-                    raise RuntimeError("detail did not match the requested ID")
-                sample = {key: detail.get(key) for key in ("job_id", "title", "company", "decision")}
-            return {
-                "server": initialized.server_info.name,
-                "tools": sorted(tools),
-                "context": context,
-                "sample": sample,
-                "search_total": page["total"],
-                "sample_job_ids": [item["job_id"] for item in page["items"]],
-                "writes_performed": False,
-            }
+async def inspect_session(session, server_name: str) -> dict:
+    """Probe only fixed read calls; tolerate optional and future tool groups."""
+    tools = {tool.name: tool for tool in (await session.list_tools()).tools}
+    expected = {"get_job_context", "search_jobs", "get_job", "record_application_status"}
+    missing = expected - set(tools)
+    if missing:
+        raise RuntimeError(f"missing required tools: {sorted(missing)}")
+
+    async def call(name: str, arguments: dict) -> dict:
+        result = await session.call_tool(name, arguments)
+        if result.is_error or result.structured_content is None:
+            raise RuntimeError(f"{name} failed: {result.content}")
+        return result.structured_content
+
+    context = await call("get_job_context", {})
+    page = await call("search_jobs", {"limit": 5})
+    sample = None
+    if page["items"]:
+        job_id = page["items"][0]["job_id"]
+        detail = await call("get_job", {"job_id": job_id})
+        if detail["job_id"] != job_id:
+            raise RuntimeError("detail did not match the requested ID")
+        sample = {key: detail.get(key) for key in ("job_id", "title", "company", "decision")}
+    return {
+        "server": server_name,
+        "tools": sorted(tools),
+        "context": context,
+        "sample": sample,
+        "search_total": page["total"],
+        "sample_job_ids": [item["job_id"] for item in page["items"]],
+        "writes_performed": False,
+    }
 
 
 def main() -> None:

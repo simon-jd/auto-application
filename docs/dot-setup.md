@@ -1,5 +1,10 @@
 # Dot connected to the Ubuntu job library
 
+**2026-10-21 compatibility review:** see [review and rollout boundaries](reviews/2026-10-21-dot-compatibility.md).
+The current session discovers 18 tools and five read calls succeeded. Local plugin source is 0.3.1;
+that does not mean the cloud installation was updated. Historical deployment claims below are dated.
+
+
 **Current state (2026-10-14):** updated source is deployed on Ubuntu with schema
 `8d4e0f2a5b31`; the existing private MCP service is active with `--control-tools`.
 The backend UI refresh shows all 18 configured tools, classified **Read 8 / Write 10**.
