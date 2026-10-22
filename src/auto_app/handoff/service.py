@@ -310,6 +310,8 @@ class HandoffService:
                     raise HandoffError(f"job #{job_id} is not in the queue (applied, parked, company cooldown "
                                        f"or not want_to_apply)")
                 token = secrets.token_urlsafe(24)
+                while token.startswith("-"):  # a command line would read it as an option, not as `packet TOKEN`
+                    token = secrets.token_urlsafe(24)
                 lease = now + timedelta(minutes=self.guard().lease_minutes)
                 conn.execute(delete(T.handoff_claims).where(T.handoff_claims.c.job_id == job_id))
                 conn.execute(insert(T.handoff_claims).values(job_id=job_id, agent=agent.strip(),

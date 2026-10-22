@@ -1,0 +1,12 @@
+#!/bin/bash
+# The only command grokbot may run as postedism (via sudo), and the one Claude Code calls over ssh.
+# The runtime home and the working directory are fixed here, and python -I ignores PYTHON* variables and keeps the
+# current and user directories off sys.path. Through sudo the environment is also reset, apart from sudo's short
+# default list (locale and time-zone variables such as LANG, LC_* and TZ, and a few terminal and display ones).
+# With "timezone" set in runtime/config/handoff.json, TZ does not move the day of the handoff's daily quota.
+set -euo pipefail
+repo="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd -P)"
+runtime="$(dirname "$repo")/runtime"
+cd "$runtime"
+export AUTO_APP_HOME="$runtime"
+exec "$repo/.venv/bin/python" -I -m auto_app.jobq.cli "$@"

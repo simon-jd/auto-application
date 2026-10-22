@@ -49,7 +49,8 @@ holding the SQLite write lock does not scan the whole posting history.
 All `handoff` commands return JSON; validation errors return an error and a nonzero exit. The commands
 below describe the contract using fictional IDs and a placeholder token. They do not authorize or
 perform an external application. A token is a short-lived capability returned by `claim`; only its
-hash is stored. Do not commit or disclose tokens.
+hash is stored. Tokens never begin with "-", so command lines can pass them as plain arguments.
+Do not commit or disclose tokens.
 
 | CLI after `uv run auto-app handoff` | MCP with `--handoff-tools` | Inputs / result |
 |---|---|---|
@@ -61,6 +62,8 @@ hash is stored. Do not commit or disclose tokens.
 | `requeue 123` | No MCP requeue tool | Owner resolves `needs_user` / `blocked`, then makes it queued; the job must still be active `want_to_apply`, and all guards still apply. |
 | `account careers.example.com person@example.com --existing` | `record_site_account(site=..., email=..., created_by_agent=False)` | Host/email metadata only; omit `--existing` for an agent-created account. |
 | `resume 123 "$AUTO_APP_HOME/resumes/example.pdf" --note "example"` | `register_resume(job_id=123, path=..., note=...)` | Server computes SHA-256 and byte count. |
+
+The `jobq` command ([guide](grok-bot.md); `deploy/jobq` on the server) is a third entry to these services: it exposes `queue`, `claim`, `packet`, `record`, `release` and `account` under the fixed agent name `grok-bot`, accepts no evidence files or paths, and leaves `requeue` and resume registration to the owner's CLI.
 
 A released or consumed token cannot record an outcome, nor can an expired one, except that a late
 `submitted` is still accepted while nobody else has claimed the job (a re-claim replaces the token).

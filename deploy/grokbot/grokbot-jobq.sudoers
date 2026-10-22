@@ -1,0 +1,2 @@
+Defaults:grokbot env_reset, secure_path="/usr/sbin:/usr/bin:/sbin:/bin"
+grokbot ALL=(postedism) NOPASSWD: /home/postedism/Desktop/job-search/auto-application/deploy/jobq

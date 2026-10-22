@@ -26,6 +26,7 @@ dependencies = [
 auto-app = "auto_app.cli:app"
 auto-app-query = "auto_app.query.cli:main"
 auto-app-agent = "auto_app.agent.cli:main"
+auto-app-jobq = "auto_app.jobq.cli:main"
 
 [dependency-groups]
 dev = [

@@ -1,0 +1,10 @@
+#!/bin/sh
+# deploy/grokbot/grokbot-open-url, installed by setup.sh app as the link opener that comes first on the Grok Bot app's
+# PATH, and named in grokbot's mime defaults. It starts no program: it writes the link to stderr, which goes to the
+# journal of grokbot-app.service, where the owner fetches it to open on the Mac (docs/grok-bot.md §7.3).
+if [ "$#" -eq 0 ]; then
+  printf 'grokbot-open-url: (no link)\n' >&2
+else
+  printf 'grokbot-open-url: %s\n' "$1" >&2
+fi
+exit 0

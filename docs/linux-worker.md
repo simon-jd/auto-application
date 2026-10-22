@@ -84,7 +84,9 @@ Unknown keys and invalid types fail visibly rather than silently reverting to de
 
 Unknown roles and uncertain evidence remain kept. The rules do not infer candidate qualifications or use a
 model. Sponsorship is a sorting signal: `offers`, `unknown`, `no`, or `citizenship_required`. Lack of
-sponsorship alone never excludes a job. Signals also expose role, required years, new-grad title evidence,
+sponsorship alone never excludes a job. This matches the owner's rule (confirmed 2026-10-19): jobs fall into
+three classes — sponsors visas (e.g. Google), does not sponsor (e.g. Visa), requires a security clearance or
+US citizenship (e.g. Amazon Leo) — and only the third is excluded. Signals also expose role, required years, new-grad title evidence,
 and whether a description is present.
 
 **Exclusion is a reversible view.** The worker stores `job_screenings`, never deletes jobs or changes

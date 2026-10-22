@@ -1,0 +1,14 @@
+# deploy/grokbot/user/grokbot-display.service, installed by setup.sh app into ~grokbot/.config/systemd/user/.
+# A hidden X display :90 for the Grok Bot app. Clients connect through local sockets only (no TCP listener).
+[Unit]
+Description=Hidden X display :90 for the Grok Bot app (Xvfb)
+
+[Service]
+ExecStart=/usr/bin/Xvfb :90 -screen 0 1440x900x24 -nolisten tcp
+# Count as started once the display accepts clients: wait up to 10 seconds for its socket.
+ExecStartPost=/usr/bin/timeout 10 /bin/sh -c 'until [ -S /tmp/.X11-unix/X90 ]; do sleep 0.2; done'
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

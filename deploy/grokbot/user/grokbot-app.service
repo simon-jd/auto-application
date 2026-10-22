@@ -1,0 +1,16 @@
+# deploy/grokbot/user/grokbot-app.service, installed by setup.sh app into ~grokbot/.config/systemd/user/.
+# The Grok Bot desktop app on the hidden display. /usr/local/libexec/grokbot-app (written by setup.sh app) starts
+# the program installed by the .deb with --password-store=basic, because grokbot has no desktop keyring.
+[Unit]
+Description=Grok Bot desktop app on the hidden display :90
+Requires=grokbot-display.service
+After=grokbot-display.service
+
+[Service]
+Environment=DISPLAY=:90
+ExecStart=/usr/local/libexec/grokbot-app
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target

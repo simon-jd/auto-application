@@ -1,0 +1,15 @@
+table inet grokbot_egress
+delete table inet grokbot_egress
+table inet grokbot_egress {
+	chain output {
+		type filter hook output priority filter; policy accept;
+		meta skuid "grokbot" jump from_grokbot
+	}
+	chain from_grokbot {
+		oifname "lo" tcp sport 5990 ct state established accept
+		ip daddr { 127.0.0.53, 127.0.0.54 } meta l4proto { tcp, udp } th dport 53 accept
+		oifname "lo" reject with icmpx admin-prohibited
+		ip daddr { 0.0.0.0/8, 10.0.0.0/8, 100.64.0.0/10, 169.254.0.0/16, 172.16.0.0/12, 192.168.0.0/16, 224.0.0.0/4, 240.0.0.0/4 } reject with icmpx admin-prohibited
+		meta nfproto ipv6 reject with icmpx admin-prohibited
+	}
+}

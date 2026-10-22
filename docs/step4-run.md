@@ -381,6 +381,7 @@ Library: `slack_bolt` (async, Socket Mode).
 | F1 ✅ | Independent repository/mail feed worker, durable last/next run, restart recovery, shared import lock and user systemd template (§15); deployed on home-ubuntu, mailbox authorization pending |
 | D1 ✅ | Dot MCP tools, atomic manual decisions and cloud Skill packaging (§16); Ubuntu services and private cloud plugins deployed, real cloud reads verified |
 | P1 local | Separate Bearer-protected MCP listener, revision-checked control tools and owner-only Discord bot (§19); public tunnel, Grok and live bot acceptance pending |
+| G1 local | Grok Bot local execution: the `jobq` JSON command, the fixed-path server wrapper `deploy/jobq` and the `grokbot` account's install and check scripts `deploy/grokbot/` (§21, [guide](grok-bot.md)); implemented locally and reviewed, with the Mac apply-kit and jd-resume-tailor's `apply_kit.py`; deployed, installed and checked on home-ubuntu 2026-10-21 (`check.sh` 0 FAIL, restart, Grok ran `jobq`); ran end to end on job #14143 up to the Submit button 2026-10-21, nothing submitted; its five findings fixed and deployed the same day |
 
 ## 10. Decisions (2026-10-05)
 
@@ -698,3 +699,27 @@ minimal alerts. `ops backup` snapshots main and existing optional preparation SQ
 restore-verifies every new copy and retains 14 recent daily / 8 older weekly representatives per DB.
 Referenced attachments are not backed up. Private Mac pulls and optional Git deployment are described
 in [operations](operations.md); rsync is still default. No P2/P3 deployment or live acceptance occurred.
+
+## 21. Grok Bot local execution (2026-10-19)
+
+The Grok Bot desktop app on home-ubuntu (a separate low-privilege `grokbot` account) and Claude Code over ssh work the
+job pipeline through one fixed-path command, `deploy/jobq`. It wraps the existing digest, query, decision and handoff
+services as small JSON commands: `new`, `seen`, `search`, `show`, `want`, `skip`, `queue`, `claim`, `packet`, `record`,
+`release` and `account` (`show` leaves out a job's import records, whose mailbox payloads can carry tracking or sign-in
+links). The wrapper pins `AUTO_APP_HOME` to the sibling `runtime/` directory, changes into it and
+starts Python in isolated mode; `jobq` accepts no database or path argument and never creates or migrates a database.
+Claims are recorded for the fixed agent `grok-bot`, and claim tokens never begin with "-", so they work as plain
+arguments. The owner confirms every decision and every submission; `requeue` after `needs_user` / `blocked` stays with
+the owner's `auto-app handoff requeue`. No tunnel, public listener or MCP is used, and no model or agent is called.
+
+The `grokbot` account is set up by the owner with sudo: `deploy/grokbot/setup.sh base` (account, sudo rule allowing
+only the wrapper, `/usr/local/bin/jobq`, the nftables egress table loaded by `grokbot-egress.service`, which grokbot's
+user manager requires) and `setup.sh app` after the Grok Bot `.deb` (the app on a hidden Xvfb display, VNC on
+`127.0.0.1:5990`); `check.sh` probes every boundary as `grokbot`, each target only after root has reached it, with a
+probe for each reject rule of the egress table that only that rule stops (loopback listeners, the default gateway and
+Tailscale's resolver, IPv6 to a public site), and fails if the runtime holds a profile, resumes or answer bank. The server's sudo is
+sudo-rs, with classic sudo also installed; the sudoers file is written for both.
+
+This is a local implementation, reviewed. The scripts are written and statically tested but have not been run on the
+server; the Mac apply-kit and jd-resume-tailor's `apply_kit.py` are implemented locally and reviewed too. Deployment,
+running the scripts on the server and live acceptance are pending. [Guide (Chinese)](grok-bot.md); [dated record](updates/2026-10-19-grok-bot-integration.md).

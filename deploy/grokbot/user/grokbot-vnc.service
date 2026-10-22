@@ -1,0 +1,16 @@
+# deploy/grokbot/user/grokbot-vnc.service, installed by setup.sh app into ~grokbot/.config/systemd/user/.
+# VNC view of the hidden display, listening on 127.0.0.1:5990 only. From the Mac, forward the port over ssh:
+#   ssh -N -L 5990:127.0.0.1:5990 home-ubuntu      then open vnc://127.0.0.1:5990
+# The password file is made by setup.sh app (x11vnc -storepasswd, mode 600).
+[Unit]
+Description=VNC for the hidden display :90 (127.0.0.1:5990 only)
+Requires=grokbot-display.service
+After=grokbot-display.service
+
+[Service]
+ExecStart=/usr/bin/x11vnc -display :90 -localhost -rfbport 5990 -rfbauth %h/.vnc/passwd -forever -shared
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target

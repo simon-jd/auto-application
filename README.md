@@ -229,6 +229,75 @@ connection has not been tested; its Bearer-token compatibility must be checked l
 uv run auto-app-agent serve --db data/auto_app.db --transport streamable-http --port 8769 --auth-token-file PATH --public-url https://YOUR-TUNNEL-HOST --control-tools
 ```
 
+### Grok Bot (local execution)
+
+The Grok Bot desktop app runs on home-ubuntu as a separate low-privilege `grokbot` account and uses its local
+execution, so no tunnel, public listener or MCP is involved. It and Claude Code (over ssh) run one fixed-path
+command, `deploy/jobq`, which wraps the existing digest, query, decision and handoff services as small JSON commands.
+The script pins `AUTO_APP_HOME` to the sibling `runtime/` directory, changes into it and starts Python with `-I` (no
+`PYTHON*` variables, no current or user directory on `sys.path`), so a caller cannot change the runtime, the working
+directory or what Python imports. Through sudo the environment is also reset, apart from sudo's short default list
+(locale and time-zone variables such as `LANG`, `LC_*` and `TZ`, and a few terminal and display ones);
+`"timezone"` in `runtime/config/handoff.json` keeps `TZ` from moving the day of the daily quota. `jobq` takes no
+`--db`, `--preferences` or path argument and never creates or migrates a database. It calls no model or agent and
+submits nothing: the owner confirms every decision and every submission. **Deployed; installed and checked on
+home-ubuntu on 2026-10-21 (`check.sh`: 0 FAIL), and run end to end on a real job up to the Submit button the same day;
+nothing has been submitted yet.** The `grokbot` account's install and
+check scripts are in `deploy/grokbot/`. [Guide, in Chinese](docs/grok-bot.md).
+
+| `jobq` command | What it does |
+|---|---|
+| `new [--limit N]` | List jobs the user has not been told about yet, visa sponsorship first (N is 1–50, default 20; read-only) |
+| `seen ID [ID ...]` | Mark jobs as told to the user, so `new` stops listing them (at most 200 job numbers) |
+| `search [--query TEXT] [--company TEXT] [--source TEXT] [--state STATE] [--sponsorship SIGNAL] [--limit N] [--cursor CURSOR]` | Search the job library; jobs the user's rules exclude are left out. `STATE` is `not_evaluated`, `recommended`, `un_recommended`, `want_to_apply`, `applied` or `not_applied`; `SIGNAL` is `offers`, `no` or `unknown`; N is 1–200, default 50; `CURSOR` is the `next_cursor` of the previous page |
+| `show ID` | One job in full, without its import records: description, apply link, screening, visa signal, history (no `ingestion`: a mailbox import's raw links can carry tracking or sign-in tokens) |
+| `want ID --reason TEXT` | Record that the user confirmed they want to apply (the job joins the queue) |
+| `skip ID --reason TEXT` | Record that the user decided not to apply |
+| `queue [--limit N]` | List jobs that may be applied to now, after quotas, claims and cooldowns (N is 1–100, default 20) |
+| `claim ID` | Claim one queued job, always as agent `grok-bot`; returns a token and when the claim ends |
+| `packet [TOKEN]` | Everything needed to apply to the claimed job (`profile`, `answers` and `resumes` are empty: the server stores none). The token is read from **stdin** when the argument is left out or is `-`, which keeps it out of the sudo log and the process list; the argument still works |
+| `record [TOKEN] OUTCOME [--note TEXT]` | Record the outcome of an attempt, once per claim: `submitted`; `needs_user` or `blocked` (the job waits until the owner requeues it); `failed` (it can be claimed again); `skipped` (counts as not applying). No evidence files. Token on stdin as for `packet` |
+| `release [TOKEN]` | Give a claim back without an outcome. Token on stdin as for `packet` |
+| `account SITE EMAIL [--existing] [--note TEXT]` | Note that an account exists on a hiring site (never its password); `--existing` means the user made it, not the agent |
+
+`--reason`, `--note`, `SITE` and `EMAIL` are one line of 1–500 characters after trimming, with no control characters
+(Unicode categories Cc, Zl and Zp); the `search` text filters allow 200 characters and `--cursor` 4096. `ID` is a whole
+number from 1 to 9223372036854775807. `TOKEN` is the value `claim` returned; claim tokens never begin with "-", so they
+work as plain arguments. Output is one JSON object. Exit status: 0 success; 1 the request failed
+(`{"status": "error", "error": "…"}`, including database and file errors); 2 bad arguments or configuration. After
+`needs_user` or `blocked`, only the owner's `auto-app handoff requeue` puts the job back.
+
+```bash
+# On home-ubuntu (as postedism); from the Mac, run the same command through ssh home-ubuntu
+/home/postedism/Desktop/job-search/auto-application/deploy/jobq new --limit 5
+/home/postedism/Desktop/job-search/auto-application/deploy/jobq search --sponsorship offers --limit 10
+# ssh joins its arguments into one string: quote the whole remote command when a value has spaces
+ssh home-ubuntu "/home/postedism/Desktop/job-search/auto-application/deploy/jobq want 123 --reason 'confirmed in chat'"
+# Development checkout, without the wrapper (the runtime must already hold a database):
+AUTO_APP_HOME=/path/to/runtime uv run auto-app-jobq queue --limit 20
+```
+
+The `grokbot` account is set up by the owner on home-ubuntu, with sudo (never by Claude). `setup.sh base` creates the
+account (locked password, no extra groups or subordinate IDs, home 750), the sudo rule that allows only the wrapper as
+`postedism`, `/usr/local/bin/jobq` and the egress firewall (`grokbot-egress.service`, nftables table
+`inet grokbot_egress`: DNS through `127.0.0.53`/`127.0.0.54` and public IPv4 only); `setup.sh app`, after the Grok Bot
+`.deb` is installed, runs the app on a hidden Xvfb display with VNC on `127.0.0.1:5990` (reached through
+`ssh -N -L 5990:127.0.0.1:5990 home-ubuntu`), started with `--no-sandbox` and without an AppArmor profile that would
+allow user namespaces. Both can be re-run. `check.sh` probes every boundary as `grokbot`, each target only after root
+has reached it (root itself only reads): each reject rule of the egress table has a probe that only it stops (loopback
+listeners and the LAN address; the default gateway, Tailscale's resolver and the Mac on the tailnet; IPv6 to a public
+site), and it fails
+if the runtime holds a `profile/`, `resumes/` or answer bank. It prints `PASS` / `FAIL` / `REPORT` lines, exiting 1 on
+any FAIL; its output holds no secrets. The server's sudo is sudo-rs (classic sudo is also installed); the sudoers
+file is written for both.
+
+```bash
+sudo bash ~/Desktop/job-search/auto-application/deploy/grokbot/setup.sh base
+sudo apt install ./<the Grok Bot .deb>
+sudo bash ~/Desktop/job-search/auto-application/deploy/grokbot/setup.sh app   # prints a one-time VNC password: never paste it into a chat
+sudo bash ~/Desktop/job-search/auto-application/deploy/grokbot/check.sh
+```
+
 ### Discord bot
 
 The owner-only bot adds `/jobs`, `/job`, `/status`, `/pause`, `/resume` and decision buttons. In bot mode,
@@ -302,6 +371,7 @@ scripts/pull_backups.sh home-ubuntu
   - [`process`](#process--step-1b-postings--jobs) — `parse`, `normalize`, `dedup`
   - [`worker`](#linux-worker-screening-jd-enrichment-and-discord) — `run`, `watch`, `status`, `boards`
   - [`bot`](#discord-bot) — `run`
+  - [`jobq`](#grok-bot-local-execution) — `new`, `seen`, `search`, `show`, `want`, `skip`, `queue`, `claim`, `packet`, `record`, `release`, `account`
   - [`handoff`](#application-handoff) — `queue`, `claim`, `packet`, `record`, `release`, `requeue`, `account`, `resume`
   - [`events`](#tracking-after-you-apply) — `add`, `list`, `unmatched`, `assign`, `dismiss`
   - [`ops`](#operations) — `backup`, `verify`, `prune`, `alert`

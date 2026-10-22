@@ -1,0 +1,26 @@
+# deploy/grokbot/grokbot-egress.service, installed by setup.sh base as /etc/systemd/system/grokbot-egress.service.
+# Loads the nftables table inet grokbot_egress (/etc/grokbot/egress.nft), which limits where processes of the
+# grokbot account can connect. It only creates or deletes that one table; Docker, ufw and Tailscale keep their rules.
+# grokbot's user manager (user@<UID>.service) Requires= this unit, so grokbot's services never run without it.
+[Unit]
+Description=Egress limits for the grokbot account (nftables table inet grokbot_egress)
+# Like nftables.service: in place before any network is configured, and kept until shutdown.
+DefaultDependencies=no
+Wants=network-pre.target
+Before=network-pre.target shutdown.target
+Conflicts=shutdown.target
+# If nftables.service is used, its /etc/nftables.conf usually starts with "flush ruleset" and stopping it flushes
+# the ruleset, which removes this table too: load after it, restart or stop together with it, reload after it.
+After=nftables.service
+PartOf=nftables.service
+ReloadPropagatedFrom=nftables.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/sbin/nft -f /etc/grokbot/egress.nft
+ExecReload=/usr/sbin/nft -f /etc/grokbot/egress.nft
+ExecStop=/usr/sbin/nft delete table inet grokbot_egress
+
+[Install]
+WantedBy=multi-user.target

@@ -51,6 +51,28 @@ def test_a_job_can_be_claimed_once_until_the_lease_expires(env):
     assert later["token"] != first["token"]
 
 
+@pytest.mark.parametrize("dash_draws", [1, 2])
+def test_claim_tokens_never_start_with_a_dash(env, monkeypatch, dash_draws):
+    # A leading "-" is read as an option when the token is passed as a command-line argument (`packet TOKEN`).
+    from types import SimpleNamespace
+
+    from auto_app.handoff import service as handoff
+
+    draws = ["-" + "A" * 31] * dash_draws + ["B" * 32]
+    sizes = []
+
+    def draw(nbytes):
+        sizes.append(nbytes)
+        return draws[len(sizes) - 1]
+
+    monkeypatch.setattr(handoff, "secrets", SimpleNamespace(token_urlsafe=draw))
+    home, ids = env
+    s = service(home)
+    claim = s.claim(ids["Backend Engineer"], "agent-a", now=NOW)
+    assert claim["token"] == "B" * 32 and sizes == [24] * (dash_draws + 1)  # it kept drawing, at the same size
+    assert s.packet(claim["token"], now=NOW)["job"]["job_id"] == ids["Backend Engineer"]  # and stored that token
+
+
 def test_an_expired_claim_cannot_record(env):
     from auto_app.handoff.service import HandoffError
 
