@@ -465,3 +465,49 @@ and `src/auto_app/handoff/service.py` have the same sha256 as this tree; `jobq p
 `what arrived on stdin is not a claim token` (exit 2), and a well-formed unknown token piped in reaches the service
 (`unknown or released claim token`, exit 1), which the argument form answers identically. `.venv/bin/python -m pytest
 -q tests/jobq tests/ops` **166 passed** on the server.
+
+## The review's pipeline findings (2026-10-21)
+
+A second review of `e6e3f8a` raised eight limitations beyond [Task 7's five](#task-7s-five-findings-fixed-2026-10-21).
+Five are fixed here. The others wait on a condition stated with each.
+
+- **A repost that keeps its URL was served the first fetch forever.** `enrichments` is keyed by URL and an
+  enriched posting leaves the candidate set, so a cached success was written back whatever its age. A success
+  older than `CACHE_MAX_AGE` (14 days) is now fetched again when a new pending posting carries that URL. This is
+  not a background sweep: it triggers on the repost, which is when the text can have changed. A refresh that
+  fails, or reports the listing gone, **keeps the stored description and its real `fetched_at`** and only moves
+  the next attempt — losing a good JD to a transient error or a bot block is worse than serving an old one, and
+  `extras.enrichment.fetched_at` keeps the age visible. An excluded row may only recover an interrupted
+  projection, never issue a request, so its cache is still used at any age. New report keys: `refreshed`,
+  `refresh_kept`.
+  - Not done: a pre-submit liveness check. Grok opens the apply link itself, so a dead link is already on its
+    screen; a second probe would add a request per claim and could park a live job on a bot block.
+- **`health` only measured the disk.** It now also reports what the library holds: `kept_jobs`, `judged_jobs`,
+  `unjudged_jobs`, `oldest_unjudged_days`, `pending_enrichment`, `expired_claims` and a `stalled` flag. Every
+  step reported `ok` for weeks while 5,249 kept jobs sat unjudged and nothing was ever recommended; the numbers
+  now appear in each round. `stalled` does **not** raise an alert: the step 2 verdicts are the owner's own
+  manual run, so an empty backlog is a normal state. A failure inside the new query still leaves the disk check
+  reporting, as `pipeline_error`.
+- **`failed` returned a job to the queue with no cap.** The `FAILED_ATTEMPT_LIMIT`-th (3rd) consecutive failure
+  parks the job (`action_needed`) with the count in its note, so a job that cannot be filled stops cycling and
+  waits for `handoff requeue`.
+- **An outcome kept no trace of which agent ran it.** The claim is deleted when an outcome is recorded, and the
+  attempt stored the applier chain's name. It now stores the claim's `agent`, so the attempt history tells Grok
+  and anything added later apart. Nothing filters on that column.
+- **MCP `get_job` always returned the raw import records** while `jobq show` always drops them. `get_job` takes
+  `include_ingestion` (default `True`, so every existing caller is unchanged); passing `False` leaves them out.
+
+Waiting on a condition, not fixed:
+
+- **Re-claim replaces an expired claim, so a late real submission cannot be recorded**, and a Dot-facing
+  read-only view of what Grok currently holds. Both matter only once something other than Grok can apply:
+  `AGENT` is hard-coded to `grok-bot` in `jobq` and there is exactly one possible actor today. Lease renewal,
+  a persistent claim history, an uncertain-submission state and reconciliation are a protocol change, not a
+  patch, and belong with that work.
+- **Same-day events of one kind merge within 24 hours** (`track/events.py`), which hides a second interview on
+  one day. The fix is an idempotency key supplied by the caller, which changes the CLI and MCP surface; with
+  `applied = 0` and no interviews recorded, that API decision is not worth making blind.
+
+Verification: `uv run pytest -q tests/enrich tests/worker tests/handoff tests/jobq tests/agent tests/ops
+tests/track tests/query tests/screen` **912 passed** (enrich 96 → 101, worker 143 → 145, jobq 80 → 82,
+agent 83 → 84). **Not deployed.**

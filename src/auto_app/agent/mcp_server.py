@@ -104,11 +104,20 @@ def create_mcp_server(
         )
 
     @server.tool(annotations=read_annotations)
-    def get_job(job_id: Annotated[int, Field(strict=True, ge=1)]) -> dict[str, Any]:
-        """Read one saved job, its source evidence and manual decision history by stable job_id."""
+    def get_job(job_id: Annotated[int, Field(strict=True, ge=1)],
+                include_ingestion: bool = True) -> dict[str, Any]:
+        """Read one saved job, its source evidence and manual decision history by stable job_id.
+
+        include_ingestion=False leaves out the raw import records, as `jobq show` always does. A mailbox
+        import's payload holds the e-mail's message id, subject and the alert's original links, which can
+        carry per-recipient tracking or sign-in tokens, and nothing in a job's details needs them. The
+        default keeps the existing contract; pass False when the import records are not wanted.
+        """
         job = _call(service.get_job, job_id)
         if job is None:
             raise ToolError(f"Job {job_id} not found.")
+        if not include_ingestion:
+            job = {key: value for key, value in job.items() if key != "ingestion"}
         return job
 
     @server.tool(annotations=ToolAnnotations(

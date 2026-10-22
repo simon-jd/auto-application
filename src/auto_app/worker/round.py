@@ -89,7 +89,7 @@ def run_round(store, opts: WorkerOptions, *, fetcher, discord, state: dict, now:
     if "summary" in opts.steps:
         step("summary", lambda: _summary(store, discord, state, now, save_state))
     if "health" in opts.steps:
-        step("health", lambda: _health(store, opts))
+        step("health", lambda: _health(store, opts, now))
     if any(s["status"] == "error" for s in report["steps"].values()):
         report["status"] = "partial"
     return report
@@ -157,11 +157,50 @@ def _summary(store, discord, state: dict, now: datetime, save_state=None) -> dic
     return {"status": "ok", "sent": True}
 
 
-def _health(store, opts: WorkerOptions) -> dict:
+def _pipeline(store, now: datetime) -> dict:
+    """What the pipeline currently holds, so a round that ran cleanly can still show it produced nothing.
+
+    Every step can report ok while the library is inert: for weeks every kept job sat unjudged with nothing
+    recommended, and this step said ok because the disk was fine. `stalled` is informational, not an error --
+    the step 2 verdicts are the owner's own manual run, so an empty backlog is a normal state, not a fault.
+    """
+    from sqlalchemy import func, select
+
+    from auto_app.core.db import tables as T
+
+    j, s, p = T.jobs, T.job_screenings, T.postings
+    kept = (j.c.archived_at.is_(None)
+            & j.c.job_id.notin_(select(s.c.job_id).where(s.c.outcome == "excluded")))
+    with store.engine.connect() as conn:
+        total = conn.execute(select(func.count()).select_from(j).where(kept)).scalar_one()
+        judged = conn.execute(select(func.count()).select_from(j)
+                              .where(kept, j.c.step2.is_not(None))).scalar_one()
+        oldest = conn.execute(select(func.min(j.c.first_seen_at))
+                              .where(kept, j.c.step2.is_(None))).scalar_one()
+        pending = conn.execute(select(func.count()).select_from(p).where(
+            func.coalesce(func.json_extract(p.c.parsed, "$.extras.ingestion.enrichment_status"), "") == "pending",
+            p.c.state != "archived")).scalar_one()
+        expired = conn.execute(select(func.count()).select_from(T.handoff_claims)
+                               .where(T.handoff_claims.c.lease_until < now.replace(tzinfo=None))).scalar_one()
+    waiting_days = None
+    if oldest is not None:
+        if oldest.tzinfo is None:
+            oldest = oldest.replace(tzinfo=timezone.utc)
+        waiting_days = max(0, (now - oldest).days)
+    return {"kept_jobs": total, "judged_jobs": judged, "unjudged_jobs": total - judged,
+            "oldest_unjudged_days": waiting_days, "pending_enrichment": pending, "expired_claims": expired,
+            "stalled": total > 0 and judged == 0}
+
+
+def _health(store, opts: WorkerOptions, now: datetime) -> dict:
     import shutil
 
     free = shutil.disk_usage(Path(store.db_path).parent).free / 2**30
+    try:
+        pipeline = _pipeline(store, now)
+    except Exception as exc:  # the disk check must still report
+        pipeline = {"pipeline_error": f"{type(exc).__name__}"}
     if free < opts.min_free_gb:
         return {"status": "error", "error": f"database disk free space is below {opts.min_free_gb:g} GB",
-                "free_gb": round(free, 2)}
-    return {"status": "ok", "free_gb": round(free, 2)}
+                "free_gb": round(free, 2), **pipeline}
+    return {"status": "ok", "free_gb": round(free, 2), **pipeline}

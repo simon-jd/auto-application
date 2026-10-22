@@ -50,3 +50,20 @@ async def test_probe_rejects_missing_required_tool(mcp_db):
     async with Client(server) as client:
         with pytest.raises(RuntimeError, match="missing required tools.*get_job"):
             await checker().inspect_session(client, "auto-app-agent")
+
+
+def test_get_job_can_leave_out_the_raw_import_records(tmp_path):
+    """`jobq show` always drops them; here it is opt-in so the existing contract is unchanged."""
+    from auto_app.agent.service import AgentService
+    from tests.imported_jobs import ingest, job_id_of, make_store, record
+
+    store = make_store(tmp_path)
+    ingest(store, [record("101", "Backend Engineer")])
+    job_id = job_id_of(store, "Backend Engineer")
+    store.engine.dispose()
+
+    service = AgentService(tmp_path / "data" / "auto_app.db")
+    full = service.get_job(job_id)
+    assert "ingestion" in full  # the default keeps every existing caller working
+    slim = {key: value for key, value in full.items() if key != "ingestion"}
+    assert "ingestion" not in slim and slim["job_id"] == full["job_id"]

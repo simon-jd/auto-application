@@ -392,3 +392,36 @@ def test_the_wrapper_passes_stdin_through(home, capsys, tmp_path):
     """The server wrapper must not swallow stdin: it is how the token now arrives."""
     assert "exec" in (ROOT / "deploy" / "jobq").read_text()  # exec keeps the same stdin
     assert "<" not in (ROOT / "deploy" / "jobq").read_text().split("exec", 1)[1]
+
+
+# ---- who ran the attempt, and a cap on repeated failures ---------------------------------------------------
+
+def test_the_attempt_records_the_agent_that_ran_it(home, capsys):
+    root, ids = home
+    run(capsys, "want", str(ids["ML Engineer"]), "--reason", "confirmed by me")
+    token = run(capsys, "claim", str(ids["ML Engineer"]))[1]["token"]
+    assert run(capsys, "record", token, "failed", "--note", "form would not load")[0] == 0
+    store = make_store(root)
+    with store.engine.connect() as conn:
+        # The claim is gone after an outcome, so the attempt is the only lasting trace of who ran it.
+        assert conn.execute(select(T.attempts.c.applier)).scalars().all() == ["grok-bot"]
+        assert conn.execute(select(T.handoff_claims.c.job_id)).scalars().all() == []
+    store.engine.dispose()
+
+
+def test_repeated_failures_park_the_job_instead_of_cycling(home, capsys):
+    from auto_app.handoff.service import FAILED_ATTEMPT_LIMIT
+
+    _, ids = home
+    job = ids["ML Engineer"]
+    run(capsys, "want", str(job), "--reason", "confirmed by me")
+    for _ in range(FAILED_ATTEMPT_LIMIT - 1):
+        token = run(capsys, "claim", str(job))[1]["token"]
+        assert run(capsys, "record", token, "failed")[1]["status"] == "failed"
+        # Below the cap the job comes straight back, which is what makes a cap necessary.
+        assert [i["job_id"] for i in run(capsys, "queue")[1]["items"]] == [job]
+    token = run(capsys, "claim", str(job))[1]["token"]
+    code, out = run(capsys, "record", token, "failed")  # the FAILED_ATTEMPT_LIMIT-th failure parks it
+    assert code == 0 and out["status"] == "action_needed"
+    queue = run(capsys, "queue")[1]
+    assert queue["items"] == [] and queue["blocked"]["by_reason"] == {"waiting_for_you": 1}

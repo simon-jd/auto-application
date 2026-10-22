@@ -8,7 +8,7 @@ from sqlalchemy import insert, select, update
 
 from auto_app.core.db import tables as T
 from auto_app.enrich.fetch import FetchResult
-from auto_app.enrich.service import enrich_jobs
+from auto_app.enrich.service import CACHE_MAX_AGE, enrich_jobs
 from auto_app.process.normalize import pending_enrichment
 from auto_app.screen.rules import ScreeningRules
 from auto_app.screen.store import excluded_job_ids, load_facts, screen_jobs
@@ -311,3 +311,79 @@ def test_next_round_recovers_projection_even_after_enriched_job_is_screened_out(
     with store.engine.connect() as conn:
         assert conn.execute(select(T.postings.c.state).where(T.postings.c.job_id == job)).scalar_one() == "linked"
         assert conn.execute(select(T.job_keys.c.key_value).where(T.job_keys.c.key_type == "req_id")).scalar_one() == "acme|REQ1"
+
+
+# ---- a repost that keeps its URL ---------------------------------------------------------------------------
+# The cache is keyed by URL alone and an enriched posting leaves the candidate set, so a repost of the same
+# listing was written back from the first fetch no matter how old it was.
+
+STALE = NOW + CACHE_MAX_AGE + timedelta(days=1)
+
+
+def repost(store, city="Austin, TX"):
+    """The same listing imported again with a changed field, so the posting is pending once more.
+
+    A repost keeps its apply_url, which is the cache key, so it meets the first fetch's cache entry.
+    """
+    ingest(store, [record("101", "Software Engineer, New Grad", locations=[city])])
+
+
+def test_a_repost_within_the_cache_age_still_costs_no_request(store):
+    enrich_jobs(store, FakeFetcher(ok("First text.")), now=NOW)
+    repost(store)
+    never = FakeFetcher(lambda target: pytest.fail("a fresh cache entry must not be fetched again"))
+    report = enrich_jobs(store, never, now=NOW + CACHE_MAX_AGE)
+    assert (report["from_cache"], report["refreshed"], report["fetched"]) == (1, 0, 0)
+
+
+def test_a_repost_after_the_cache_age_is_fetched_again(store):
+    job = job_id_of(store, "Software Engineer, New Grad")
+    enrich_jobs(store, FakeFetcher(ok("First text.")), now=NOW)
+    repost(store)
+    report = enrich_jobs(store, FakeFetcher(ok("Rewritten text.")), now=STALE)
+    assert (report["refreshed"], report["ok"], report["fetched"], report["from_cache"]) == (1, 1, 1, 0)
+    assert store.job_inputs(job)[0]["description_text"] == "Rewritten text."
+    row = cache_row(store)
+    assert row["fetched_at"].replace(tzinfo=timezone.utc) == STALE  # the age restarts from the new fetch
+
+
+def test_a_failed_refresh_keeps_the_description_and_its_real_age(store):
+    job = job_id_of(store, "Software Engineer, New Grad")
+    enrich_jobs(store, FakeFetcher(ok("First text.")), now=NOW)
+    repost(store)
+    report = enrich_jobs(store, FakeFetcher(FetchResult("failed", error="HTTP 503")), now=STALE)
+    assert (report["refresh_kept"], report["failed"], report["from_cache"]) == (1, 0, 0)
+    assert store.job_inputs(job)[0]["description_text"] == "First text."  # not lost to a transient error
+    row = cache_row(store)
+    assert row["status"] == "ok" and row["data"]["description_text"] == "First text."
+    assert row["fetched_at"].replace(tzinfo=timezone.utc) == NOW  # the real age, not the failed attempt
+    assert row["next_attempt_at"].replace(tzinfo=timezone.utc) == STALE + timedelta(minutes=30)
+    # Another repost inside the backoff is served from the kept entry instead of fetched again.
+    repost(store, "Denver, CO")
+    again = enrich_jobs(store, FakeFetcher(lambda target: pytest.fail("inside the backoff")),
+                        now=STALE + timedelta(minutes=5))
+    assert (again["from_cache"], again["refreshed"], again["fetched"]) == (1, 0, 0)
+
+
+def test_a_refresh_reporting_gone_keeps_the_cached_description(store):
+    enrich_jobs(store, FakeFetcher(ok("First text.")), now=NOW)
+    repost(store)
+    report = enrich_jobs(store, FakeFetcher(FetchResult("gone", error="HTTP 404")), now=STALE)
+    assert report["gone"] == 1
+    row = cache_row(store)
+    assert row["status"] == "gone"
+    assert row["data"]["description_text"] == "First text."  # a bot block can look like a closed listing
+
+
+def test_an_excluded_job_recovers_from_an_old_cache_without_a_request(store):
+    """An excluded row may only recover an interrupted projection, so its cache is used at any age."""
+    job = job_id_of(store, "Software Engineer, New Grad")
+    enrich_jobs(store, FakeFetcher(ok("Build APIs in Python.")), now=NOW)
+    with store.engine.begin() as conn:
+        conn.execute(update(T.postings).values(state="normalized"))  # an interrupted projection
+        conn.execute(insert(T.job_screenings).values(job_id=job, rules_version="t", facts_hash="h",
+                                                     outcome="excluded", reasons=["internship"], signals={},
+                                                     screened_at=NOW))
+    never = FakeFetcher(lambda target: pytest.fail("an excluded row may not issue a request"))
+    report = enrich_jobs(store, never, now=STALE)
+    assert (report["refreshed"], report["fetched"], report["from_cache"]) == (0, 0, 1)

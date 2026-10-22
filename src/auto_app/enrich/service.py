@@ -5,6 +5,15 @@ Ashby boards and cached successes are free. Failures retry after 30 minutes ×
 2^(attempts-1), capped at 24 hours. Gone/unsupported records never retry. Empty
 employer descriptions are unsupported. Import provenance and user decisions
 remain intact. A reimport can restore a cached JD without another HTTP request.
+
+A success older than CACHE_MAX_AGE is fetched again when a new pending posting
+carries that URL: a reposted listing can keep its URL, and the cache is keyed by
+URL alone, so without this a repost would be written back from the first fetch
+forever. This is not a background sweep; an already enriched posting leaves the
+candidate set and is not revisited. A refresh that fails or reports the
+listing gone keeps the stored description and its real fetched_at, and only moves
+the next attempt: losing a good JD to a transient error or a bot block is worse
+than serving an old one, whose age stays visible in extras.enrichment.
 """
 
 import copy
@@ -26,6 +35,8 @@ PENDING = func.coalesce(func.json_extract(T.postings.c.parsed, "$.extras.ingesti
 ENRICHED = func.json_extract(T.postings.c.parsed, "$.extras.enrichment.url").is_not(None)
 FIELDS = {"title", "locations", "employment_type", "workplace_type", "salary", "req_id", "description_text",
           "description_html"}
+CACHE_MAX_AGE = timedelta(days=14)  # how long a fetched description is served before it is fetched again
+_KEEP = object()  # _save: keep the row's current fetched_at instead of deriving it from the status
 
 
 def _aware(value: datetime | None) -> datetime | None:
@@ -58,10 +69,22 @@ def _cache(store, urls) -> dict[str, dict]:
     return out
 
 
+def _refresh_due(cached: dict, now: datetime) -> bool:
+    """True when a cached success is old enough to fetch again and no refresh backoff is running."""
+    fetched_at = cached.get("fetched_at")
+    if fetched_at is None or now - fetched_at <= CACHE_MAX_AGE:
+        return False
+    next_attempt_at = cached.get("next_attempt_at")
+    return next_attempt_at is None or next_attempt_at <= now
+
+
 def _save(store, url: str, platform: str | None, status: str, now: datetime, *, data: dict | None = None,
-          error: str | None = None, attempts: int = 0, next_attempt_at: datetime | None = None) -> dict:
+          error: str | None = None, attempts: int = 0, next_attempt_at: datetime | None = None,
+          fetched_at=_KEEP) -> dict:
+    if fetched_at is _KEEP:
+        fetched_at = now if status in ("ok", "gone") else None
     values = dict(url=url, platform=platform, status=status, attempts=attempts, next_attempt_at=next_attempt_at,
-                  fetched_at=now if status in ("ok", "gone") else None, data=data, error=error, updated_at=now)
+                  fetched_at=fetched_at, data=data, error=error, updated_at=now)
     statement = upsert(T.enrichments).values(**values)
     with store.engine.begin() as conn:
         conn.execute(statement.on_conflict_do_update(
@@ -131,7 +154,7 @@ def enrich_jobs(store, fetcher, *, limit: int = 200, now: datetime | None = None
     now = _aware(now or utcnow())
     limit = max(0, min(200, limit))
     report = dict.fromkeys(("candidates", "fetched", "ok", "gone", "failed", "unsupported", "from_cache",
-                            "waiting", "skipped_limit", "jobs_enriched"), 0)
+                            "waiting", "skipped_limit", "jobs_enriched", "refreshed", "refresh_kept"), 0)
     rows = candidates(store)
     report["candidates"] = len(rows)
     if not rows:
@@ -143,11 +166,16 @@ def enrich_jobs(store, fetcher, *, limit: int = 200, now: datetime | None = None
     for row in rows:
         url = row["apply_url"]
         cached = cache.get(url)
-        if cached and cached["status"] == "ok":
+        # An excluded row may only recover an interrupted projection, never issue a request, so its cache
+        # is used at any age.
+        refresh = bool(cached and cached["status"] == "ok" and not row["excluded"] and _refresh_due(cached, now))
+        if cached and cached["status"] == "ok" and not refresh:
             if (job := _write_back(store, aliases, row["posting_id"], cached)) is not None:
                 touched.add(job)
                 report["from_cache"] += 1
             continue
+        if refresh:
+            report["refreshed"] += 1
         if cached and cached["status"] in ("unsupported", "gone"):
             continue
         if cached and cached["status"] == "failed" and cached["next_attempt_at"] and cached["next_attempt_at"] > now:
@@ -182,15 +210,28 @@ def enrich_jobs(store, fetcher, *, limit: int = 200, now: datetime | None = None
                 touched.add(job)
             report["ok"] += 1
         elif result.status == "gone":
-            cache[url] = _save(store, url, target.platform, "gone", now, error=result.error)
+            # A refresh keeps the description it already has: a bot block can look like a closed listing,
+            # and the posting it was written to is not touched either way.
+            cache[url] = _save(store, url, target.platform, "gone", now, error=result.error,
+                               data=cached["data"] if refresh else None)
             report["gone"] += 1
         else:
             attempts = max(0, (cached or {}).get("attempts", 0)) + 1
             # Bound the exponent before multiplication; long-lived failures cannot overflow.
             wait = timedelta(minutes=min(24 * 60, 30 * 2 ** min(attempts - 1, 6)))
-            cache[url] = _save(store, url, target.platform, "failed", now, error=result.error or "invalid fetch result",
-                               attempts=attempts, next_attempt_at=now + wait)
-            report["failed"] += 1
+            if refresh:
+                # Keep the stored success and its real age; only the next attempt moves.
+                cache[url] = _save(store, url, cached["platform"], "ok", now, data=cached["data"],
+                                   error=result.error or "refresh failed", attempts=attempts,
+                                   next_attempt_at=now + wait, fetched_at=cached["fetched_at"])
+                if (job := _write_back(store, aliases, row["posting_id"], cache[url])) is not None:
+                    touched.add(job)
+                report["refresh_kept"] += 1
+            else:
+                cache[url] = _save(store, url, target.platform, "failed", now,
+                                   error=result.error or "invalid fetch result",
+                                   attempts=attempts, next_attempt_at=now + wait)
+                report["failed"] += 1
     if touched:
         # Acquire the write lock before reloading current evidence so concurrent
         # ingestion cannot be hidden by a stale projection or cleared marker.

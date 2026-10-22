@@ -65,3 +65,45 @@ def test_disk_alert_dedup_survives_changing_free_space(tmp_path, monkeypatch):
 def test_invalid_disk_threshold_is_rejected(tmp_path, value):
     with pytest.raises(ValueError):
         WorkerOptions(screening_path=tmp_path / "s.json", min_free_gb=value)
+
+
+# ---- the pipeline's own numbers ----------------------------------------------------------------------------
+# Every step can report ok while the library produces nothing: for weeks every kept job sat unjudged and this
+# step said ok because the disk was fine.
+
+def test_health_reports_what_the_pipeline_holds(tmp_path):
+    from sqlalchemy import insert, update
+
+    from auto_app.core.db import tables as T
+    from tests.imported_jobs import ingest, job_id_of, record
+
+    store, state = make_store(tmp_path), {}
+    ingest(store, [record("101", "Backend Engineer"), record("102", "Data Engineer")])
+    with store.engine.begin() as conn:
+        conn.execute(update(T.jobs).values(first_seen_at=NOW - timedelta(days=9)))
+    opts = WorkerOptions(screening_path=tmp_path / "s.json", steps=("health",))
+    health = run_round(store, opts, fetcher=None, discord=FakeDiscord(), state=state, now=NOW)["steps"]["health"]
+    assert health["status"] == "ok"  # an unjudged backlog is the owner's manual step, not a fault
+    assert (health["kept_jobs"], health["judged_jobs"], health["unjudged_jobs"]) == (2, 0, 2)
+    assert health["oldest_unjudged_days"] == 9 and health["stalled"] is True
+    assert health["pending_enrichment"] == 2 and health["expired_claims"] == 0
+
+    store.update_job(job_id_of(store, "Backend Engineer"), step2="recommended")
+    with store.engine.begin() as conn:
+        conn.execute(insert(T.job_screenings).values(
+            job_id=job_id_of(store, "Data Engineer"), rules_version="t", facts_hash="h",
+            outcome="excluded", reasons=["internship"], signals={}, screened_at=NOW))
+    health = run_round(store, opts, fetcher=None, discord=FakeDiscord(), state=state, now=NOW)["steps"]["health"]
+    assert (health["kept_jobs"], health["judged_jobs"], health["stalled"]) == (1, 1, False)
+    assert health["oldest_unjudged_days"] is None
+    store.engine.dispose()
+
+
+def test_health_still_reports_the_disk_when_the_pipeline_query_fails(tmp_path, monkeypatch):
+    store, state = make_store(tmp_path), {}
+    monkeypatch.setattr("auto_app.worker.round._pipeline",
+                        lambda store, now: (_ for _ in ()).throw(RuntimeError("boom")))
+    opts = WorkerOptions(screening_path=tmp_path / "s.json", steps=("health",))
+    health = run_round(store, opts, fetcher=None, discord=FakeDiscord(), state=state, now=NOW)["steps"]["health"]
+    assert health["status"] == "ok" and health["pipeline_error"] == "RuntimeError" and "free_gb" in health
+    store.engine.dispose()

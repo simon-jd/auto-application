@@ -29,7 +29,8 @@ OUTCOMES = {  # agent outcome → (applications.status, attempts.outcome, job de
     "skipped": ("dropped", "unsupported", "not_applied"),
 }
 PARKED = ("needs_input", "action_needed")  # out of the queue until you requeue
-APPLIER = "external-agent"
+APPLIER = "external-agent"  # the applier chain; an attempt records the agent that actually ran
+FAILED_ATTEMPT_LIMIT = 3  # consecutive failures before a job is parked instead of returned to the queue
 
 
 class HandoffError(ValueError):
@@ -384,10 +385,21 @@ class HandoffService:
                     .order_by(T.applications.c.application_id.desc()).limit(1)).mappings().one()
                 if app["status"] == "submitted":
                     raise HandoffError("this application is already submitted")
+                # The attempt records which agent ran, not just the chain's name: the claim is deleted
+                # below, so this row is the only lasting trace of who did it.
                 conn.execute(insert(T.attempts).values(
-                    application_id=app["application_id"], applier=APPLIER, **{"pass": "submit"},
-                    outcome=attempt_outcome, reason=note, screenshot_path=evidence_path,
+                    application_id=app["application_id"], applier=claim.get("agent") or APPLIER,
+                    **{"pass": "submit"}, outcome=attempt_outcome, reason=note, screenshot_path=evidence_path,
                     started_at=_aware(claim["claimed_at"]), ended_at=now))
+                if outcome == "failed":
+                    # `failed` returns the job to the queue, so without a cap a job that cannot be filled
+                    # cycles forever. Park it instead and let the owner requeue once they have looked.
+                    previous = conn.execute(select(func.count()).select_from(T.attempts).where(
+                        T.attempts.c.application_id == app["application_id"],
+                        T.attempts.c.outcome == "failed")).scalar_one()
+                    if previous >= FAILED_ATTEMPT_LIMIT:
+                        status, decision = "action_needed", None
+                        note = ((note + " | ") if note else "") + f"parked after {previous} failed attempts"
                 values = {"status": status, "updated_at": now, "note": note}
                 if outcome == "submitted":
                     values.update(submitted_at=now, confirmation_path=evidence_path)
