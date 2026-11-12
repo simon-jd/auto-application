@@ -1,0 +1,419 @@
+{
+ "jobs": [
+  {
+   "data": {
+    "slug": "20435",
+    "language": "en-us",
+    "languages": [
+     "en-us"
+    ],
+    "req_id": "20435",
+    "title": "Senior Software Engineer - GNSS / INS",
+    "description": "Overview We are seeking a full-time Senior Software Engineer -GNSS / INS at Garmin's location in Boulder, CO. This role is on our Core Platform Technology team and will develop GNSS and INS based positioning solutions. This is an innovation and exploration role where you will work closely with all of Garmin's product segments to explore, align and advance positioning technology in all of Garmin's product categories. Essential Functions Contribute to productization and algorithm development in positioning technologies Design, implement, test and document complex software applications using C/C++ for use in embedded systems Participate in peer reviews of software designs, algorithm designs and software implementation Collaborate with colleagues on software/algorithm design approaches and implementations Provide reliable solutions to a variety of positioning problems using sound problem solving techniques Participate in project leadership and/or program planning including providing technical input to product development plans and concept documents Make substantial contributions toward determination of project goal/objective feasibility and applies good judgment in setting schedules/risk taking Mentor and provide guidance to less experienced Software Engineers (1 & 2) Contribute to advanced technical research on new technologies Offer process improvement suggestions and authors new procedures as appropriate Provide reliable solutions to a wide range of difficult problems using sound problem solving techniques Mentor and provide guidance to less experienced software engineers (Software Engineer 1 & 2 & Senior Software Engineers) The deadline to apply to this role is Friday, November 13, 2026. Basic Qualifications Bachelor’s Degree in Computer Science, Electrical Engineering, Computer Engineering, Aerospace Engineering, Math, Physics or related field AND a minimum of 5 years relevant experience OR an equivalent combination of education and experience Experience in positioning algorithms for consumer applications with a strong understanding of GNSS measurements and error sources, estimation techniques including least squares & Kalman filtering, blunder/fault detection, multi-constellation and multi-frequency, AGNSS, inertial navigation systems, inertial sensors, sensor fusion and other geomatic related topics. Proficient in software development and engineering with C/C++ for embedded, real-time environments Strong ability to use scripting languages (i.e. Python, Matlab etc.) or C++ to automate data analysis of large amounts of data to verify positioning algorithms Proven ability to explore and research technical algorithmic problems and implementing appropriate algorithmic solutions Demonstrate a successful track record in managing exceedingly complex problems and providing success solutions which are highly innovative and ingenious Experience with architecting solutions for multiple groups and/or disciplines Must be positive, detail oriented, organized, team oriented and a driven problem solver, multi-tasker, and self-starter with the ability to prioritize and lead in a fast paced, deadline-driven environment Desired Qualifications Expertise in inertial navigation techniques (e.g. vehicle and pedestrian dead reckoning, GNSS aided INS) Experience in Java Knowledge of carrier phase measurement processing methods Knowledgeable in GNSS measurement generation, tracking loops and how measurements are impacted by environment. Experience in MEMS sensor technology, including error source modeling and quantification of accelerometers and gyroscopes Experience in detection of GNSS denial of service, jamming or spoofing events Garmin International is an equal opportunity employer. Qualified applicants will receive consideration for employment without regard to race, religion, color, national origin, citizenship, sex, sexual orientation, gender identity, veteran’s status, age or disability. This position is eligible for Garmin's benefit program. Details can be found here: Garmin Benefits",
+    "location_name": "Boulder",
+    "street_address": "5665 Flatiron Pkwy\nSuite 100",
+    "city": "Boulder",
+    "state": "Colorado",
+    "country": "United States",
+    "country_code": "US",
+    "postal_code": "80301",
+    "location_type": "LAT_LNG",
+    "latitude": 40.0236967,
+    "longitude": -105.2216926,
+    "categories": [
+     {
+      "name": "Engineering"
+     }
+    ],
+    "tags": [
+     "Sourcing Only"
+    ],
+    "tags1": [
+     "Software Engineering"
+    ],
+    "tags2": [
+     "Core Business Hours"
+    ],
+    "tags3": [
+     "Regular Full-Time"
+    ],
+    "tags4": [
+     "USD $133,500.00/Yr."
+    ],
+    "tags5": [
+     "USD $169,900.00/Yr."
+    ],
+    "tags6": [
+     "On-site"
+    ],
+    "tags7": [
+     "Garmin International"
+    ],
+    "tags9": [
+     "#LI-MC1"
+    ],
+    "promotion_value": 0,
+    "employment_type": "FULL_TIME",
+    "qualifications": "Basic Qualifications Bachelor’s Degree in Computer Science, Electrical Engineering, Computer Engineering, Aerospace Engineering, Math, Physics or related field AND a minimum of 5 years relevant experience OR an equivalent combination of education and experience Experience in positioning algorithms for consumer applications with a strong understanding of GNSS measurements and error sources, estimation techniques including least squares & Kalman filtering, blunder/fault detection, multi-constellation and multi-frequency, AGNSS, inertial navigation systems, inertial sensors, sensor fusion and other geomatic related topics. Proficient in software development and engineering with C/C++ for embedded, real-time environments Strong ability to use scripting languages (i.e. Python, Matlab etc.) or C++ to automate data analysis of large amounts of data to verify positioning algorithms Proven ability to explore and research technical algorithmic problems and implementing appropriate algorithmic solutions Demonstrate a successful track record in managing exceedingly complex problems and providing success solutions which are highly innovative and ingenious Experience with architecting solutions for multiple groups and/or disciplines Must be positive, detail oriented, organized, team oriented and a driven problem solver, multi-tasker, and self-starter with the ability to prioritize and lead in a fast paced, deadline-driven environment Desired Qualifications Expertise in inertial navigation techniques (e.g. vehicle and pedestrian dead reckoning, GNSS aided INS) Experience in Java Knowledge of carrier phase measurement processing methods Knowledgeable in GNSS measurement generation, tracking loops and how measurements are impacted by environment. Experience in MEMS sensor technology, including error source modeling and quantification of accelerometers and gyroscopes Experience in detection of GNSS denial of service, jamming or spoofing events Garmin International is an equal opportunity employer. Qualified applicants will receive consideration for employment without regard to race, religion, color, national origin, citizenship, sex, sexual orientation, gender identity, veteran’s status, age or disability. This position is eligible for Garmin's benefit program. Details can be found here: Garmin Benefits",
+    "hiring_organization": "Garmin International, Inc.",
+    "responsibilities": "Essential Functions Contribute to productization and algorithm development in positioning technologies Design, implement, test and document complex software applications using C/C++ for use in embedded systems Participate in peer reviews of software designs, algorithm designs and software implementation Collaborate with colleagues on software/algorithm design approaches and implementations Provide reliable solutions to a variety of positioning problems using sound problem solving techniques Participate in project leadership and/or program planning including providing technical input to product development plans and concept documents Make substantial contributions toward determination of project goal/objective feasibility and applies good judgment in setting schedules/risk taking Mentor and provide guidance to less experienced Software Engineers (1 & 2) Contribute to advanced technical research on new technologies Offer process improvement suggestions and authors new procedures as appropriate Provide reliable solutions to a wide range of difficult problems using sound problem solving techniques Mentor and provide guidance to less experienced software engineers (Software Engineer 1 & 2 & Senior Software Engineers) The deadline to apply to this role is Friday, November 13, 2026.",
+    "posted_date": "2026-10-20T18:06:00+0000",
+    "apply_url": "https://careers-garmin.icims.com/jobs/20435/login",
+    "internal": false,
+    "external": false,
+    "searchable": true,
+    "applyable": true,
+    "li_easy_applyable": true,
+    "ats_code": "icims",
+    "isFrontLineAIJob": false,
+    "isApplyFlowJob": false,
+    "meta_data": {
+     "client_code": "garmin",
+     "icims": {
+      "date_updated": "2026-11-05T17:41:24Z",
+      "jps_is_public": true,
+      "primary_posted_site_object": {
+       "datePosted": "2026-10-20T18:06:00+0000",
+       "site": "careers-garmin",
+       "siteId": "df6ed681-ae4c-414c-bfbb-b85adf2f79bb",
+       "siteType": "ATTRACT",
+       "tenantId": "12314"
+      },
+      "revision_int": 8,
+      "uuid": "4e195e58-f354-42e8-a4ff-aa8b3b325822"
+     },
+     "import_id": "e52d1f1a-266e-4636-859c-a689098e5fcc",
+     "import_source": "ImporterService",
+     "redirectOnApply": true,
+     "canonical_url": "https://careers.garmin.com/jobs/20435?lang=en-us",
+     "last_mod": "2026-11-06T16:59:55+0000",
+     "gdpr": false
+    },
+    "update_date": "2026-11-06T16:59:55+0000",
+    "create_date": "2026-10-20T18:07:51+0000",
+    "category": [
+     " Engineering"
+    ],
+    "full_location": "Boulder, Colorado",
+    "short_location": "Boulder, Colorado",
+    "multipleLocations": false
+   }
+  },
+  {
+   "data": {
+    "slug": "20318",
+    "language": "en-us",
+    "languages": [
+     "en-us"
+    ],
+    "req_id": "20318",
+    "title": "Staff Software Engineer - GNSS / INS",
+    "description": "Overview We are seeking a full-time Staff Software Engineer (GNSS / INS) at Garmin's U.S. headquarters in the Greater Kansas City area or our location in Cochrane, Alberta, Canada. This role is on our Core Platform Technology team and will develop GNSS and INS based positioning solutions. This is an innovation and exploration role where you will work closely with all of Garmin's product segments to explore, align and advance positioning technology in all of Garmin's product categories. Essential Functions Contribute to advanced technical research and development in positioning technologies Design, implement, test and document complex software applications using C/C++ for use in embedded systems Participate in peer reviews of software designs, algorithm designs and software implementation Collaborate with colleagues on software/algorithm design approaches and implementations Provide reliable solutions to a variety of positioning problems using sound problem solving techniques Conduct technical research and feasibility studies on new technologies, providing insight and recommendations to engineering management Represent Garmin among industry partners, peer groups and regulating agencies Contribute inventions, new designs, and techniques regarded as significant advances to the product and/or application development process Apply advanced theories, principles, and concepts in development of new principles and theories Utilize knowledge of principles, forecasts new technology and provides business directions based on them Provide guidance and mentoring to less experienced software engineers in areas such as software methodology, cost analysis, and project management Mentor and provide guidance to less experienced software engineers (Software Engineer 1 & 2 & Senior Software Engineers) Basic Qualifications Bachelor’s Degree in Computer Science, Electrical Engineering, Computer Engineering, Aerospace Engineering, Math, Physics or related field AND a minimum of 14 years relevant experience OR an equivalent combination of education and experience Experience in positioning algorithms for consumer applications with a strong understanding of GNSS measurements and error sources, estimation techniques including least squares & Kalman filtering, blunder/fault detection, multi-constellation and multi-frequency, AGNSS, inertial navigation systems, inertial sensors, sensor fusion and other geomatic related topics. Proficient in software development and engineering with C/C++ for embedded, real-time environments Strong ability to use scripting languages (i.e. Python, Matlab etc.) or C++ to automate data analysis of large amounts of data to verify positioning algorithms Proven ability to explore and research technical algorithmic problems and implementing appropriate algorithmic solutions Demonstrate a successful track record in managing exceedingly complex problems and providing success solutions which are highly innovative and ingenious Experience with architecting solutions for multiple groups and/or disciplines Must be positive, detail oriented, organized, team oriented and a driven problem solver, multi-tasker, and self-starter with the ability to prioritize and lead in a fast paced, deadline-driven environment Desired Qualifications Expertise in inertial navigation techniques (e.g. vehicle and pedestrian dead reckoning, GNSS aided INS) PVT (Position, Velocity, Timing) experience in the consumer/embedded space Knowledge of carrier phase measurement processing methods Knowledgeable in GNSS measurement generation, tracking loops and how measurements are impacted by environment. Experience in MEMS sensor technology, including error source modeling and quantification of accelerometers and gyroscopes Experience in detection of GNSS denial of service, jamming or spoofing events Experience in Java Garmin International is an equal opportunity employer. Qualified applicants will receive consideration for employment without regard to race, religion, color, national origin, citizenship, sex, sexual orientation, gender identity, veteran’s status, age or disability. This position is eligible for Garmin's benefit program. Details can be found here: Garmin Benefits",
+    "location_name": "Olathe",
+    "street_address": "1200 E 151st STREET",
+    "city": "Olathe",
+    "state": "Kansas",
+    "country": "United States",
+    "country_code": "US",
+    "postal_code": "66062",
+    "location_type": "LAT_LNG",
+    "latitude": 38.8571767,
+    "longitude": -94.8010619,
+    "additional_locations": [
+     {
+      "location_name": "Cochrane",
+      "street_address": "124 - 30 Bow St Common",
+      "city": "Cochrane",
+      "state": "Alberta",
+      "country": "Canada",
+      "country_code": "CA",
+      "postal_code": "T4C 2N1",
+      "latitude": 51.1866987,
+      "longitude": -114.4695353
+     }
+    ],
+    "categories": [
+     {
+      "name": "Engineering"
+     }
+    ],
+    "tags": [
+     "Hiring Only"
+    ],
+    "tags1": [
+     "Software Engineering"
+    ],
+    "tags2": [
+     "Core Business Hours"
+    ],
+    "tags3": [
+     "Regular Full-Time"
+    ],
+    "tags7": [
+     "Garmin International"
+    ],
+    "tags8": [
+     "CA-AB-Cochrane"
+    ],
+    "tags9": [
+     "#LI-MC1"
+    ],
+    "promotion_value": 0,
+    "employment_type": "FULL_TIME",
+    "qualifications": "Basic Qualifications Bachelor’s Degree in Computer Science, Electrical Engineering, Computer Engineering, Aerospace Engineering, Math, Physics or related field AND a minimum of 14 years relevant experience OR an equivalent combination of education and experience Experience in positioning algorithms for consumer applications with a strong understanding of GNSS measurements and error sources, estimation techniques including least squares & Kalman filtering, blunder/fault detection, multi-constellation and multi-frequency, AGNSS, inertial navigation systems, inertial sensors, sensor fusion and other geomatic related topics. Proficient in software development and engineering with C/C++ for embedded, real-time environments Strong ability to use scripting languages (i.e. Python, Matlab etc.) or C++ to automate data analysis of large amounts of data to verify positioning algorithms Proven ability to explore and research technical algorithmic problems and implementing appropriate algorithmic solutions Demonstrate a successful track record in managing exceedingly complex problems and providing success solutions which are highly innovative and ingenious Experience with architecting solutions for multiple groups and/or disciplines Must be positive, detail oriented, organized, team oriented and a driven problem solver, multi-tasker, and self-starter with the ability to prioritize and lead in a fast paced, deadline-driven environment Desired Qualifications Expertise in inertial navigation techniques (e.g. vehicle and pedestrian dead reckoning, GNSS aided INS) PVT (Position, Velocity, Timing) experience in the consumer/embedded space Knowledge of carrier phase measurement processing methods Knowledgeable in GNSS measurement generation, tracking loops and how measurements are impacted by environment. Experience in MEMS sensor technology, including error source modeling and quantification of accelerometers and gyroscopes Experience in detection of GNSS denial of service, jamming or spoofing events Experience in Java Garmin International is an equal opportunity employer. Qualified applicants will receive consideration for employment without regard to race, religion, color, national origin, citizenship, sex, sexual orientation, gender identity, veteran’s status, age or disability. This position is eligible for Garmin's benefit program. Details can be found here: Garmin Benefits",
+    "hiring_organization": "Garmin International, Inc.",
+    "responsibilities": "Essential Functions Contribute to advanced technical research and development in positioning technologies Design, implement, test and document complex software applications using C/C++ for use in embedded systems Participate in peer reviews of software designs, algorithm designs and software implementation Collaborate with colleagues on software/algorithm design approaches and implementations Provide reliable solutions to a variety of positioning problems using sound problem solving techniques Conduct technical research and feasibility studies on new technologies, providing insight and recommendations to engineering management Represent Garmin among industry partners, peer groups and regulating agencies Contribute inventions, new designs, and techniques regarded as significant advances to the product and/or application development process Apply advanced theories, principles, and concepts in development of new principles and theories Utilize knowledge of principles, forecasts new technology and provides business directions based on them Provide guidance and mentoring to less experienced software engineers in areas such as software methodology, cost analysis, and project management Mentor and provide guidance to less experienced software engineers (Software Engineer 1 & 2 & Senior Software Engineers)",
+    "posted_date": "2026-10-20T17:56:00+0000",
+    "apply_url": "https://canada-garmin.icims.com/jobs/20318/login",
+    "internal": false,
+    "external": false,
+    "searchable": true,
+    "applyable": true,
+    "li_easy_applyable": true,
+    "ats_code": "icims",
+    "isFrontLineAIJob": false,
+    "isApplyFlowJob": false,
+    "meta_data": {
+     "client_code": "garmin",
+     "icims": {
+      "date_updated": "2026-10-20T17:56:41Z",
+      "jps_is_public": true,
+      "primary_posted_site_object": {
+       "datePosted": "2026-10-20T17:56:00+0000",
+       "site": "canada-garmin",
+       "siteId": "e2641580-d4f6-4478-8ae0-1fca7d26232c",
+       "siteType": "ATTRACT",
+       "tenantId": "12314"
+      },
+      "revision_int": 1,
+      "uuid": "6f9b5be5-74e7-47db-be7f-a88364a242c6"
+     },
+     "import_id": "f2066fa2-5e52-45cd-be69-2ed65d9b7722",
+     "import_source": "ImporterService",
+     "redirectOnApply": true,
+     "canonical_url": "https://careers.garmin.com/jobs/20318?lang=en-us",
+     "last_mod": "2026-10-21T16:45:35+0000",
+     "gdpr": false
+    },
+    "update_date": "2026-10-21T16:45:35+0000",
+    "create_date": "2026-10-09T21:02:59+0000",
+    "category": [
+     " Engineering"
+    ],
+    "full_location": "Olathe, Kansas; Cochrane, Canada",
+    "short_location": "Olathe, Kansas",
+    "multipleLocations": true
+   }
+  },
+  {
+   "data": {
+    "slug": "20375",
+    "language": "en-us",
+    "languages": [
+     "en-us"
+    ],
+    "req_id": "20375",
+    "title": "Senior Software Engineer - GNSS / INS",
+    "description": "Overview We are seeking a full-time Senior Software Engineer (GNSS / INS) at Garmin's U.S. headquarters in the Greater Kansas City area or at our location in Cochrane, Alberta, Canada. This role is on our Core Platform Technology team and will develop GNSS and INS based positioning solutions. This is an innovation and exploration role where you will work closely with all of Garmin's product segments to explore, align and advance positioning technology in all of Garmin's product categories. Essential Functions Contribute to productization and algorithm development in positioning technologies Design, implement, test and document complex software applications using C/C++ for use in embedded systems Participate in peer reviews of software designs, algorithm designs and software implementation Collaborate with colleagues on software/algorithm design approaches and implementations Provide reliable solutions to a variety of positioning problems using sound problem solving techniques Participate in project leadership and/or program planning including providing technical input to product development plans and concept documents Make substantial contributions toward determination of project goal/objective feasibility and applies good judgment in setting schedules/risk taking Mentor and provide guidance to less experienced Software Engineers (1 & 2) Contribute to advanced technical research on new technologies Offer process improvement suggestions and author new procedures as appropriate Provide reliable solutions to a wide range of difficult problems using sound problem solving techniques Mentor and provide guidance to less experienced Software Engineers (Software Engineer 1 & 2 & Senior Software Engineers) Basic Qualifications Bachelor’s Degree in Computer Science, Electrical Engineering, Computer Engineering, Aerospace Engineering, Math, Physics or related field AND a minimum of 5 years relevant experience OR an equivalent combination of education and experience Experience in positioning algorithms for consumer applications with a strong understanding of GNSS measurements and error sources, estimation techniques including least squares & Kalman filtering, blunder/fault detection, multi-constellation and multi-frequency, AGNSS, inertial navigation systems, inertial sensors, sensor fusion and other geomatic related topics. Proficient in software development and engineering with C/C++ for embedded, real-time environments Strong ability to use scripting languages (i.e. Python, Matlab etc.) or C++ to automate data analysis of large amounts of data to verify positioning algorithms Proven ability to explore and research technical algorithmic problems and implementing appropriate algorithmic solutions Demonstrate a successful track record in managing exceedingly complex problems and providing success solutions which are highly innovative and ingenious Experience with architecting solutions for multiple groups and/or disciplines Must be positive, detail oriented, organized, team oriented and a driven problem solver, multi-tasker, and self-starter with the ability to prioritize and lead in a fast paced, deadline-driven environment Desired Qualifications Expertise in inertial navigation techniques (e.g. vehicle and pedestrian dead reckoning, GNSS aided INS) Experience in Java Knowledge of carrier phase measurement processing methods Knowledgeable in GNSS measurement generation, tracking loops and how measurements are impacted by environment. Experience in MEMS sensor technology, including error source modeling and quantification of accelerometers and gyroscopes Experience in detection of GNSS denial of service, jamming or spoofing events Garmin International is an equal opportunity employer. Qualified applicants will receive consideration for employment without regard to race, religion, color, national origin, citizenship, sex, sexual orientation, gender identity, veteran’s status, age or disability. This position is eligible for Garmin's benefit program. Details can be found here: Garmin Benefits",
+    "location_name": "Olathe",
+    "street_address": "1200 E 151st STREET",
+    "city": "Olathe",
+    "state": "Kansas",
+    "country": "United States",
+    "country_code": "US",
+    "postal_code": "66062",
+    "location_type": "LAT_LNG",
+    "latitude": 38.8571767,
+    "longitude": -94.8010619,
+    "additional_locations": [
+     {
+      "location_name": "Cochrane",
+      "street_address": "124 - 30 Bow St Common",
+      "city": "Cochrane",
+      "state": "Alberta",
+      "country": "Canada",
+      "country_code": "CA",
+      "postal_code": "T4C 2N1",
+      "latitude": 51.1866987,
+      "longitude": -114.4695353
+     }
+    ],
+    "categories": [
+     {
+      "name": "Engineering"
+     }
+    ],
+    "tags": [
+     "Hiring Only"
+    ],
+    "tags1": [
+     "Software Engineering"
+    ],
+    "tags2": [
+     "Core Business Hours"
+    ],
+    "tags3": [
+     "Regular Full-Time"
+    ],
+    "tags6": [
+     "On-site"
+    ],
+    "tags7": [
+     "Garmin International"
+    ],
+    "tags8": [
+     "CA-AB-Cochrane"
+    ],
+    "tags9": [
+     "#LI-MC1"
+    ],
+    "promotion_value": 0,
+    "employment_type": "FULL_TIME",
+    "qualifications": "Basic Qualifications Bachelor’s Degree in Computer Science, Electrical Engineering, Computer Engineering, Aerospace Engineering, Math, Physics or related field AND a minimum of 5 years relevant experience OR an equivalent combination of education and experience Experience in positioning algorithms for consumer applications with a strong understanding of GNSS measurements and error sources, estimation techniques including least squares & Kalman filtering, blunder/fault detection, multi-constellation and multi-frequency, AGNSS, inertial navigation systems, inertial sensors, sensor fusion and other geomatic related topics. Proficient in software development and engineering with C/C++ for embedded, real-time environments Strong ability to use scripting languages (i.e. Python, Matlab etc.) or C++ to automate data analysis of large amounts of data to verify positioning algorithms Proven ability to explore and research technical algorithmic problems and implementing appropriate algorithmic solutions Demonstrate a successful track record in managing exceedingly complex problems and providing success solutions which are highly innovative and ingenious Experience with architecting solutions for multiple groups and/or disciplines Must be positive, detail oriented, organized, team oriented and a driven problem solver, multi-tasker, and self-starter with the ability to prioritize and lead in a fast paced, deadline-driven environment Desired Qualifications Expertise in inertial navigation techniques (e.g. vehicle and pedestrian dead reckoning, GNSS aided INS) Experience in Java Knowledge of carrier phase measurement processing methods Knowledgeable in GNSS measurement generation, tracking loops and how measurements are impacted by environment. Experience in MEMS sensor technology, including error source modeling and quantification of accelerometers and gyroscopes Experience in detection of GNSS denial of service, jamming or spoofing events Garmin International is an equal opportunity employer. Qualified applicants will receive consideration for employment without regard to race, religion, color, national origin, citizenship, sex, sexual orientation, gender identity, veteran’s status, age or disability. This position is eligible for Garmin's benefit program. Details can be found here: Garmin Benefits",
+    "hiring_organization": "Garmin International, Inc.",
+    "responsibilities": "Essential Functions Contribute to productization and algorithm development in positioning technologies Design, implement, test and document complex software applications using C/C++ for use in embedded systems Participate in peer reviews of software designs, algorithm designs and software implementation Collaborate with colleagues on software/algorithm design approaches and implementations Provide reliable solutions to a variety of positioning problems using sound problem solving techniques Participate in project leadership and/or program planning including providing technical input to product development plans and concept documents Make substantial contributions toward determination of project goal/objective feasibility and applies good judgment in setting schedules/risk taking Mentor and provide guidance to less experienced Software Engineers (1 & 2) Contribute to advanced technical research on new technologies Offer process improvement suggestions and author new procedures as appropriate Provide reliable solutions to a wide range of difficult problems using sound problem solving techniques Mentor and provide guidance to less experienced Software Engineers (Software Engineer 1 & 2 & Senior Software Engineers)",
+    "posted_date": "2026-10-20T17:55:00+0000",
+    "apply_url": "https://canada-garmin.icims.com/jobs/20375/login",
+    "internal": false,
+    "external": false,
+    "searchable": true,
+    "applyable": true,
+    "li_easy_applyable": true,
+    "ats_code": "icims",
+    "isFrontLineAIJob": false,
+    "isApplyFlowJob": false,
+    "meta_data": {
+     "client_code": "garmin",
+     "icims": {
+      "date_updated": "2026-10-30T13:43:06Z",
+      "jps_is_public": true,
+      "primary_posted_site_object": {
+       "datePosted": "2026-10-20T17:55:00+0000",
+       "site": "canada-garmin",
+       "siteId": "e2641580-d4f6-4478-8ae0-1fca7d26232c",
+       "siteType": "ATTRACT",
+       "tenantId": "12314"
+      },
+      "revision_int": 2,
+      "uuid": "96357fab-72f1-486f-bc84-095369f8615e"
+     },
+     "import_id": "818f033f-1655-47e5-8b64-5cb3916d5a92",
+     "import_source": "ImporterService",
+     "redirectOnApply": true,
+     "canonical_url": "https://careers.garmin.com/jobs/20375?lang=en-us",
+     "last_mod": "2026-10-30T16:54:57+0000",
+     "gdpr": false
+    },
+    "update_date": "2026-10-30T16:54:57+0000",
+    "create_date": "2026-10-20T17:56:50+0000",
+    "category": [
+     " Engineering"
+    ],
+    "full_location": "Olathe, Kansas; Cochrane, Canada",
+    "short_location": "Olathe, Kansas",
+    "multipleLocations": true
+   }
+  },
+  {
+   "data": {
+    "slug": "20343",
+    "language": "en-us",
+    "languages": [
+     "en-us"
+    ],
+    "req_id": "20343",
+    "title": "Staff Software Engineer - GNSS / INS",
+    "description": "Overview We are seeking a full-time Staff Software Engineer - GNSS/INS at Garmin's site in Boulder, CO. This role is on our Core Platform Technology team and will develop GNSS and INS based positioning solutions. This is an innovation and exploration role where you will work closely with all of Garmin's product segments to explore, align and advance positioning technology in all of Garmin's product categories. Essential Functions Contribute to advanced technical research and development in positioning technologies Design, implement, test and document complex software applications using C/C++ for use in embedded systems Participate in peer reviews of software designs, algorithm designs and software implementation Collaborate with colleagues on software/algorithm design approaches and implementations Provide reliable solutions to a variety of positioning problems using sound problem solving techniques Conduct technical research and feasibility studies on new technologies, providing insight and recommendations to engineering management Represent Garmin among industry partners, peer groups and regulating agencies Contribute inventions, new designs, and techniques regarded as significant advances to the product and/or application development process Apply advanced theories, principles, and concepts in development of new principles and theories Utilize knowledge of principles, forecasts new technology and provides business directions based on them Provide guidance and mentoring to less experienced software engineers in areas such as software methodology, cost analysis, and project management Mentor and provide guidance to less experienced software engineers (Software Engineer 1 & 2 & Senior Software Engineers) The deadline to apply to this role is Friday, November 13, 2026. Basic Qualifications Bachelor’s Degree in Computer Science, Electrical Engineering, Computer Engineering, Aerospace Engineering, Math, Physics or related field AND a minimum of 14 years relevant experience OR an equivalent combination of education and experience Experience in positioning algorithms for consumer applications with a strong understanding of GNSS measurements and error sources, estimation techniques including least squares & Kalman filtering, blunder/fault detection, multi-constellation and multi-frequency, AGNSS, inertial navigation systems, inertial sensors, sensor fusion and other geomatic related topics. Proficient in software development and engineering with C/C++ for embedded, real-time environments Strong ability to use scripting languages (i.e. Python, Matlab etc.) or C++ to automate data analysis of large amounts of data to verify positioning algorithms Proven ability to explore and research technical algorithmic problems and implementing appropriate algorithmic solutions Demonstrate a successful track record in managing exceedingly complex problems and providing success solutions which are highly innovative and ingenious Experience with architecting solutions for multiple groups and/or disciplines Must be positive, detail oriented, organized, team oriented and a driven problem solver, multi-tasker, and self-starter with the ability to prioritize and lead in a fast paced, deadline-driven environment Desired Qualifications Expertise in inertial navigation techniques (e.g. vehicle and pedestrian dead reckoning, GNSS aided INS) PVT (Position, Velocity, Timing) experience in the consumer/embedded space Knowledge of carrier phase measurement processing methods Knowledgeable in GNSS measurement generation, tracking loops and how measurements are impacted by environment. Experience in MEMS sensor technology, including error source modeling and quantification of accelerometers and gyroscopes Experience in detection of GNSS denial of service, jamming or spoofing events Experience in Java Garmin International is an equal opportunity employer. Qualified applicants will receive consideration for employment without regard to race, religion, color, national origin, citizenship, sex, sexual orientation, gender identity, veteran’s status, age or disability. This position is eligible for Garmin's benefit program. Details can be found here: Garmin Benefits",
+    "location_name": "Boulder",
+    "street_address": "5665 Flatiron Pkwy\nSuite 100",
+    "city": "Boulder",
+    "state": "Colorado",
+    "country": "United States",
+    "country_code": "US",
+    "postal_code": "80301",
+    "location_type": "LAT_LNG",
+    "latitude": 40.0236967,
+    "longitude": -105.2216926,
+    "categories": [
+     {
+      "name": "Engineering"
+     }
+    ],
+    "tags": [
+     "Hiring Only"
+    ],
+    "tags1": [
+     "Software Engineering"
+    ],
+    "tags2": [
+     "Core Business Hours"
+    ],
+    "tags3": [
+     "Regular Full-Time"
+    ],
+    "tags4": [
+     "USD $188,400.00/Yr."
+    ],
+    "tags5": [
+     "USD $230,400.00/Yr."
+    ],
+    "tags6": [
+     "On-site"
+    ],
+    "tags7": [
+     "Garmin International"
+    ],
+    "tags9": [
+     "#LI-MC1"
+    ],
+    "promotion_value": 0,
+    "employment_type": "FULL_TIME",
+    "qualifications": "Basic Qualifications Bachelor’s Degree in Computer Science, Electrical Engineering, Computer Engineering, Aerospace Engineering, Math, Physics or related field AND a minimum of 14 years relevant experience OR an equivalent combination of education and experience Experience in positioning algorithms for consumer applications with a strong understanding of GNSS measurements and error sources, estimation techniques including least squares & Kalman filtering, blunder/fault detection, multi-constellation and multi-frequency, AGNSS, inertial navigation systems, inertial sensors, sensor fusion and other geomatic related topics. Proficient in software development and engineering with C/C++ for embedded, real-time environments Strong ability to use scripting languages (i.e. Python, Matlab etc.) or C++ to automate data analysis of large amounts of data to verify positioning algorithms Proven ability to explore and research technical algorithmic problems and implementing appropriate algorithmic solutions Demonstrate a successful track record in managing exceedingly complex problems and providing success solutions which are highly innovative and ingenious Experience with architecting solutions for multiple groups and/or disciplines Must be positive, detail oriented, organized, team oriented and a driven problem solver, multi-tasker, and self-starter with the ability to prioritize and lead in a fast paced, deadline-driven environment Desired Qualifications Expertise in inertial navigation techniques (e.g. vehicle and pedestrian dead reckoning, GNSS aided INS) PVT (Position, Velocity, Timing) experience in the consumer/embedded space Knowledge of carrier phase measurement processing methods Knowledgeable in GNSS measurement generation, tracking loops and how measurements are impacted by environment. Experience in MEMS sensor technology, including error source modeling and quantification of accelerometers and gyroscopes Experience in detection of GNSS denial of service, jamming or spoofing events Experience in Java Garmin International is an equal opportunity employer. Qualified applicants will receive consideration for employment without regard to race, religion, color, national origin, citizenship, sex, sexual orientation, gender identity, veteran’s status, age or disability. This position is eligible for Garmin's benefit program. Details can be found here: Garmin Benefits",
+    "hiring_organization": "Garmin International, Inc.",
+    "responsibilities": "Essential Functions Contribute to advanced technical research and development in positioning technologies Design, implement, test and document complex software applications using C/C++ for use in embedded systems Participate in peer reviews of software designs, algorithm designs and software implementation Collaborate with colleagues on software/algorithm design approaches and implementations Provide reliable solutions to a variety of positioning problems using sound problem solving techniques Conduct technical research and feasibility studies on new technologies, providing insight and recommendations to engineering management Represent Garmin among industry partners, peer groups and regulating agencies Contribute inventions, new designs, and techniques regarded as significant advances to the product and/or application development process Apply advanced theories, principles, and concepts in development of new principles and theories Utilize knowledge of principles, forecasts new technology and provides business directions based on them Provide guidance and mentoring to less experienced software engineers in areas such as software methodology, cost analysis, and project management Mentor and provide guidance to less experienced software engineers (Software Engineer 1 & 2 & Senior Software Engineers) The deadline to apply to this role is Friday, November 13, 2026.",
+    "posted_date": "2026-10-14T17:44:00+0000",
+    "apply_url": "https://careers-garmin.icims.com/jobs/20343/login",
+    "internal": false,
+    "external": false,
+    "searchable": true,
+    "applyable": true,
+    "li_easy_applyable": true,
+    "ats_code": "icims",
+    "isFrontLineAIJob": false,
+    "isApplyFlowJob": false,
+    "meta_data": {
+     "client_code": "garmin",
+     "icims": {
+      "date_updated": "2026-11-05T17:15:08Z",
+      "jps_is_public": true,
+      "primary_posted_site_object": {
+       "datePosted": "2026-10-14T17:44:00+0000",
+       "site": "careers-garmin",
+       "siteId": "df6ed681-ae4c-414c-bfbb-b85adf2f79bb",
+       "siteType": "ATTRACT",
+       "tenantId": "12314"
+      },
+      "revision_int": 6,
+      "uuid": "67aceb98-9162-40b2-bc4d-0473e4ec8851"
+     },
+     "import_id": "e52d1f1a-266e-4636-859c-a689098e5fcc",
+     "import_source": "ImporterService",
+     "redirectOnApply": true,
+     "canonical_url": "https://careers.garmin.com/jobs/20343?lang=en-us",
+     "last_mod": "2026-11-06T16:59:52+0000",
+     "gdpr": false
+    },
+    "update_date": "2026-11-06T16:59:52+0000",
+    "create_date": "2026-10-14T17:44:53+0000",
+    "category": [
+     " Engineering"
+    ],
+    "full_location": "Boulder, Colorado",
+    "short_location": "Boulder, Colorado",
+    "multipleLocations": false
+   }
+  }
+ ],
+ "totalCount": 6,
+ "count": 6
+}

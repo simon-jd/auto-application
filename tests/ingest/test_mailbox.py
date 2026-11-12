@@ -261,6 +261,25 @@ def test_explicit_scope_required(tmp_path, provider, scope):
         validate_mailbox_config(definition(tmp_path, provider, **scope), tmp_path)
 
 
+def test_skip_internships_reaches_mailbox_imports(store, tmp_path):
+    config = validate_mailbox_config(definition(tmp_path, skip_internships=True), tmp_path)
+    assert config["skip_internships"] is True
+    raw = mime().replace(b"Backend Engineer</a>", b"Backend Engineer</a> "
+                         b'<a href="https://www.linkedin.com/jobs/view/456">Software Engineer Intern</a>')
+
+    def handler(request):
+        if request.url.path.endswith("/messages"):
+            return httpx.Response(200, json={"messages": [{"id": "one", "threadId": "t1"}]})
+        return httpx.Response(200, json={**gmail_message(), "raw": base64.urlsafe_b64encode(raw).decode()})
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        report = run_mailbox(store, "gmail-jobs", config, client=client, now=NOW)
+    assert (report["created"], report["skipped_internships"]) == (1, 1)
+    assert validate_mailbox_config(definition(tmp_path), tmp_path)["skip_internships"] is False
+    with pytest.raises(ValueError, match="skip_internships must be a boolean"):
+        validate_mailbox_config(definition(tmp_path, skip_internships="true"), tmp_path)
+
+
 def test_validate_paths_defaults_and_provider_limits(tmp_path):
     config = validate_mailbox_config({"kind": "mailbox", "provider": "gmail", "credentials": "auth.json",
                                       "label_ids": ["Label_Jobs"]}, tmp_path)

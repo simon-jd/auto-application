@@ -127,7 +127,7 @@ Other configuration remains separate: `config/searches.yaml` controls website se
 
 ## Repository feeds and email recommendations
 
-The ingestion commands add repository listings and exported `.eml` recommendations to the same job library. Supported repository formats are `simplify` (default), `speedyapply`, `applyguy`, `ricsign` and `jobright`. The latter four use explicit provider adapters, not a generic GitHub README parser. The example config includes two Simplify feeds plus eight feeds for SpeedyApply's US SWE/AI internship/new-grad tables, ApplyGuy, Ricsign and Jobright's SWE new-grad/internship tables.
+The ingestion commands add repository listings and exported `.eml` recommendations to the same job library. Supported repository formats are `simplify` (default), `speedyapply`, `applyguy`, `ricsign` and `jobright`, plus the employer boards `greenhouse-board`, `lever-board`, `ashby-board`, `workday-board`, `eightfold-board`, `icims-jibe-board`, `oracle-board` and `smartrecruiters-board` ([Employer boards](#employer-boards)). The four after `simplify` use explicit provider adapters, not a generic GitHub README parser. The example config includes two Simplify feeds plus eight feeds for SpeedyApply's US SWE/AI internship/new-grad tables, ApplyGuy, Ricsign and Jobright's SWE new-grad/internship tables.
 
 ```bash
 cp config/feeds.example.yaml config/feeds.yaml
@@ -144,6 +144,14 @@ These commands **write** to the chosen database and may initialize/migrate it. T
 Each observation keeps its source ID, origin, content hash/version, source fields, status and change history (a description is stored on the posting; the import record keeps its SHA-256 and length). Reimporting the same content retains the job ID and your decision; changed content refreshes current fields and flags `needs_reassessment` while keeping past judgments. HTTP feeds use conditional requests. Malformed or failed snapshots do not mark previous records missing; absence in a complete snapshot means **missing from that source**, not confirmed closed by the employer. Initially inactive/hidden rows are recorded without creating a new opportunity.
 
 Set `format` alongside `kind: repository` and `location` in feeds YAML. Changing format or URL forces a complete fetch before reusing HTTP validators. ApplyGuy uses `listingUrl`, Ricsign uses `apply_url`, SpeedyApply uses its apply link, and Jobright retains its public detail URL until employer-link enrichment. Exact known identities merge across sources; matching titles alone do not. Relative ages, yearless dates and refresh clocks stay in `metadata.source_observation` without triggering content changes. Date-only JSON values retain day precision. Original locations remain available to the shared Canada exclusion. [Provider details and deployment verification](docs/updates/2026-10-10-priority-repository-feeds.md).
+
+A `simplify` file may resolve a listing site's job to its employer: `url` is the employer link and the optional `listing_url` the site's page (for example `https://jobright.ai/jobs/info/<id>`). The posting then joins either the Jobright/LinkedIn listing's job or the employer link's job already in the library, and enrichment reads the employer's JD. `employment_type` accepts `FULL_TIME`, `Full-time` or `full_time`. Grok Bot's LinkedIn, Handshake and Jobright files use this format ([2026-11-01 record](docs/updates/2026-11-01-grok-feeds-dedup.md)).
+
+`skip_internships: true` at the top of `config/feeds.yaml` leaves out rows whose own title or employment type
+says internship: intern, co-op, apprentice, or a `Summer 2027`-style title without a new-grad word. A source can
+set its own `skip_internships`. Skipped rows create no jobs, screening would have excluded them anyway, and
+reports count them as `skipped_internships`. The default is `false`
+([2026-11-02 record](docs/updates/2026-11-02-skip-internships.md)).
 
 Email parsing extracts job links and any observed titles, cleans known tracking links and deduplicates repeated links within a message. It does not connect to your inbox or fetch the linked website. Missing title/JD is explicitly **pending enrichment**, visible in query output, and skipped by automatic model filtering. Pending imports without a manual decision do not expire; other imported jobs archive on expiry to retain their history. Exact official job identities can still merge across a repository and email; unrelated sparse listings are not merged by similar titles. The query detail includes saved provenance and changes. Archived imported identities stay attached to the same archived job on reimport.
 
@@ -169,17 +177,28 @@ Mailbox sources require a credential file plus an explicit Gmail `query`/`label_
 ## Linux worker: screening, JD enrichment and Discord
 
 `auto-app worker` runs next to the feed worker and calls no model or agent. Its default round screens active
-jobs with deterministic rules, fills missing descriptions through Greenhouse, Lever, Ashby and Workday
-public APIs, screens again, then sends new kept jobs and reported handoff outcomes to Discord, checks a rolling seven-day summary
+jobs with deterministic rules, fills missing descriptions from the employer behind each imported link, screens again, then sends new kept jobs and reported handoff outcomes to Discord, checks a rolling seven-day summary
 and disk health. Default steps are `screen,enrich,notify,summary,health`. `watch` starts rounds 15 minutes apart;
 long rounds finish before another starts. Sponsorship offers sort first, and recommendations from your
 own filters are marked ⭐. Exclusions are a reversible view: jobs and manual decisions are preserved.
 `auto-app filter run`, which you run when desired, skips rule-excluded jobs and those awaiting enrichment.
 
+Enrichment reads public APIs for Greenhouse (EU boards included), Lever, Ashby (board names with dots or spaces
+included), Workday, Microsoft careers, SmartRecruiters, Workable and Amazon (its search index), plus the public
+job pages of TikTok/ByteDance (lifeattiktok.com, joinbytedance.com, jobs.bytedance.com) and Jobright. For Jobright
+the description is Jobright's logged-out summary of the JD, not the employer's text. Each round makes at most 200
+requests, at least one second apart per host. A link cached as unsupported before its adapter existed is read in
+the next round; other unsupported and gone links are not retried. Accepted link shapes, what each site gives and
+how a closed job is recognized: [Linux worker §1](docs/linux-worker.md#1-description-enrichment).
+
 The optional `$AUTO_APP_HOME/config/screening.json` controls internship, senior-title, non-CS,
-citizenship/clearance and outside-the-US exclusions (`us_only`: a job whose explicit places are all abroad
-is excluded; US, US-remote and unknown places stay). A clear requirement of at least 3 years' experience excludes by default,
-including new-grad titles; lack of sponsorship alone does not. See the template and rule explanations below.
+citizenship / US-person (ITAR) / clearance and outside-the-US exclusions (`us_only`: a job whose explicit places are all abroad
+is excluded; US, US-remote and unknown places stay). A clearance or US-person requirement stated in the
+description or the title excludes; a hedged one ("may require", "if needed"), a licence route, or one listed
+only under a preferred heading does not. A clear requirement of at least 3 years' experience excludes by default,
+including new-grad titles ("1~3 years" counts as 1; "a degree or 3+ years" as 0); lack of sponsorship alone does not.
+The opt-in `exclude_unknown_without_software_evidence` (off by default) also excludes a job whose title
+names no role and whose description names no software skill. Rule details: [Linux worker §2](docs/linux-worker.md#2-deterministic-screening).
 
 ```bash
 # Optional project-local rules file (use $AUTO_APP_HOME/config on Linux):
@@ -201,12 +220,57 @@ deployment backup/restart behavior and the 24-hour acceptance criteria: [Linux w
 
 ### Employer boards
 
-Find Greenhouse, Lever and Ashby boards from already saved jobs, then review the generated feed entries.
+Find Greenhouse, Lever and Ashby boards from already saved jobs, then review the generated feed entries
+(Workday, Eightfold, iCIMS Jibe, Oracle and SmartRecruiters boards are added by hand; see below).
 Enabled entries in `runtime/config/feeds.yaml` are pulled by the ingest worker every 30 minutes; this
 feature has not yet been activated on Linux. [Board setup and limits](docs/linux-worker.md#6-employer-boards).
 
 ```bash
 uv run auto-app worker boards --yaml --top 30
+```
+
+**Workday career sites** (`*.myworkdayjobs.com`: GM, NVIDIA, Intel, Aptiv, Cisco …) use `format: workday-board`
+with the careers URL as `location` and a required `company`. Optional `search` (a text or a list, one Workday
+search each), `facets` (a facet's parameter or label → values as the site shows them) and `max_pages` (pages of
+20, default 25, at most 100) narrow it. The reader pauses one second between requests. The list has no JD:
+the worker's enrichment reads it for the postings screening keeps. A search that ends before Workday's total,
+or at the page cap, imports what it read as a partial snapshot and closes nothing. Workday lists at most
+2000 results, so narrow large employers with facets.
+[Workday board feeds](docs/updates/2026-11-06-workday-board.md).
+
+```yaml
+  board-workday-aptiv:
+    kind: repository
+    format: workday-board
+    company: Aptiv
+    location: https://aptiv.wd5.myworkdayjobs.com/aptiv_careers
+    facets:
+      Country: [United States of America]
+    max_pages: 10
+```
+
+**Eightfold, iCIMS Jibe, Oracle Recruiting Cloud and SmartRecruiters** read the same way, page by page through
+the site's public search, with the pipeline's User-Agent and a pause between requests (two seconds for
+Eightfold, which answers bursts with HTTP 429). Each takes an optional `country`, `search` (a text or a list)
+and `max_pages`. A search that falls short of the site's total is read once more (a posting added or closed
+mid-read shifts the pages); if it still falls short, the run imports a partial snapshot and closes nothing.
+
+| Format | `location` | `country` | Notes |
+|---|---|---|---|
+| `eightfold-board` (Qualcomm) | `https://<tenant>.eightfold.ai/careers?domain=<domain>` | Eightfold's location text: `United States` | `company` required; `filters` such as `job_family: [software engineering]`; 10 a page; JDs through enrichment |
+| `icims-jibe-board` (Garmin, AMD, Lutron, Rivian) | the careers site, `https://careers.garmin.com` | the site's country name: `United States` | 100 a page, **with full JDs** (no enrichment) |
+| `oracle-board` (Ford, TI, Honeywell) | `https://<pod>.fa.<region>.oraclecloud.com/hcmUI/CandidateExperience/en/sites/<site>` | a location facet's name: `United States` | `company` required; 100 a page plus one facet request; JDs through enrichment |
+| `smartrecruiters-board` (Bosch, Intuitive, Western Digital) | `https://careers.smartrecruiters.com/<CompanyIdentifier>` | ISO code: `us` | 100 a page; JDs through enrichment |
+
+[Paged board feeds](docs/updates/2026-11-06-paged-boards.md) has the live counts and request costs.
+
+```yaml
+  board-oracle-ford:
+    kind: repository
+    format: oracle-board
+    company: Ford
+    location: https://efds.fa.em5.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1
+    country: United States
 ```
 
 ### IMAP
@@ -314,7 +378,9 @@ uv run auto-app bot run --db data/auto_app.db --credentials PATH/TO/bot.env
 `handoff` provides an eligible queue, quota-reserving leases, claim-gated JD/profile packets, external
 outcome recording, account metadata and resume registration. It does not call an agent/model or submit
 forms. Only allowed profile fields are exported; passwords are never accepted. Defaults are 20 per local
-calendar day (the host's zone, or `timezone` in `handoff.json`), 3 per company in 30 days and a 30-minute lease. Runtime `config/handoff.json` overrides the
+calendar day (the host's zone, or `timezone` in `handoff.json`), 3 per company in 30 days and a 30-minute lease;
+`company_groups` in `handoff.json` makes an employer's other names (e.g. "amazon web services" for "amazon") share
+its company limit. Runtime `config/handoff.json` overrides the
 [example](config/handoff.example.json). Network tools require authenticated `--handoff-tools`.
 [Contract and command mapping](docs/agent-handoff.md).
 

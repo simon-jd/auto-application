@@ -16,6 +16,7 @@ class IngestRecord:
     employment_type: str = "unknown"
     active: bool | None = None
     metadata: dict = field(default_factory=dict)
+    listing_url: str | None = None  # the listing site's page when url is the employer's link
 
 
 @dataclass

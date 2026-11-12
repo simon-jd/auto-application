@@ -44,6 +44,10 @@ def source_job_key(url: str | None) -> str | None:
         match = re.fullmatch(r"/(?:comm/)?jobs/view/(?:[^/]*-)?(\d+)/?", parsed.path)
         if match:
             return f"linkedin:jobs:{match.group(1)}"
+    if (parsed.hostname or "").lower() in {"jobright.ai", "www.jobright.ai"}:
+        match = re.fullmatch(r"/jobs/info/([A-Za-z0-9_-]+)/?", parsed.path)
+        if match:
+            return f"jobright:jobs:{match.group(1)}"
     return None
 
 

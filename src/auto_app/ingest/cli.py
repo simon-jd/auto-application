@@ -69,7 +69,7 @@ def _execute(db: Path | None, operation) -> None:
 
 @app.command("repository")
 def repository(location: str, source: SourceOption, db: DbOption = None,
-               format: Annotated[str, typer.Option("--format", help="simplify, speedyapply, applyguy, ricsign or jobright.")] = "simplify") -> None:
+               format: Annotated[str, typer.Option("--format", help="simplify, speedyapply, applyguy, ricsign, jobright, or an employer board: greenhouse-board, lever-board, ashby-board, workday-board, eightfold-board, icims-jibe-board, oracle-board, smartrecruiters-board.")] = "simplify") -> None:
     """Import a supported repository JSON or Markdown snapshot."""
     try:
         validate_source(source)

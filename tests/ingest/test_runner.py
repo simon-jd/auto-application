@@ -8,7 +8,7 @@ from sqlalchemy import select
 
 from auto_app.core.db import tables as T
 from auto_app.core.db.store import DbStore
-from auto_app.ingest.runner import run_config, run_email, run_repository
+from auto_app.ingest.runner import load_feed_config, run_config, run_email, run_repository
 from auto_app.settings import Paths
 
 URL = "https://raw.githubusercontent.com/Example/jobs/dev/listings.json"
@@ -190,6 +190,54 @@ def test_config_resolves_relative_files_and_email_globs_and_skips_disabled(store
     assert report["sources"]["mail"]["created"] == 2
     assert "paused" not in report["sources"]
     assert store.source_health("repo")["ingest"]["location"] == str(directory / "feed.json")
+
+
+def test_config_skip_internships_drops_internship_rows_and_a_source_can_keep_them(store, tmp_path):
+    (tmp_path / "feed.json").write_text(json.dumps([
+        row("ng", title="Software Engineer, New Grad"), row("intern", title="Software Engineer Intern"),
+        row("summer", title="Software Engineer (Summer 2027)"), row("typed", employment_type="INTERNSHIP")]))
+    (tmp_path / "kept.json").write_text(json.dumps([row("data-intern", title="Data Intern")]))
+    message(tmp_path / "job.eml")
+    (tmp_path / "intern.eml").write_text(
+        "Message-ID: <intern@example.com>\nSubject: Jobs\nContent-Type: text/html\n\n"
+        '<a href="https://www.linkedin.com/jobs/view/300">Software Engineering Co-op</a>')
+    config = tmp_path / "feeds.yaml"
+    config.write_text("skip_internships: true\nsources:\n"
+                      "  repo:\n    kind: repository\n    location: feed.json\n"
+                      "  kept:\n    kind: repository\n    location: kept.json\n    skip_internships: false\n"
+                      "  mail:\n    kind: email\n    paths: ['*.eml']\n")
+    report = run_config(store, config)["sources"]
+    assert (report["repo"]["records"], report["repo"]["created"], report["repo"]["skipped_internships"]) == (4, 1, 3)
+    assert (report["kept"]["created"], report["kept"]["skipped_internships"]) == (1, 0)
+    assert (report["mail"]["created"], report["mail"]["skipped_internships"]) == (1, 1)
+    assert sorted(e["source"] for e in entries(store).values()) == ["kept", "mail", "repo"]
+    assert {"ng", "data-intern"} <= set(entries(store)) and len(store.jobs()) == 3
+    assert store.source_health("repo")["ingest_run"]["skipped_internships"] == 3
+
+
+@pytest.mark.parametrize("setting", ["skip_internships: yes-please\nsources: {}\n",
+                                     "sources:\n  repo:\n    kind: repository\n    location: feed.json\n"
+                                     "    skip_internships: 1\n"])
+def test_skip_internships_must_be_a_boolean(tmp_path, setting):
+    config = tmp_path / "feeds.yaml"
+    config.write_text(setting)
+    with pytest.raises(ValueError, match="skip_internships must be a boolean"):
+        load_feed_config(config)
+
+
+def test_a_skipped_row_is_neither_renewed_nor_marked_missing(store, tmp_path):
+    feed = tmp_path / "feed.json"
+    feed.write_text(json.dumps([row("one", title="Software Engineer Intern")]))
+    run_repository(store, "repo", str(feed))
+    before = entries(store)["one"]
+    feed.write_text(json.dumps([row("one", title="Software Engineer Intern"), row("two")]))
+    again = run_repository(store, "repo", str(feed), skip_internships=True)
+    assert (again["created"], again["skipped_internships"], again["missing"]) == (1, 1, 0)
+    after = entries(store)["one"]
+    assert (after["status"], after["last_seen_at"]) == (before["status"], before["last_seen_at"])
+    feed.write_text(json.dumps([row("two")]))
+    gone = run_repository(store, "repo", str(feed), skip_internships=True)
+    assert gone["missing"] == 1 and entries(store)["one"]["status"] == "missing"
 
 
 def test_config_failed_source_does_not_stop_an_independent_source(store, tmp_path):

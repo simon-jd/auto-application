@@ -3,8 +3,9 @@
 P2 supplies interfaces for an agent arranged by the owner: queue, lease, packet, external-outcome
 recording, account metadata and resume registration. It does not invoke an agent or model, provide an
 agent prompt, open a browser or submit an application. The repository's [CLAUDE.md](../CLAUDE.md)
-manual-application and no-secrets rules still apply. This is a local implementation; deployment and
-real-agent/Discord acceptance remain pending. See [the dated record](updates/2026-10-13-agent-handoff.md).
+manual-application and no-secrets rules still apply. It is deployed on the Linux host; Grok Bot ran it end
+to end through `jobq` up to the Submit button on 2026-10-21, and no real submission had gone through it by
+2026-11-11. See [the dated record](updates/2026-10-13-agent-handoff.md).
 
 ## Runtime and guardrails
 
@@ -13,9 +14,10 @@ derives the runtime home from its explicit database (`data/auto_app.db` uses the
 Handoff requires the P2/P3 schema migrations; the MCP server does not create or migrate its database.
 
 The optional `$AUTO_APP_HOME/config/handoff.json` has the following defaults; the committed template is
-[handoff.example.json](../config/handoff.example.json). Only these keys plus an optional `timezone`
-are accepted. Each value must be an integer from 1 to 1000; booleans and unknown keys fail visibly.
-`timezone` is an IANA zone such as `"America/New_York"`; it sets the daily limit's calendar day.
+[handoff.example.json](../config/handoff.example.json). Only these keys plus an optional `timezone` and
+an optional `company_groups` are accepted. Each of the four values below must be an integer from 1 to 1000;
+booleans and unknown keys fail visibly. `timezone` is an IANA zone such as `"America/New_York"`; it sets the
+daily limit's calendar day.
 
 ```json
 {
@@ -26,8 +28,27 @@ are accepted. Each value must be an integer from 1 to 1000; booleans and unknown
 }
 ```
 
+`company_groups` (optional, empty by default) lists names that are one employer for the company limit:
+a group's name maps to the employer's other names, the way they appear on postings.
+
+```json
+{
+  "company_groups": {
+    "amazon": ["amazon web services", "amazon science"],
+    "gm": ["general motors"]
+  }
+}
+```
+
+Every name is normalized the way a job's `company_norm` is (lowercase, no punctuation or parentheticals, no
+trailing legal suffix such as Inc, LLC or Corp), so `"Amazon.com, Inc."` and `"amazon com"` are the same
+entry. A file is rejected when a name sits in two groups, when a group's name is also listed inside another
+group, or when a name normalizes to nothing; at most 500 groups of 50 names each. Only the company limit reads
+the groups. Job identity, deduplication and what a queue item shows are unchanged.
+
 The daily limit uses local calendar days: the `timezone` zone, or the host's local zone when unset
-(00:00 UTC would reset the limit mid-evening in the US). Company limits use normalized company identity over a rolling window.
+(00:00 UTC would reset the limit mid-evening in the US). Company limits use normalized company identity over a
+rolling window, and names listed together in `company_groups` count as one company.
 Submitted applications, reported manual applications and applied events count once per job; active
 claims reserve daily and company capacity until consumed, released or expired. A full quota can
 therefore produce an empty queue even while `submitted_today` is below the limit. Claim and outcome

@@ -5,10 +5,12 @@ from datetime import datetime, timezone
 
 from auto_app.ingest.models import IngestRecord, ParsedFeed
 from auto_app.ingest.urls import canonical_url
+from auto_app.sources.common.text import employment_of
 
 
 REPOSITORY_FORMATS = ("simplify", "speedyapply", "applyguy", "ricsign", "jobright",
-                      "greenhouse-board", "lever-board", "ashby-board")
+                      "greenhouse-board", "lever-board", "ashby-board", "workday-board", "eightfold-board",
+                      "icims-jibe-board", "oracle-board", "smartrecruiters-board")
 
 
 def validate_repository_format(format: str) -> None:
@@ -19,6 +21,9 @@ def validate_repository_format(format: str) -> None:
 def parse_repository(content: bytes, *, format: str = "simplify", company: str | None = None) -> ParsedFeed:
     """Use explicit source format; existing configurations default to Simplify."""
     validate_repository_format(format)
+    from auto_app.ingest.repository_paged import paged_board
+    if (board := paged_board(format)) is not None:  # Workday, Eightfold, Jibe, Oracle, SmartRecruiters
+        return board.parse(content, company=company)
     if format.endswith("-board"):
         from auto_app.ingest.repository_boards import parse_board
         return parse_board(content, format=format, company=company)
@@ -76,6 +81,10 @@ def _record(row) -> IngestRecord:
     url = canonical_url(_text(row, "url", required=True))
     if url is None:
         raise ValueError("url must be an absolute HTTP(S) URL")
+    # Optional: the listing site's page (Jobright, LinkedIn …) when url is the employer link resolved from it.
+    listing_url = _text(row, "listing_url")
+    if listing_url is not None and (listing_url := canonical_url(listing_url)) is None:
+        raise ValueError("listing_url must be an absolute HTTP(S) URL")
     for flag in ("active", "is_visible"):
         if not isinstance(row.get(flag), bool):
             raise ValueError(f"{flag} must be a boolean")
@@ -101,7 +110,8 @@ def _record(row) -> IngestRecord:
         locations=[value.strip() for value in locations if value.strip()],
         description=_text(row, "description_text") or _text(row, "description") or "",
         posted_at=posted_at,
-        employment_type=_text(row, "employment_type") or "unknown",
+        employment_type=employment_of((_text(row, "employment_type") or "").replace("_", "-")),
         active=row["active"] and row["is_visible"],
         metadata={"upstream": row},
+        listing_url=listing_url,
     )

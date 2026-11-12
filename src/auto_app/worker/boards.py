@@ -2,12 +2,13 @@
 
 from collections import Counter, defaultdict
 import re
+from urllib.parse import quote
 
 from sqlalchemy import select
 import yaml
 
 from auto_app.core.db import tables as T
-from auto_app.enrich.targets import BOARD, target_for
+from auto_app.enrich.targets import ASHBY_BOARD, BOARD, target_for
 
 LIST_APIS = {
     "greenhouse": "https://boards-api.greenhouse.io/v1/boards/{board}/jobs?content=true",
@@ -18,9 +19,11 @@ FORMATS = {"greenhouse": "greenhouse-board", "lever": "lever-board", "ashby": "a
 
 
 def board_location(platform: str, board: str) -> str:
-    if platform not in LIST_APIS or not isinstance(board, str) or not BOARD.fullmatch(board):
+    # Ashby names may contain dots and spaces ("rivianvw.tech", "spectral labs"); its list API accepts them encoded.
+    allowed = ASHBY_BOARD if platform == "ashby" else BOARD
+    if platform not in LIST_APIS or not isinstance(board, str) or not allowed.fullmatch(board):
         raise ValueError("unsupported platform or invalid board identifier")
-    return LIST_APIS[platform].format(board=board)
+    return LIST_APIS[platform].format(board=quote(board, safe=".-_"))
 
 
 def suggest_boards(store, *, configured: set[str], top: int = 30, min_jobs: int = 2) -> list[dict]:
@@ -38,7 +41,10 @@ def suggest_boards(store, *, configured: set[str], top: int = 30, min_jobs: int 
             target = target_for(url)
             if target is None or target.platform not in LIST_APIS:
                 continue
-            location = board_location(target.platform, target.board)
+            try:
+                location = board_location(target.platform, target.board)
+            except ValueError:
+                continue  # one unusable identifier must not end the whole read-only listing
             if target.platform == "lever":
                 # The allowlisted target retains Lever's US/EU API region.
                 location = target.api_url.rsplit("/", 1)[0] + "?mode=json"

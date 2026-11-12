@@ -1,0 +1,525 @@
+{
+ "offset": 0,
+ "limit": 4,
+ "totalFound": 7,
+ "content": [
+  {
+   "id": "744000158197299",
+   "name": "Senior Manager, Firmware Development",
+   "uuid": "8482c257-5e9c-4625-a100-d14b6fbfd86a",
+   "jobAdId": "579f49d0-9a31-49dc-a64c-e46803e9f3fa",
+   "defaultJobAd": true,
+   "refNumber": "REF34852P",
+   "company": {
+    "identifier": "WesternDigital",
+    "name": "Western Digital"
+   },
+   "releasedDate": "2026-10-28T01:57:01.985Z",
+   "location": {
+    "city": "Irvine",
+    "region": "CA",
+    "country": "us",
+    "remote": false,
+    "hybrid": true,
+    "latitude": "33.6845673",
+    "longitude": "-117.8265049",
+    "fullLocation": "Irvine, CA, United States"
+   },
+   "industry": {
+    "id": "computer_hardware",
+    "label": "Computer Hardware"
+   },
+   "department": {},
+   "function": {
+    "id": "engineering",
+    "label": "Engineering"
+   },
+   "typeOfEmployment": {
+    "id": "permanent",
+    "label": "Full-time"
+   },
+   "experienceLevel": {
+    "id": "mid_senior_level",
+    "label": "Mid-Senior Level"
+   },
+   "customField": [
+    {
+     "fieldId": "61e861216796ff005736d217",
+     "fieldLabel": "Job Type (exemption status)",
+     "valueId": "5f54df38-41d3-4559-9067-0b50c42e6e4f",
+     "valueLabel": "Exempt position - Please see related compensation & benefits details below"
+    },
+    {
+     "fieldId": "61710328e65c003e53504dd0",
+     "fieldLabel": "Salary Range",
+     "valueId": "169,700.00-226,300.00",
+     "valueLabel": "169,700.00-226,300.00"
+    },
+    {
+     "fieldId": "606f52f879838c3f1a5df578",
+     "fieldLabel": "Brands",
+     "valueId": "default",
+     "valueLabel": "Western Digital"
+    },
+    {
+     "fieldId": "COUNTRY",
+     "fieldLabel": "Country/Region",
+     "valueId": "us",
+     "valueLabel": "United States"
+    },
+    {
+     "fieldId": "60706c0fab6dab4d36f48132",
+     "fieldLabel": "Company",
+     "valueId": "CO_WD Western Digital Technologies, Inc.",
+     "valueLabel": "US-Western Digital Technologies, Inc.--CO_WD Western Digital Technologies, Inc."
+    },
+    {
+     "fieldId": "69af99ee1613dbfae2c0f4d8",
+     "fieldLabel": "Division",
+     "valueId": "def505ff-6f2e-47e7-b3c2-6c6f6629ba6a",
+     "valueLabel": "United States"
+    },
+    {
+     "fieldId": "625777e42ea6bf323c991b94",
+     "fieldLabel": "Positions",
+     "valueId": "P-0000017737",
+     "valueLabel": "Senior Manager, Firmware Development (Unfilled)-Jared Beckmann--P-0000017737"
+    },
+    {
+     "fieldId": "60706a574748e43c47b1856e",
+     "fieldLabel": "Business Function",
+     "valueId": "Firmware Engineering",
+     "valueLabel": "Firmware"
+    },
+    {
+     "fieldId": "69af98e74cf456484ba38b06",
+     "fieldLabel": "Business Group",
+     "valueId": "d916faf0-4658-4dc0-8f0b-5a41ab67b3f3",
+     "valueLabel": "Western Digital Technologies, Inc."
+    },
+    {
+     "fieldId": "607069e34bb1b86edc4b1150",
+     "fieldLabel": "Job Profile",
+     "valueId": "100190",
+     "valueLabel": "Senior Manager, Firmware Engineering - 100190"
+    },
+    {
+     "fieldId": "60706ba04748e43c47b18571",
+     "fieldLabel": "Work Location",
+     "valueId": "LOC_WDT_USCA01",
+     "valueLabel": "Irvine Office--LOC_WDT_USCA01"
+    },
+    {
+     "fieldId": "607066faab6dab4d36f48130",
+     "fieldLabel": "Requisition Type",
+     "valueId": "f6e645f7-335d-4432-b11b-c31381d1a39f",
+     "valueLabel": "Professional"
+    },
+    {
+     "fieldId": "60c267a50fe02a2d1c6e2d3c",
+     "fieldLabel": "Career Site Category",
+     "valueId": "973bd5d3-fe3b-425a-b505-a68410874014",
+     "valueLabel": "Engineering"
+    },
+    {
+     "fieldId": "634d66856a77a2043e8bcc3e",
+     "fieldLabel": "Approved Job Grade",
+     "valueLabel": "M109"
+    }
+   ],
+   "visibility": "PUBLIC",
+   "ref": "https://api.smartrecruiters.com/v1/companies/WesternDigital/postings/744000158197299",
+   "language": {
+    "code": "en",
+    "label": "English",
+    "labelNative": "English (US)"
+   }
+  },
+  {
+   "id": "744000158194991",
+   "name": "Manager, Firmware Development",
+   "uuid": "d6209b56-90aa-42a1-b3db-d5d9e2591238",
+   "jobAdId": "e6e354af-7004-422d-b568-f1e93391378d",
+   "defaultJobAd": true,
+   "refNumber": "REF34853E",
+   "company": {
+    "identifier": "WesternDigital",
+    "name": "Western Digital"
+   },
+   "releasedDate": "2026-10-28T01:48:58.617Z",
+   "location": {
+    "city": "Rochester",
+    "region": "MN",
+    "country": "us",
+    "remote": false,
+    "hybrid": true,
+    "latitude": "44.0193287",
+    "longitude": "-92.45883270000002",
+    "fullLocation": "Rochester, MN, United States"
+   },
+   "industry": {
+    "id": "computer_hardware",
+    "label": "Computer Hardware"
+   },
+   "department": {},
+   "function": {
+    "id": "engineering",
+    "label": "Engineering"
+   },
+   "typeOfEmployment": {
+    "id": "permanent",
+    "label": "Full-time"
+   },
+   "experienceLevel": {
+    "id": "mid_senior_level",
+    "label": "Mid-Senior Level"
+   },
+   "customField": [
+    {
+     "fieldId": "61e861216796ff005736d217",
+     "fieldLabel": "Job Type (exemption status)",
+     "valueId": "5f54df38-41d3-4559-9067-0b50c42e6e4f",
+     "valueLabel": "Exempt position - Please see related compensation & benefits details below"
+    },
+    {
+     "fieldId": "61710328e65c003e53504dd0",
+     "fieldLabel": "Salary Range",
+     "valueId": "137,300.00-183,000.00",
+     "valueLabel": "137,300.00-183,000.00"
+    },
+    {
+     "fieldId": "606f52f879838c3f1a5df578",
+     "fieldLabel": "Brands",
+     "valueId": "default",
+     "valueLabel": "Western Digital"
+    },
+    {
+     "fieldId": "COUNTRY",
+     "fieldLabel": "Country/Region",
+     "valueId": "us",
+     "valueLabel": "United States"
+    },
+    {
+     "fieldId": "60706c0fab6dab4d36f48132",
+     "fieldLabel": "Company",
+     "valueId": "CO_WD Western Digital Technologies, Inc.",
+     "valueLabel": "US-Western Digital Technologies, Inc.--CO_WD Western Digital Technologies, Inc."
+    },
+    {
+     "fieldId": "69af99ee1613dbfae2c0f4d8",
+     "fieldLabel": "Division",
+     "valueId": "def505ff-6f2e-47e7-b3c2-6c6f6629ba6a",
+     "valueLabel": "United States"
+    },
+    {
+     "fieldId": "625777e42ea6bf323c991b94",
+     "fieldLabel": "Positions",
+     "valueId": "P-0000198229",
+     "valueLabel": "Manager, Firmware Development (Unfilled)--P-0000198229"
+    },
+    {
+     "fieldId": "60706a574748e43c47b1856e",
+     "fieldLabel": "Business Function",
+     "valueId": "Firmware Engineering",
+     "valueLabel": "Firmware"
+    },
+    {
+     "fieldId": "69af98e74cf456484ba38b06",
+     "fieldLabel": "Business Group",
+     "valueId": "d916faf0-4658-4dc0-8f0b-5a41ab67b3f3",
+     "valueLabel": "Western Digital Technologies, Inc."
+    },
+    {
+     "fieldId": "607069e34bb1b86edc4b1150",
+     "fieldLabel": "Job Profile",
+     "valueId": "100191",
+     "valueLabel": "Manager, Firmware Engineering - 100191"
+    },
+    {
+     "fieldId": "60706ba04748e43c47b18571",
+     "fieldLabel": "Work Location",
+     "valueId": "LOC_HGST_PLR",
+     "valueLabel": "Rochester Office--LOC_HGST_PLR"
+    },
+    {
+     "fieldId": "607066faab6dab4d36f48130",
+     "fieldLabel": "Requisition Type",
+     "valueId": "f6e645f7-335d-4432-b11b-c31381d1a39f",
+     "valueLabel": "Professional"
+    },
+    {
+     "fieldId": "60c267a50fe02a2d1c6e2d3c",
+     "fieldLabel": "Career Site Category",
+     "valueId": "973bd5d3-fe3b-425a-b505-a68410874014",
+     "valueLabel": "Engineering"
+    },
+    {
+     "fieldId": "634d66856a77a2043e8bcc3e",
+     "fieldLabel": "Approved Job Grade",
+     "valueLabel": "M108"
+    }
+   ],
+   "visibility": "PUBLIC",
+   "ref": "https://api.smartrecruiters.com/v1/companies/WesternDigital/postings/744000158194991",
+   "language": {
+    "code": "en",
+    "label": "English",
+    "labelNative": "English (US)"
+   }
+  },
+  {
+   "id": "744000152498089",
+   "name": "Principal Full Stack Developer & Solutions Architect – AI, Data & Cloud",
+   "uuid": "78d534c0-efa4-4ebe-a975-d9d03ddc3185",
+   "jobAdId": "127ffea6-cdd6-4d29-96c6-563a08c8619c",
+   "defaultJobAd": true,
+   "refNumber": "REF34369N",
+   "company": {
+    "identifier": "WesternDigital",
+    "name": "Western Digital"
+   },
+   "releasedDate": "2026-09-29T16:52:00.529Z",
+   "location": {
+    "city": "San Jose",
+    "region": "CA",
+    "country": "us",
+    "remote": false,
+    "hybrid": true,
+    "hybridDescription": "3 days a week in the office",
+    "latitude": "37.33874",
+    "longitude": "-121.8852525",
+    "fullLocation": "San Jose, CA, United States"
+   },
+   "industry": {
+    "id": "computer_hardware",
+    "label": "Computer Hardware"
+   },
+   "department": {},
+   "function": {
+    "id": "information_technology",
+    "label": "Information Technology"
+   },
+   "typeOfEmployment": {
+    "id": "permanent",
+    "label": "Full-time"
+   },
+   "experienceLevel": {
+    "id": "mid_senior_level",
+    "label": "Mid-Senior Level"
+   },
+   "customField": [
+    {
+     "fieldId": "61e861216796ff005736d217",
+     "fieldLabel": "Job Type (exemption status)",
+     "valueId": "5f54df38-41d3-4559-9067-0b50c42e6e4f",
+     "valueLabel": "Exempt position - Please see related compensation & benefits details below"
+    },
+    {
+     "fieldId": "61710328e65c003e53504dd0",
+     "fieldLabel": "Salary Range",
+     "valueId": "157,700.00-210,300.00",
+     "valueLabel": "157,700.00-210,300.00"
+    },
+    {
+     "fieldId": "625777e42ea6bf323c991b94",
+     "fieldLabel": "Positions",
+     "valueId": "P-0000197415",
+     "valueLabel": "Principal Full Stack Developer & Solutions Architect – AI, Data & Cloud (Unfilled)--P-0000197415"
+    },
+    {
+     "fieldId": "60706a574748e43c47b1856e",
+     "fieldLabel": "Business Function",
+     "valueId": "Programming",
+     "valueLabel": "Applications Programming"
+    },
+    {
+     "fieldId": "69af98e74cf456484ba38b06",
+     "fieldLabel": "Business Group",
+     "valueId": "d916faf0-4658-4dc0-8f0b-5a41ab67b3f3",
+     "valueLabel": "Western Digital Technologies, Inc."
+    },
+    {
+     "fieldId": "606f52f879838c3f1a5df578",
+     "fieldLabel": "Brands",
+     "valueId": "default",
+     "valueLabel": "Western Digital"
+    },
+    {
+     "fieldId": "COUNTRY",
+     "fieldLabel": "Country/Region",
+     "valueId": "us",
+     "valueLabel": "United States"
+    },
+    {
+     "fieldId": "607069e34bb1b86edc4b1150",
+     "fieldLabel": "Job Profile",
+     "valueId": "101221",
+     "valueLabel": "Developer 5, Applications Programming - 101221"
+    },
+    {
+     "fieldId": "60706c0fab6dab4d36f48132",
+     "fieldLabel": "Company",
+     "valueId": "CO_WD Western Digital Technologies, Inc.",
+     "valueLabel": "US-Western Digital Technologies, Inc.--CO_WD Western Digital Technologies, Inc."
+    },
+    {
+     "fieldId": "69af99ee1613dbfae2c0f4d8",
+     "fieldLabel": "Division",
+     "valueId": "def505ff-6f2e-47e7-b3c2-6c6f6629ba6a",
+     "valueLabel": "United States"
+    },
+    {
+     "fieldId": "60706ba04748e43c47b18571",
+     "fieldLabel": "Work Location",
+     "valueId": "LOC_WDT_USCA23",
+     "valueLabel": "San Jose Great Oaks Headquarters--LOC_WDT_USCA23"
+    },
+    {
+     "fieldId": "60706bd264ff7425248e65e9",
+     "fieldLabel": "Location (Secondary)",
+     "valueId": "LOC_WDT_USCA01",
+     "valueLabel": "Irvine Office--LOC_WDT_USCA01"
+    },
+    {
+     "fieldId": "607066faab6dab4d36f48130",
+     "fieldLabel": "Requisition Type",
+     "valueId": "f6e645f7-335d-4432-b11b-c31381d1a39f",
+     "valueLabel": "Professional"
+    },
+    {
+     "fieldId": "634d66856a77a2043e8bcc3e",
+     "fieldLabel": "Approved Job Grade",
+     "valueLabel": "P109"
+    }
+   ],
+   "visibility": "PUBLIC",
+   "ref": "https://api.smartrecruiters.com/v1/companies/WesternDigital/postings/744000152498089",
+   "language": {
+    "code": "en",
+    "label": "English",
+    "labelNative": "English (US)"
+   }
+  },
+  {
+   "id": "744000143171017",
+   "name": "Summer 2027 Intern - Software Engineering",
+   "uuid": "222ce07e-f2af-40fd-8407-a46e5a98a706",
+   "jobAdId": "8c610b80-d139-498d-8bed-42879acbad81",
+   "defaultJobAd": true,
+   "refNumber": "REF33901P",
+   "company": {
+    "identifier": "WesternDigital",
+    "name": "Western Digital"
+   },
+   "releasedDate": "2026-08-12T19:38:42.100Z",
+   "location": {
+    "city": "San Jose",
+    "region": "CA",
+    "country": "us",
+    "remote": false,
+    "hybrid": false,
+    "latitude": "37.33874",
+    "longitude": "-121.8852525",
+    "fullLocation": "San Jose, CA, United States"
+   },
+   "industry": {
+    "id": "computer_hardware",
+    "label": "Computer Hardware"
+   },
+   "department": {},
+   "function": {
+    "id": "engineering",
+    "label": "Engineering"
+   },
+   "typeOfEmployment": {
+    "id": "intern",
+    "label": "Intern"
+   },
+   "experienceLevel": {
+    "id": "internship",
+    "label": "Internship"
+   },
+   "customField": [
+    {
+     "fieldId": "61e861216796ff005736d217",
+     "fieldLabel": "Job Type (exemption status)",
+     "valueId": "f464bc93-cf91-46e3-9d02-1393d111a99c",
+     "valueLabel": "Non-Exempt position - Please see related compensation & benefits details below"
+    },
+    {
+     "fieldId": "61710328e65c003e53504dd0",
+     "fieldLabel": "Salary Range",
+     "valueId": "34.52-46.00",
+     "valueLabel": "34.52-46.00"
+    },
+    {
+     "fieldId": "625777e42ea6bf323c991b94",
+     "fieldLabel": "Positions",
+     "valueId": "P-NP",
+     "valueLabel": "New Position--P-NP"
+    },
+    {
+     "fieldId": "60706a574748e43c47b1856e",
+     "fieldLabel": "Business Function",
+     "valueId": "Engineering Support",
+     "valueLabel": "Engineering Support"
+    },
+    {
+     "fieldId": "69af98e74cf456484ba38b06",
+     "fieldLabel": "Business Group",
+     "valueId": "d916faf0-4658-4dc0-8f0b-5a41ab67b3f3",
+     "valueLabel": "Western Digital Technologies, Inc."
+    },
+    {
+     "fieldId": "606f52f879838c3f1a5df578",
+     "fieldLabel": "Brands",
+     "valueId": "default",
+     "valueLabel": "Western Digital"
+    },
+    {
+     "fieldId": "COUNTRY",
+     "fieldLabel": "Country/Region",
+     "valueId": "us",
+     "valueLabel": "United States"
+    },
+    {
+     "fieldId": "607069e34bb1b86edc4b1150",
+     "fieldLabel": "Job Profile",
+     "valueId": "107964",
+     "valueLabel": "Intern, Technical (Graduate) - 107964"
+    },
+    {
+     "fieldId": "60706c0fab6dab4d36f48132",
+     "fieldLabel": "Company",
+     "valueId": "CO_WD Western Digital Technologies, Inc.",
+     "valueLabel": "US-Western Digital Technologies, Inc.--CO_WD Western Digital Technologies, Inc."
+    },
+    {
+     "fieldId": "69af99ee1613dbfae2c0f4d8",
+     "fieldLabel": "Division",
+     "valueId": "def505ff-6f2e-47e7-b3c2-6c6f6629ba6a",
+     "valueLabel": "United States"
+    },
+    {
+     "fieldId": "60706ba04748e43c47b18571",
+     "fieldLabel": "Work Location",
+     "valueId": "LOC_WDT_USCA23",
+     "valueLabel": "San Jose Great Oaks Headquarters--LOC_WDT_USCA23"
+    },
+    {
+     "fieldId": "607066faab6dab4d36f48130",
+     "fieldLabel": "Requisition Type",
+     "valueId": "da8a84a7-ad64-4978-b93f-93cd382f61a4",
+     "valueLabel": "Pipeline - UR"
+    }
+   ],
+   "visibility": "PUBLIC",
+   "ref": "https://api.smartrecruiters.com/v1/companies/WesternDigital/postings/744000143171017",
+   "language": {
+    "code": "en",
+    "label": "English",
+    "labelNative": "English (US)"
+   }
+  }
+ ]
+}

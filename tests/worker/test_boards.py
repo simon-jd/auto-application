@@ -97,3 +97,40 @@ def test_country_hidden_jobs_do_not_drive_board_suggestions(store):
     store.paths.preferences.parent.mkdir(parents=True, exist_ok=True)
     store.paths.preferences.write_text(json.dumps({"exclude_countries": ["Canada"]}))
     assert "canadian" not in {b["board"] for b in suggest_boards(store, configured=set(), min_jobs=1)}
+
+
+@pytest.mark.parametrize("board, location", [
+    ("rivianvw.tech", "https://api.ashbyhq.com/posting-api/job-board/rivianvw.tech?includeCompensation=true"),
+    ("spectral labs", "https://api.ashbyhq.com/posting-api/job-board/spectral%20labs?includeCompensation=true"),
+])
+def test_ashby_board_names_with_dots_or_spaces_have_a_list_api(board, location):
+    from auto_app.worker.boards import board_location
+    assert board_location("ashby", board) == location
+
+
+@pytest.mark.parametrize("platform, board", [("greenhouse", "rivianvw.tech"), ("lever", "spectral labs"),
+                                             ("ashby", "../bad"), ("ashby", "a?b")])
+def test_dots_and_spaces_stay_invalid_outside_ashby(platform, board):
+    from auto_app.worker.boards import board_location
+    with pytest.raises(ValueError):
+        board_location(platform, board)
+
+
+def test_boards_with_dotted_or_spaced_ashby_names_do_not_crash_suggestions(store):
+    from auto_app.worker.boards import as_yaml, suggest_boards
+    ingest(store, [record("a1", "Platform Engineer", company="Rivian VW",
+                          url="https://jobs.ashbyhq.com/rivianvw.tech/91eed659-1111-2222-3333-444455556666"),
+                   record("a2", "Robotics Engineer", company="Spectral",
+                          url="https://jobs.ashbyhq.com/Spectral%20Labs/91eed659-1111-2222-3333-444455557777")],
+           source="ashby-feed")
+    with store.engine.begin() as conn:
+        for title in ("Platform Engineer", "Robotics Engineer"):
+            conn.execute(insert(T.job_screenings).values(
+                job_id=job_id_of(store, title), rules_version="t", facts_hash="h", outcome="kept", reasons=[],
+                signals={"sponsorship": "offers"}, screened_at=utcnow()))
+    boards = {b["board"]: b for b in suggest_boards(store, configured=set(), min_jobs=1)}
+    assert boards["rivianvw.tech"]["source"] == "board-ashby-rivianvw-tech"
+    assert boards["spectral labs"]["location"] == (
+        "https://api.ashbyhq.com/posting-api/job-board/spectral%20labs?includeCompensation=true")
+    data = yaml.safe_load("sources:\n" + as_yaml(list(boards.values())))
+    assert data["sources"]["board-ashby-spectral-labs"]["format"] == "ashby-board"

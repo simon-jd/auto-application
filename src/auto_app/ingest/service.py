@@ -17,6 +17,7 @@ from auto_app.ingest.urls import canonical_url
 from auto_app.process.dedup import load_items
 from auto_app.process.link import apply_plan, plan_links, refresh_job_projection
 from auto_app.process.normalize import NORMALIZER_VERSION, CompanyAliases, normalize_posting
+from auto_app.screen.rules import stated_internship
 from auto_app.sources.registry import default_registry
 
 
@@ -28,6 +29,8 @@ def _date(value):
 
 def _payload(record):
     data = asdict(record)
+    if record.listing_url is None:
+        del data['listing_url']  # records without one keep their earlier shape, and so their content hash
     if record.posted_at is not None:
         data['posted_at'] = record.posted_at.isoformat()
     if record.description:
@@ -48,6 +51,10 @@ def _content_hash(payload):
     if "source_observation" in metadata:
         content = {**payload, "metadata": {k: v for k, v in metadata.items()
                                            if k != "source_observation"}}
+    if metadata.get("posted_at_precision") == "approx":
+        # A date estimated from a relative age moves with the reader's clock and time zone;
+        # the posting keeps the estimate from its first observation until a real change.
+        content = {k: v for k, v in content.items() if k != "posted_at"}
     return hashlib.sha256(json.dumps(content, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
 
 
@@ -62,7 +69,8 @@ class IngestService:
         self.registry = registry or default_registry()
 
     def ingest(self, source: str, parsed: ParsedFeed, *, kind: str, origin: str,
-               revision: str | None = None, complete_snapshot: bool = False) -> dict:
+               revision: str | None = None, complete_snapshot: bool = False,
+               skip_internships: bool = False) -> dict:
         if not re.fullmatch(r'[a-z0-9][a-z0-9_-]*', source):
             raise ValueError('source must contain lowercase letters, numbers, underscores or hyphens')
         if kind not in ('repository', 'email'):
@@ -71,13 +79,17 @@ class IngestService:
         batch_id = 'ingest-' + uuid4().hex
         report = dict(batch_id=batch_id, source=source, kind=kind, origin=origin, revision=revision,
                       records=len(parsed.records), created=0, updated=0, unchanged=0, restored=0,
-                      inactive=0, missing=0, jobs_created=0, issues=parsed.issues)
+                      inactive=0, missing=0, jobs_created=0, skipped_internships=0, issues=parsed.issues)
         raw_prepared, seen_ids = [], set()
         for record in parsed.records:
             url = canonical_url(record.url)
             if not url or not record.external_id or record.external_id in seen_ids:
                 raise ValueError(f'Invalid or duplicate import identity: {record.external_id!r}')
             seen_ids.add(record.external_id)
+            # Still listed, so never "missing"; but neither imported nor renewed (feeds.yaml skip_internships).
+            if skip_internships and stated_internship(record.title or '', (record.employment_type,)):
+                report['skipped_internships'] += 1
+                continue
             record = replace(record, url=url, posted_at=_date(record.posted_at) if record.posted_at else None)
             payload = _payload(record)
             digest = _content_hash(payload)
@@ -134,7 +146,7 @@ class IngestService:
                 posted_at=record.posted_at, employment_type=record.employment_type,
                 posted_at_precision=("exact" if record.metadata.get("posted_at_precision") == "timestamp"
                                      else record.metadata.get("posted_at_precision")),
-                apply_url=record.url, url=record.url, apply_kind='external',
+                apply_url=record.url, url=record.listing_url or record.url, apply_kind='external',
                 req_id=record.metadata.get('upstream', {}).get('req_id'),
                 extras={'ingestion': metadata},
             )
@@ -172,7 +184,8 @@ class IngestService:
                     posting_seen = _date(existing['last_seen_at']) if existing and record.active is False else last_seen
                     if changed or renormalize:
                         values = dict(
-                            source=source, source_job_id=record.external_id, source_url=record.url,
+                            source=source, source_job_id=record.external_id,
+                            source_url=record.listing_url or record.url,
                             kind='api', batch_id=batch_id, state='normalized',
                             parser='ingest-v1', parsed_at=now.isoformat(), parse_error=None,
                             first_seen_at=first_seen, last_seen_at=posting_seen, parsed=posting_data,

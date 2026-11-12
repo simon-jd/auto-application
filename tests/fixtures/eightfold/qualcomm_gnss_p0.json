@@ -1,0 +1,85 @@
+{
+ "status": 200,
+ "error": {
+  "message": "",
+  "body": ""
+ },
+ "metadata": null,
+ "data": {
+  "positions": [
+   {
+    "id": 446721159325,
+    "displayJobId": "3096868",
+    "name": "Senior Embedded Software Engineer",
+    "locations": [
+     "Santa Clara, California, United States of America"
+    ],
+    "standardizedLocations": [
+     "Santa Clara, CA, US"
+    ],
+    "postedTs": 1790553600,
+    "solrScore": null,
+    "stars": 0,
+    "department": "Software Engineering",
+    "creationTs": 1789689600,
+    "isHot": 0,
+    "workLocationOption": "onsite",
+    "locationFlexibility": null,
+    "atsJobId": "3096868",
+    "positionUrl": "/careers/job/446721159325"
+   },
+   {
+    "id": 446721159329,
+    "displayJobId": "3096871",
+    "name": "Senior Engineer",
+    "locations": [
+     "Santa Clara, California, United States of America"
+    ],
+    "standardizedLocations": [
+     "Santa Clara, CA, US"
+    ],
+    "postedTs": 1790035200,
+    "solrScore": null,
+    "stars": 0,
+    "department": "Systems Test Engineering",
+    "creationTs": 1789689600,
+    "isHot": 0,
+    "workLocationOption": "onsite",
+    "locationFlexibility": null,
+    "atsJobId": "3096871",
+    "positionUrl": "/careers/job/446721159329"
+   },
+   {
+    "id": 446721159421,
+    "displayJobId": "3096872",
+    "name": "Senior Engineer",
+    "locations": [
+     "San Diego, California, United States of America"
+    ],
+    "standardizedLocations": [
+     "San Diego, CA, US"
+    ],
+    "postedTs": 1789689600,
+    "solrScore": null,
+    "stars": 0,
+    "department": "Systems Test Engineering",
+    "creationTs": 1789689600,
+    "isHot": 0,
+    "workLocationOption": "onsite",
+    "locationFlexibility": null,
+    "atsJobId": "3096872",
+    "positionUrl": "/careers/job/446721159421"
+   }
+  ],
+  "count": 5,
+  "sortBy": "timestamp",
+  "appliedFilters": {
+   "includeRemote": [
+    "0"
+   ],
+   "includeRelocation": [
+    "0"
+   ]
+  }
+ }
+}

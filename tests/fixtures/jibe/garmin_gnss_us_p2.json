@@ -1,0 +1,188 @@
+{
+ "jobs": [
+  {
+   "data": {
+    "slug": "19848",
+    "language": "en-us",
+    "languages": [
+     "en-us"
+    ],
+    "req_id": "19848",
+    "title": "Software Engineering Intern",
+    "description": "Overview We are seeking a full-time Intern - Software Engineering at Garmin's Tucson, AZ location. In this role, you will be responsible for Software Engineer Intern: learning and training to develop software for Garmin's communication and navigation products in a team-oriented environment under supervision. Positioning Software Engineer Intern: learning and training to develop GNSS & INS based positioning solutions. Essential Functions Learn to develop software in C, C++, Assembly language, or other selected languages for Garmin communication and navigation products in accordance with Garmin’s software development methodology with guidance Learn to test software using debuggers, emulators, simulators, and logic analyzers Learn to perform software releases and software quality assurance activities Learn to perform maintenance activities for products already in production in addition to new product software design Associates are expected to integrate, use, and provide feedback on products in development when possible as part of their normal job responsibilities Basic Qualifications Pursuing a degree in Computer Science, Electrical Engineering, Computer Engineering, or a field relevant to perform the essential functions of this job description Excellent academics (cumulative GPA greater than or equal to 3.0 as a general rule) Software Engineer: Demonstrated strong and effective verbal, written, and interpersonal communication skills Must possess relevant experience and/or training in a high-level language such as C, C++, C# or Java relevant to Garmin’s business needs Must possess relevant experience and/or training in data structures or object-oriented design methodology relevant to Garmin’s business needs Positioning Software Engineer: Must possess knowledge in positioning algorithms for consumer applications Must possess experience in software development and engineering with C/C++ for embedded, real-time environments Must possess the ability to use scripting languages to automate analysis (i.e. Python, MATLAB, etc.) Desired Qualifications Pursuing a master's degree in Geomatics, Aerospace or Software engineering Outstanding academics (cumulative GPA greater than or equal to 3.5) Previous experience working in a team environment Positioning Software Engineer: Experience in Java Knowledge of inertial navigation techniques (e.g. vehicle and pedestrian dead reckoning, GNSS aided INS) Knowledge of carrier phase measurement processing methods Knowledge of GNSS measurement and how they are impacted by environment and receiver design Garmin International is an equal opportunity employer. Qualified applicants will receive consideration for employment without regard to race, religion, color, national origin, citizenship, sex, sexual orientation, gender identity, veteran's status, age or disability. This position is eligible for Garmin's benefit program. Details can be found here: Garmin Intern Benefits",
+    "location_name": "Tucson",
+    "street_address": "1705 S Research Loop",
+    "city": "Tucson",
+    "state": "Arizona",
+    "country": "United States",
+    "country_code": "US",
+    "postal_code": "85710",
+    "location_type": "LAT_LNG",
+    "latitude": 32.2011233,
+    "longitude": -110.8204985,
+    "categories": [
+     {
+      "name": "Engineering"
+     }
+    ],
+    "tags": [
+     "Hiring Only"
+    ],
+    "tags1": [
+     "Software Engineering"
+    ],
+    "tags2": [
+     "Core Business Hours"
+    ],
+    "tags3": [
+     "Intern"
+    ],
+    "tags6": [
+     "On-site"
+    ],
+    "tags7": [
+     "Garmin International"
+    ],
+    "promotion_value": 0,
+    "qualifications": "Basic Qualifications Pursuing a degree in Computer Science, Electrical Engineering, Computer Engineering, or a field relevant to perform the essential functions of this job description Excellent academics (cumulative GPA greater than or equal to 3.0 as a general rule) Software Engineer: Demonstrated strong and effective verbal, written, and interpersonal communication skills Must possess relevant experience and/or training in a high-level language such as C, C++, C# or Java relevant to Garmin’s business needs Must possess relevant experience and/or training in data structures or object-oriented design methodology relevant to Garmin’s business needs Positioning Software Engineer: Must possess knowledge in positioning algorithms for consumer applications Must possess experience in software development and engineering with C/C++ for embedded, real-time environments Must possess the ability to use scripting languages to automate analysis (i.e. Python, MATLAB, etc.) Desired Qualifications Pursuing a master's degree in Geomatics, Aerospace or Software engineering Outstanding academics (cumulative GPA greater than or equal to 3.5) Previous experience working in a team environment Positioning Software Engineer: Experience in Java Knowledge of inertial navigation techniques (e.g. vehicle and pedestrian dead reckoning, GNSS aided INS) Knowledge of carrier phase measurement processing methods Knowledge of GNSS measurement and how they are impacted by environment and receiver design Garmin International is an equal opportunity employer. Qualified applicants will receive consideration for employment without regard to race, religion, color, national origin, citizenship, sex, sexual orientation, gender identity, veteran's status, age or disability. This position is eligible for Garmin's benefit program. Details can be found here: Garmin Intern Benefits",
+    "hiring_organization": "Garmin International, Inc.",
+    "responsibilities": "Essential Functions Learn to develop software in C, C++, Assembly language, or other selected languages for Garmin communication and navigation products in accordance with Garmin’s software development methodology with guidance Learn to test software using debuggers, emulators, simulators, and logic analyzers Learn to perform software releases and software quality assurance activities Learn to perform maintenance activities for products already in production in addition to new product software design Associates are expected to integrate, use, and provide feedback on products in development when possible as part of their normal job responsibilities",
+    "posted_date": "2026-10-06T15:21:00+0000",
+    "apply_url": "https://careers-garmin.icims.com/jobs/19848/login",
+    "internal": false,
+    "external": false,
+    "searchable": true,
+    "applyable": true,
+    "li_easy_applyable": true,
+    "ats_code": "icims",
+    "isFrontLineAIJob": false,
+    "isApplyFlowJob": false,
+    "meta_data": {
+     "client_code": "garmin",
+     "icims": {
+      "date_updated": "2026-10-13T13:03:05Z",
+      "jps_is_public": true,
+      "primary_posted_site_object": {
+       "datePosted": "2026-10-06T15:21:00+0000",
+       "site": "careers-garmin",
+       "siteId": "df6ed681-ae4c-414c-bfbb-b85adf2f79bb",
+       "siteType": "ATTRACT",
+       "tenantId": "12314"
+      },
+      "revision_int": 4,
+      "uuid": "134e21dc-ec8c-435b-a20e-ba62657f7888"
+     },
+     "import_id": "47fbce10-2afc-41b8-809b-91230f3e2241",
+     "import_source": "ImporterService",
+     "redirectOnApply": true,
+     "canonical_url": "https://careers.garmin.com/jobs/19848?lang=en-us",
+     "last_mod": "2026-10-13T16:40:13+0000",
+     "gdpr": false
+    },
+    "update_date": "2026-10-13T16:40:13+0000",
+    "create_date": "2026-10-06T15:21:59+0000",
+    "category": [
+     " Engineering"
+    ],
+    "full_location": "Tucson, Arizona",
+    "short_location": "Tucson, Arizona",
+    "multipleLocations": false
+   }
+  },
+  {
+   "data": {
+    "slug": "19677",
+    "language": "en-us",
+    "languages": [
+     "en-us"
+    ],
+    "req_id": "19677",
+    "title": "Desense Engineer",
+    "description": "Overview We are seeking a full-time Desense Engineer at Garmin's U.S. headquarters in the Greater Kansas City area. This is a full time Electrical Engineer with particular focus on Desense (noise, jamming) mitigation. We support multiple wireless communication protocols, such as: Cellular, WiFi, Bluetooth (BT), NFC, GNSS etc. in our products. As a Desense Engineer at Garmin, you will contribute to the architecture and product level design integration of next generation wireless radio solutions in all Garmin products. Essential Functions Lead Multi-Radio Coexistence through RF Desense (noise, jamming) optimization Identify noise source (aggressor(s)) and propose remedy Create appropriate and necessary software tool to integrate within wireless radio to check RF signals to root cause noise in the overall system Design Cellular RF hardware board as impedance matching, PCB layout review, bring up prototypes and Coexistence validation with LTE/BT/WiFi/GNSS/NFC Define RF Hardware requirement, design and implement in factory test Work with RF module/components suppliers and cross-functional teams to optimize RF performance Basic Qualifications Bachelor’s Degree in Electrical Engineering AND a minimum of 5 years of industry experience in RF circuits design (cellular (LTE, UMTS), WiFi, BT, GNSS) OR Master’s/Doctoral Degree in Electrical Engineering with focus on RF/antennas and electromagnetics AND a minimum of 3 years of industry experience in RF circuits design (cellular (LTE, UMTS), WiFi, BT, GNSS) Excellent academics (cumulative GPA greater than or equal to 3.0 as a general rule) Demonstrated strong and effective verbal, written and interpersonal communication skills to rally support from peers Desired Qualifications Broad expertise with Multi-Radio Coexistence Successful track record of working closely with Antenna Engineers, Electrical Engineers, Mechanical Engineers and Firmware teams Extensive circuit design experience for consumer or aviation products Experience with numerical simulation driven design workflows RF design experience such as Filters, LNAs, PAs, Receivers, etc. Extensive experience utilizing RF test equipment such as Spectrum Analyzers, Vector Network Analyzers, Signal Generators, etc. Knowledge and experience in designing for environmental constraints (temp, humidity, and vibration), regulatory compliance and product debug (EMC/EMI, ESD, transients, etc) Outstanding communication and interpersonal skills to galvanize cross functional teams Garmin International is an equal opportunity employer. Qualified applicants will receive consideration for employment without regard to race, religion, color, national origin, citizenship, sex, sexual orientation, gender identity, veteran’s status, age or disability. This position is eligible for Garmin's benefit program. Details can be found here: Garmin Benefits",
+    "location_name": "Olathe",
+    "street_address": "1200 E 151st STREET",
+    "city": "Olathe",
+    "state": "Kansas",
+    "country": "United States",
+    "country_code": "US",
+    "postal_code": "66062",
+    "location_type": "LAT_LNG",
+    "latitude": 38.8563105,
+    "longitude": -94.8012047,
+    "categories": [
+     {
+      "name": "Engineering"
+     }
+    ],
+    "tags": [
+     "Hiring Only"
+    ],
+    "tags1": [
+     "Electrical/Design Engineering"
+    ],
+    "tags2": [
+     "Core Business Hours"
+    ],
+    "tags3": [
+     "Regular Full-Time"
+    ],
+    "tags6": [
+     "On-site"
+    ],
+    "tags7": [
+     "Garmin International"
+    ],
+    "tags9": [
+     "#LI-MC1"
+    ],
+    "promotion_value": 0,
+    "employment_type": "FULL_TIME",
+    "qualifications": "Basic Qualifications Bachelor’s Degree in Electrical Engineering AND a minimum of 5 years of industry experience in RF circuits design (cellular (LTE, UMTS), WiFi, BT, GNSS) OR Master’s/Doctoral Degree in Electrical Engineering with focus on RF/antennas and electromagnetics AND a minimum of 3 years of industry experience in RF circuits design (cellular (LTE, UMTS), WiFi, BT, GNSS) Excellent academics (cumulative GPA greater than or equal to 3.0 as a general rule) Demonstrated strong and effective verbal, written and interpersonal communication skills to rally support from peers Desired Qualifications Broad expertise with Multi-Radio Coexistence Successful track record of working closely with Antenna Engineers, Electrical Engineers, Mechanical Engineers and Firmware teams Extensive circuit design experience for consumer or aviation products Experience with numerical simulation driven design workflows RF design experience such as Filters, LNAs, PAs, Receivers, etc. Extensive experience utilizing RF test equipment such as Spectrum Analyzers, Vector Network Analyzers, Signal Generators, etc. Knowledge and experience in designing for environmental constraints (temp, humidity, and vibration), regulatory compliance and product debug (EMC/EMI, ESD, transients, etc) Outstanding communication and interpersonal skills to galvanize cross functional teams Garmin International is an equal opportunity employer. Qualified applicants will receive consideration for employment without regard to race, religion, color, national origin, citizenship, sex, sexual orientation, gender identity, veteran’s status, age or disability. This position is eligible for Garmin's benefit program. Details can be found here: Garmin Benefits",
+    "hiring_organization": "Garmin International, Inc.",
+    "responsibilities": "Essential Functions Lead Multi-Radio Coexistence through RF Desense (noise, jamming) optimization Identify noise source (aggressor(s)) and propose remedy Create appropriate and necessary software tool to integrate within wireless radio to check RF signals to root cause noise in the overall system Design Cellular RF hardware board as impedance matching, PCB layout review, bring up prototypes and Coexistence validation with LTE/BT/WiFi/GNSS/NFC Define RF Hardware requirement, design and implement in factory test Work with RF module/components suppliers and cross-functional teams to optimize RF performance",
+    "posted_date": "2026-08-21T16:03:00+0000",
+    "apply_url": "https://careers-garmin.icims.com/jobs/19677/login",
+    "internal": false,
+    "external": false,
+    "searchable": true,
+    "applyable": true,
+    "li_easy_applyable": true,
+    "ats_code": "icims",
+    "isFrontLineAIJob": false,
+    "isApplyFlowJob": false,
+    "meta_data": {
+     "client_code": "garmin",
+     "icims": {
+      "date_updated": "2026-10-12T12:51:59Z",
+      "jps_is_public": true,
+      "primary_posted_site_object": {
+       "datePosted": "2026-08-21T16:03:00+0000",
+       "site": "careers-garmin",
+       "siteId": "df6ed681-ae4c-414c-bfbb-b85adf2f79bb",
+       "siteType": "ATTRACT",
+       "tenantId": "12314"
+      },
+      "revision_int": 3,
+      "uuid": "34a80ec4-3f42-4bad-b9ee-561952f9663f"
+     },
+     "import_id": "5d2984fd-1985-4087-894d-d3eff9b1b699",
+     "import_source": "ImporterService",
+     "redirectOnApply": true,
+     "canonical_url": "https://careers.garmin.com/jobs/19677?lang=en-us",
+     "last_mod": "2026-10-12T16:41:05+0000",
+     "gdpr": false
+    },
+    "update_date": "2026-10-12T16:41:05+0000",
+    "create_date": "2026-08-21T16:03:56+0000",
+    "category": [
+     " Engineering"
+    ],
+    "full_location": "Olathe, Kansas",
+    "short_location": "Olathe, Kansas",
+    "multipleLocations": false
+   }
+  }
+ ],
+ "totalCount": 6,
+ "count": 6
+}

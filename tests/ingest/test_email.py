@@ -141,6 +141,11 @@ def test_no_job_mail_does_not_import_navigation_promotions_or_attachments():
     ("https://click.example.test/?joburl=https%253A%252F%252Fjobright.ai%252Fjobs%252Finfo%252Fabc123", "https://jobright.ai/jobs/info/abc123"),
     ("https://acme.example/jobs/role?url=resume&source=internal&job_id=3", "https://acme.example/jobs/role?job_id=3&source=internal&url=resume"),
     ("https://acme.example/jobs/role?refId=R1&eid=99&utm_source=mail", "https://acme.example/jobs/role?eid=99&refId=R1"),
+    # Jobright appends its own markers to the employer links it hands out.
+    ("https://job-boards.greenhouse.io/embed/job_app?for=rocketlab&token=8038139003&jr_id=6ae50f3ad7424a2a828eb51b",
+     "https://job-boards.greenhouse.io/embed/job_app?for=rocketlab&token=8038139003"),
+    ("https://www.careers.jnj.com/en/jobs/r-098669/co-op/?source=jobright&jr_id=6ab49cc364816213f2d99a13",
+     "https://www.careers.jnj.com/en/jobs/r-098669/co-op"),
     ("mailto:jobs@example.test", None),
     ("javascript:alert(1)", None),
     ("/jobs/12345", None),

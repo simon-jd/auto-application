@@ -2,9 +2,12 @@
 
 Only actual HTTP requests consume the round budget (hard maximum 200); reused
 Ashby boards and cached successes are free. Failures retry after 30 minutes ×
-2^(attempts-1), capped at 24 hours. Gone/unsupported records never retry. Empty
-employer descriptions are unsupported. Import provenance and user decisions
-remain intact. A reimport can restore a cached JD without another HTTP request.
+2^(attempts-1), capped at 24 hours. Gone/unsupported records never retry, with one
+exception: a link cached as unsupported because no adapter knew it (platform NULL)
+is read once an adapter for it exists. Empty employer descriptions, and Jobright
+listings that send visitors to another site, are unsupported for good. Import
+provenance and user decisions remain intact. A reimport can restore a cached JD
+without another HTTP request.
 
 A success older than CACHE_MAX_AGE is fetched again when a new pending posting
 carries that URL: a reposted listing can keep its URL, and the cache is keyed by
@@ -176,6 +179,8 @@ def enrich_jobs(store, fetcher, *, limit: int = 200, now: datetime | None = None
             continue
         if refresh:
             report["refreshed"] += 1
+        if cached and cached["status"] == "unsupported" and cached["platform"] is None and target_for(url):
+            cached = None  # cached before an adapter for this link existed
         if cached and cached["status"] in ("unsupported", "gone"):
             continue
         if cached and cached["status"] == "failed" and cached["next_attempt_at"] and cached["next_attempt_at"] > now:
@@ -215,6 +220,9 @@ def enrich_jobs(store, fetcher, *, limit: int = 200, now: datetime | None = None
             cache[url] = _save(store, url, target.platform, "gone", now, error=result.error,
                                data=cached["data"] if refresh else None)
             report["gone"] += 1
+        elif result.status == "unsupported" and not refresh:
+            cache[url] = _save(store, url, target.platform, "unsupported", now, error=result.error)
+            report["unsupported"] += 1
         else:
             attempts = max(0, (cached or {}).get("attempts", 0)) + 1
             # Bound the exponent before multiplication; long-lived failures cannot overflow.

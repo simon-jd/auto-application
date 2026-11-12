@@ -159,6 +159,52 @@ async def test_workday_unknown_facet_value_explains_choices():
         await p.search(FakeCtx(workday_route), NVIDIA, s)
 
 
+GM = "https://generalmotors.wd5.myworkdayjobs.com/Careers_GM"
+
+
+def gm_listing(first_total: int, pages: int):
+    """GM's firmware search as Workday pages it: `total` on the first page only, 0 on every later one.
+    The recorded pages (20 postings, total 21; then 1, total 0) with full relistings of the first in between."""
+    first, last = load("workday/gm_firmware_us_p0.json"), load("workday/gm_firmware_us_p1.json")
+
+    def relisted(n):
+        return {"total": 0, "jobPostings": [{**p, "externalPath": f"{p['externalPath']}-{n}"} for p in first["jobPostings"]]}
+
+    by_offset = {0: {**first, "total": first_total}, **{20 * n: relisted(n) for n in range(1, pages - 1)},
+                 20 * (pages - 1): last}
+
+    def route(method, url, body):
+        if body["limit"] == 1:
+            return load("workday/gm_facets.json")
+        return by_offset.get(body["offset"], {"total": 0, "jobPostings": []})
+
+    return route
+
+
+def page_offsets(ctx):
+    return [c[2]["offset"] for c in ctx.calls if c[0] == "POST" and c[2]["limit"] == 20]
+
+
+@pytest.mark.parametrize("first_total, pages", [(21, 2), (41, 3)])
+async def test_workday_reads_past_later_pages_that_report_total_zero(first_total, pages):
+    p = PLATFORMS["workday"]()
+    ctx = FakeCtx(gm_listing(first_total, pages))
+    jobs = await p.search(ctx, p.validate_board(GM), search(p))
+    assert page_offsets(ctx) == list(range(0, 20 * pages, 20))
+    assert len(jobs) == first_total and p.search_truncated is False
+
+
+async def test_workday_stops_at_its_2000_result_cap(monkeypatch):
+    from auto_app.platforms import workday
+
+    monkeypatch.setattr(workday, "MAX_RESULTS", 5000)
+    p = PLATFORMS["workday"]()
+    ctx = FakeCtx(gm_listing(3000, 150))
+    jobs = await p.search(ctx, p.validate_board(GM), search(p))
+    assert page_offsets(ctx) == list(range(0, 2000, 20))  # offset 2000 answers junk
+    assert len(jobs) == 2000 and p.search_truncated is True
+
+
 def test_workday_posted_text():
     from importlib import import_module
 

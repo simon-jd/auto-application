@@ -14,11 +14,13 @@ from auto_app.core.models import utcnow
 from auto_app.ingest.email import EMAIL_PARSER_VERSION, parse_email
 from auto_app.ingest.reader import read_feed
 from auto_app.ingest.repository import parse_repository, validate_repository_format
+from auto_app.ingest.repository_paged import feed_options, paged_board
 from auto_app.ingest.service import IngestService
 from auto_app.process.normalize import NORMALIZER_VERSION
 
 READ_ERRORS = (OSError, ValueError, httpx.HTTPError)
-COUNTERS = ("records", "created", "updated", "unchanged", "restored", "inactive", "missing", "jobs_created")
+COUNTERS = ("records", "created", "updated", "unchanged", "restored", "inactive", "missing", "jobs_created",
+            "skipped_internships")
 
 
 def validate_source(source: str) -> None:
@@ -54,18 +56,26 @@ def _check_kind(store, source: str, kind: str) -> dict:
 
 
 def run_repository(store, source: str, location: str, client: httpx.Client | None = None,
-                   *, format: str = "simplify", company: str | None = None) -> dict:
+                   *, format: str = "simplify", company: str | None = None,
+                   skip_internships: bool = False, options: dict | None = None) -> dict:
+    """`options`: a paged board feed's validated options (repository_paged.feed_options); None reads with
+    the format's defaults."""
     validate_repository_format(format)
     if company is not None and (not isinstance(company, str) or not company.strip()):
         raise ValueError("company must be a nonempty string")
     company = company.strip() if company else None
-    location = resolve_location(location)
+    board = paged_board(format)
+    location = board.board_url(location) if board is not None else resolve_location(location)
     previous = _check_kind(store, source, "repository")
     checkpoint = previous if (previous.get("location") == location
                               and previous.get("format", "simplify") == format
                               and previous.get("company") == company) else {}
-    result = read_feed(location, etag=checkpoint.get("etag"),
-                       last_modified=checkpoint.get("last_modified"), client=client)
+    if board is not None:
+        # A paged search: no HTTP validators, so every run reads and compares a fresh snapshot.
+        result = board.read(location, client=client, **(options or {}))
+    else:
+        result = read_feed(location, etag=checkpoint.get("etag"),
+                           last_modified=checkpoint.get("last_modified"), client=client)
     service = IngestService(store)
     if result.not_modified:
         if not checkpoint.get("revision") or not (checkpoint.get("etag") or checkpoint.get("last_modified")):
@@ -85,7 +95,8 @@ def run_repository(store, source: str, location: str, client: httpx.Client | Non
             "revision": previous.get("revision"), "etag": None, "last_modified": None,
         })
         report = service.ingest(source, parsed, kind="repository", origin=location,
-                                revision=result.revision, complete_snapshot=not parsed.issues)
+                                revision=result.revision, complete_snapshot=not parsed.issues,
+                                skip_internships=skip_internships)
         report["status"] = "partial" if parsed.issues else "ok"
     if report["status"] == "ok":
         store.update_health(source, ingest={
@@ -105,7 +116,7 @@ def _status(reports: list[dict]) -> str:
     return "error" if all(report["status"] == "error" for report in reports) else "partial"
 
 
-def run_email(store, source: str, paths: list[Path]) -> dict:
+def run_email(store, source: str, paths: list[Path], *, skip_internships: bool = False) -> dict:
     checkpoint = _check_kind(store, source, "email")
     if not paths:
         raise ValueError("at least one saved email file is required")
@@ -133,7 +144,8 @@ def run_email(store, source: str, paths: list[Path]) -> dict:
                     saved_files.pop(str(path))
                     store.update_health(source, ingest={"kind": "email", "files": saved_files})
                 report = service.ingest(source, parsed, kind="email", origin=str(path),
-                                        revision=result.revision, complete_snapshot=False)
+                                        revision=result.revision, complete_snapshot=False,
+                                        skip_internships=skip_internships)
                 report["status"] = "partial" if parsed.issues else "ok"
                 issues.extend({**issue, "path": str(path)} for issue in parsed.issues)
                 if not parsed.issues:
@@ -158,6 +170,10 @@ def load_feed_config(config_path: Path) -> dict[str, dict]:
     data = yaml.safe_load(config_path.read_text())
     if not isinstance(data, dict) or not isinstance(data.get("sources"), dict):
         raise ValueError("feed config must contain a sources mapping")
+    # Leave out rows whose own title or employment type says internship; a source may override it.
+    skip_default = data.get("skip_internships", False)
+    if not isinstance(skip_default, bool):
+        raise ValueError("skip_internships must be a boolean")
     sources = {}
     for source, definition in data["sources"].items():
         validate_source(source)
@@ -168,6 +184,9 @@ def load_feed_config(config_path: Path) -> dict[str, dict]:
             raise ValueError(f"{source}: enabled must be a boolean")
         if not enabled:
             continue
+        skip = definition.get("skip_internships", skip_default)
+        if not isinstance(skip, bool):
+            raise ValueError(f"{source}: skip_internships must be a boolean")
         kind = definition.get("kind")
         if kind == "repository":
             format = definition.get("format", "simplify")
@@ -175,8 +194,22 @@ def load_feed_config(config_path: Path) -> dict[str, dict]:
             company = definition.get("company")
             if company is not None and (not isinstance(company, str) or not company.strip()):
                 raise ValueError(f"{source}: company must be a nonempty string")
+            try:
+                options = feed_options(definition, format=format)
+                if options is not None:
+                    board = paged_board(format)
+                    if company is None and board.company_required:
+                        raise ValueError(f"company is required for {format}: "
+                                         f"{board.label}'s list never names the employer")
+                    location = board.board_url(definition.get("location"))
+                else:
+                    location = resolve_location(definition.get("location"), config_path.parent)
+            except ValueError as exc:
+                raise ValueError(f"{source}: {exc}") from exc
             sources[source] = {"kind": kind, "format": format, "company": company.strip() if company else None,
-                               "location": resolve_location(definition.get("location"), config_path.parent)}
+                               "location": location, "skip_internships": skip}
+            if options is not None:
+                sources[source]["options"] = options
         elif kind == "email":
             paths = definition.get("paths")
             if not isinstance(paths, list) or not paths or any(not isinstance(p, str) or not p.strip() for p in paths):
@@ -185,10 +218,10 @@ def load_feed_config(config_path: Path) -> dict[str, dict]:
             for pattern in paths:
                 path = Path(pattern).expanduser()
                 resolved.append(str(path if path.is_absolute() else config_path.parent / path))
-            sources[source] = {"kind": kind, "paths": resolved}
+            sources[source] = {"kind": kind, "paths": resolved, "skip_internships": skip}
         elif kind == "mailbox":
             from auto_app.ingest.mailbox import validate_mailbox_config
-            sources[source] = validate_mailbox_config(definition, config_path.parent)
+            sources[source] = validate_mailbox_config({**definition, "skip_internships": skip}, config_path.parent)
         else:
             raise ValueError(f"{source}: kind must be repository, email or mailbox")
     return sources
@@ -202,7 +235,9 @@ def run_config(store, config_path: Path, client: httpx.Client | None = None) -> 
         try:
             if definition["kind"] == "repository":
                 report = run_repository(store, source, definition["location"], client=client,
-                                        format=definition["format"], company=definition.get("company"))
+                                        format=definition["format"], company=definition.get("company"),
+                                        skip_internships=definition["skip_internships"],
+                                        options=definition.get("options"))
             elif definition["kind"] == "mailbox":
                 from auto_app.ingest.mailbox import run_mailbox
                 report = run_mailbox(store, source, definition, client=client)
@@ -211,7 +246,7 @@ def run_config(store, config_path: Path, client: httpx.Client | None = None) -> 
                 for pattern in definition["paths"]:
                     # Preserve unmatched patterns so they become explicit file errors.
                     paths.extend(Path(p) for p in (sorted(glob.glob(pattern, recursive=True)) or [pattern]))
-                report = run_email(store, source, paths)
+                report = run_email(store, source, paths, skip_internships=definition["skip_internships"])
         except READ_ERRORS as exc:
             report = {"source": source, "kind": definition["kind"], "status": "error", "error": str(exc)}
         reports[source] = report

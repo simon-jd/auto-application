@@ -13,7 +13,7 @@ from auto_app.process.normalize import (
     title_norm,
 )
 from auto_app.process.similarity import containment, containment_estimate, jaccard_estimate, minhash, shingles
-from auto_app.sources.common.urls import employer_job_key
+from auto_app.sources.common.urls import employer_job_key, source_job_key
 from auto_app.platforms import PLATFORMS
 from tests.helpers import test_registry
 
@@ -40,6 +40,17 @@ LINKEDIN_APPLY = {
 @pytest.mark.parametrize("url,key", LINKEDIN_APPLY.items())
 def test_employer_job_key_on_real_apply_links(url, key):
     assert employer_job_key(url).key == key
+
+
+@pytest.mark.parametrize("url,key", [
+    ("https://www.linkedin.com/jobs/view/4012345678/", "linkedin:jobs:4012345678"),
+    ("https://jobright.ai/jobs/info/6ae50f3ad7424a2a828eb51b", "jobright:jobs:6ae50f3ad7424a2a828eb51b"),
+    ("https://www.jobright.ai/jobs/info/6ae50f3ad7424a2a828eb51b?utm_source=x", "jobright:jobs:6ae50f3ad7424a2a828eb51b"),
+    ("https://jobright.ai/jobs/info", None),
+    ("https://jobright.ai/jobs/search/6ae50f3ad7424a2a828eb51b", None),
+])
+def test_listing_sites_have_a_source_identity(url, key):
+    assert source_job_key(url) == key
 
 
 def test_employer_key_not_found_for_other_sites():

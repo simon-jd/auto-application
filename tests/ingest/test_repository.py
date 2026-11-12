@@ -131,6 +131,30 @@ def test_compatible_feed_can_supply_observed_description_and_employment_type():
     assert record.metadata["upstream"]["req_id"] == "ENG-123"
 
 
+@pytest.mark.parametrize("value, expected", [
+    ("FULL_TIME", "full_time"), ("Full-time", "full_time"), ("PART_TIME", "part_time"),
+    ("INTERNSHIP", "internship"), ("contract", "contract"), ("OTHER", "unknown"),
+])
+def test_employment_type_spellings_share_one_vocabulary(value, expected):
+    # LinkedIn exports FULL_TIME; dedup vetoes a pair whose employment types differ.
+    [record] = parse(listing(employment_type=value)).records
+    assert record.employment_type == expected
+
+
+def test_listing_url_names_the_site_page_while_url_stays_the_employer_link():
+    [record] = parse(listing(url="https://job-boards.greenhouse.io/rocketlab/jobs/8038139003?jr_id=6ae5",
+                             listing_url="https://jobright.ai/jobs/info/6ae5?utm_source=grok")).records
+    assert record.url == "https://job-boards.greenhouse.io/rocketlab/jobs/8038139003"
+    assert record.listing_url == "https://jobright.ai/jobs/info/6ae5"
+    assert parse(listing()).records[0].listing_url is None
+
+
+@pytest.mark.parametrize("value", ["jobright.ai/jobs/info/6ae5", "mailto:jobs@example.test", 7])
+def test_invalid_listing_url_is_a_row_issue(value):
+    result = parse(listing(listing_url=value))
+    assert result.records == [] and len(result.issues) == 1
+
+
 def test_description_alias_is_observed_text_and_missing_job_type_remains_unknown():
     [record] = parse(listing(description="Maintain distributed queues.")).records
     assert record.description == "Maintain distributed queues."

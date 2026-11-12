@@ -16,7 +16,7 @@ from auto_app.sources.common.urls import employer_job_key, source_job_key
 
 log = logging.getLogger(__name__)
 
-NORMALIZER_VERSION = "5"
+NORMALIZER_VERSION = "6"
 
 # ---- company ------------------------------------------------------------------------------
 

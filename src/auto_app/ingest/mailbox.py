@@ -17,7 +17,8 @@ from auto_app.ingest.email import EMAIL_PARSER_VERSION, parse_email
 from auto_app.ingest.service import IngestService
 
 
-COUNTERS = ("records", "created", "updated", "unchanged", "restored", "inactive", "missing", "jobs_created")
+COUNTERS = ("records", "created", "updated", "unchanged", "restored", "inactive", "missing", "jobs_created",
+            "skipped_internships")
 GMAIL = "https://gmail.googleapis.com/gmail/v1/users/me/messages"
 GRAPH = "https://graph.microsoft.com/v1.0/me"
 MESSAGE_PAGE_ATTEMPTS = 3
@@ -74,6 +75,10 @@ def validate_mailbox_config(definition: dict, base: Path) -> dict:
     if purpose not in ("jobs", "updates"):
         raise ValueError("mailbox purpose must be jobs or updates")
     result["purpose"] = purpose
+    skip = definition.get("skip_internships", False)
+    if not isinstance(skip, bool):
+        raise ValueError("mailbox skip_internships must be a boolean")
+    result["skip_internships"] = skip
     return result
 
 
@@ -268,7 +273,8 @@ def _import_message(store, source, config, account, message, client, headers, no
             record.metadata["observed_at"] = received.isoformat()
     origin = f"{provider}://{quote(account, safe='')}/messages/{quote(message_id, safe='')}"
     report = IngestService(store).ingest(source, parsed, kind="email", origin=origin,
-                                        revision="sha256:" + hashlib.sha256(content).hexdigest())
+                                        revision="sha256:" + hashlib.sha256(content).hexdigest(),
+                                        skip_internships=config["skip_internships"])
     _receipt(store, source, provider, account, message_id, received, now, len(parsed.records))
     return report
 

@@ -7,7 +7,7 @@ from urllib.parse import parse_qsl, unquote, urlencode, urlsplit, urlunsplit
 
 _TRACKING_PARAMS = {
     "gclid", "dclid", "fbclid", "msclkid", "mc_cid", "mc_eid", "gh_src",
-    "trk", "trkemail", "li_fat_id",
+    "trk", "trkemail", "li_fat_id", "jr_id",  # jr_id: Jobright's marker on the employer links it hands out
 }
 _LINKEDIN_TRACKING_PARAMS = {"trackingid", "refid", "lipi", "midtoken", "midsig", "eid", "otptoken"}
 _LINKEDIN_HOSTS = {"linkedin.com", "www.linkedin.com", "m.linkedin.com"}
@@ -80,5 +80,7 @@ def canonical_url(url: str) -> str | None:
     query = [
         (key, value) for key, value in parse_qsl(parsed.query, keep_blank_values=True)
         if not key.lower().startswith("utm_") and key.lower() not in tracking_params
+        # Other source= values can select a job board, so only Jobright's own referral is dropped.
+        and not (key.lower() == "source" and value.lower() == "jobright")
     ]
     return urlunsplit((parsed.scheme.lower(), host, path, urlencode(sorted(query)), ""))

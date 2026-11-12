@@ -384,7 +384,8 @@ questions = Table(  # Step 3: each application's questions, with what was filled
 enrichments = Table(  # one read of an imported job's official record, by the posting's canonical apply URL
     "enrichments", metadata,
     Column("url", Text, primary_key=True),
-    Column("platform", String),  # greenhouse | lever | ashby | workday; NULL when no API is known for the URL
+    Column("platform", String),  # greenhouse | lever | ashby | workday | microsoft | tiktok | jobright |
+    # smartrecruiters | workable | amazon; NULL when no adapter knew the URL (read again once one does)
     Column("status", String, nullable=False),  # ok | failed | unsupported | gone
     Column("attempts", Integer, nullable=False, default=0),  # failed reads so far
     Column("next_attempt_at", Ts),  # failed only: when a later round may try again

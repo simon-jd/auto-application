@@ -1,5 +1,7 @@
 # Run explicitly with: auto-app ingest run --config config/feeds.yaml
 # Source names are persistent identities. Use separate names for distinct feeds.
+# true leaves out rows whose own title or employment type says internship; a source may set its own value.
+skip_internships: false
 sources:
   simplify-newgrad:
     kind: repository
@@ -61,6 +63,62 @@ sources:
     format: ashby-board
     company: Example Employer
     location: https://api.ashbyhq.com/posting-api/job-board/example?includeCompensation=true
+  # Workday career sites: the careers URL and a required company. Facets use the site's own
+  # labels or parameters and values; search runs one Workday search per text. Keep the total
+  # within a few hundred postings (Workday lists at most 2000; pages of 20, one second apart).
+  board-workday-example:
+    enabled: false
+    kind: repository
+    format: workday-board
+    company: Example Employer
+    location: https://example.wd5.myworkdayjobs.com/External
+    # search: [embedded, firmware]
+    facets:
+      Country: [United States of America]
+    max_pages: 25
+
+  # Eightfold career sites (Qualcomm …): the tenant's careers URL with its domain; company is required.
+  # country is Eightfold's location text; filters name Eightfold's own filters (sent as filter_<name>).
+  # Pages of 10, two seconds apart; JDs come through the worker's enrichment.
+  board-eightfold-example:
+    enabled: false
+    kind: repository
+    format: eightfold-board
+    company: Example Employer
+    location: https://example.eightfold.ai/careers?domain=example.com
+    country: United States
+    # filters:
+    #   job_family: [software engineering]
+    max_pages: 30
+
+  # iCIMS career sites on the Jibe front end (careers.<company>.com/api/jobs): the list carries full JDs.
+  # country is the site's country name; search runs one keyword search per text. Pages of 100.
+  board-jibe-example:
+    enabled: false
+    kind: repository
+    format: icims-jibe-board
+    company: Example Employer
+    location: https://careers.example.com
+    country: United States
+
+  # Oracle Recruiting Cloud (Candidate Experience) sites: company is required; country names one of the
+  # site's location facets (one extra request resolves it). Pages of 100; JDs through enrichment.
+  board-oracle-example:
+    enabled: false
+    kind: repository
+    format: oracle-board
+    company: Example Employer
+    location: https://example.fa.us2.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1
+    country: United States
+
+  # SmartRecruiters companies: the careers page; country is an ISO code. Pages of 100; JDs through enrichment.
+  board-smartrecruiters-example:
+    enabled: false
+    kind: repository
+    format: smartrecruiters-board
+    company: Example Employer
+    location: https://careers.smartrecruiters.com/ExampleEmployer
+    country: us
 
   recommendation-mail:
     enabled: false

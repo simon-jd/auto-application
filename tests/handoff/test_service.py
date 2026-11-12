@@ -152,6 +152,41 @@ def test_guardrails_block_the_daily_limit_and_company_cooldown(env):
         service(home).claim(ids["ML Engineer"], "agent-a", now=NOW)
 
 
+def test_company_groups_share_one_company_limit(tmp_path):
+    from auto_app.handoff.service import HandoffError
+
+    store = make_store(tmp_path)
+    titles = ("Backend Engineer", "Platform Engineer", "ML Engineer")
+    ingest(store, [record("201", "Backend Engineer"),
+                   record("202", "Platform Engineer", company="Acme Labs, Inc.",
+                          url="https://job-boards.greenhouse.io/acmelabs/jobs/202"),
+                   record("203", "ML Engineer", company="Beta",
+                          url="https://jobs.lever.co/beta/6ed76ce8-1111-2222-3333-444455556666")])
+    for title in titles:
+        store.set_job_state(job_id_of(store, title), decision="want_to_apply")
+    ids = {t: job_id_of(store, t) for t in titles}
+    store.engine.dispose()
+    config = tmp_path / "config" / "handoff.json"
+    config.parent.mkdir(exist_ok=True)
+    config.write_text(json.dumps({"company_limit": 1}))
+    token = service(tmp_path).claim(ids["Backend Engineer"], "agent-a", now=NOW)["token"]
+    # Without a group, "Acme Labs, Inc." is a company of its own and Acme's live claim does not touch it.
+    assert ids["Platform Engineer"] in [i["job_id"] for i in service(tmp_path).queue(now=NOW)["items"]]
+
+    config.write_text(json.dumps({"company_limit": 1, "company_groups": {"Acme": ["Acme Labs"]}}))
+    s = service(tmp_path)
+    queue = s.queue(now=NOW)  # the live claim already reserves the group's only slot
+    assert [i["job_id"] for i in queue["items"]] == [ids["ML Engineer"]]
+    assert queue["blocked"]["by_reason"] == {"claimed": 1, "company_cooldown": 1}
+    s.record_attempt(token, "submitted", "ok", now=NOW)
+    an_hour_later = NOW + timedelta(hours=1)
+    assert [i["job_id"] for i in s.queue(now=an_hour_later)["items"]] == [ids["ML Engineer"]]
+    with pytest.raises(HandoffError, match="company"):
+        s.claim(ids["Platform Engineer"], "agent-a", now=an_hour_later)
+    # The window still ends: once the submission is older than 30 days, the group can be applied to again.
+    assert ids["Platform Engineer"] in [i["job_id"] for i in s.queue(now=NOW + timedelta(days=31))["items"]]
+
+
 def test_repost_warnings_and_rule_exclusions_keep_jobs_out(env):
     home, ids = env
     store = make_store(home)

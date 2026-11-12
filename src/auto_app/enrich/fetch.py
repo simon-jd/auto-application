@@ -1,4 +1,4 @@
-"""Read public JSON once per target; pace hosts and cache Ashby boards per round."""
+"""Read a public record (JSON, or a job page) once per target; pace hosts and cache Ashby boards per round."""
 
 import math
 import re
@@ -9,6 +9,7 @@ from urllib.parse import urlsplit
 import httpx
 
 from auto_app.core.models import CommonPosting, RawPosting
+from auto_app.enrich import sites
 from auto_app.enrich.targets import Target, valid_target
 from auto_app.platforms.ashby import AshbySource
 from auto_app.platforms.greenhouse import GreenhouseSource
@@ -17,6 +18,8 @@ from auto_app.platforms.workday import WorkdaySource
 from auto_app.sources.parsing import ParseError
 
 USER_AGENT = "auto-app/1 (personal job search; one request per job)"
+# Eightfold answers bursts with HTTP 429 (seen 2026-11-06): its tenants get two seconds between requests.
+PLATFORM_INTERVAL = {"eightfold": 2.0}
 PARSERS = {"greenhouse": GreenhouseSource, "lever": LeverSource, "ashby": AshbySource, "workday": WorkdaySource}
 GONE = (404, 410)
 # prefix letters, a core starting with a digit (more digit/letter groups allowed), an optional 1–2 digit copy suffix
@@ -25,7 +28,7 @@ REQUISITION = re.compile(r"([a-z]*)[-_]?(\d[\da-z]*(?:[-_]\d[\da-z]*)*?)(?:[-_](
 
 @dataclass
 class FetchResult:
-    status: str
+    status: str  # ok | gone | failed | unsupported (the site has no page of its own for this link)
     posting: CommonPosting | None = None
     error: str | None = None
 
@@ -83,16 +86,17 @@ class Fetcher:
         """Network cost of fetching this target with the current round cache."""
         return int(not (target.platform == "ashby" and target.board in self._boards))
 
-    def _get(self, url: str, params: dict | None = None) -> httpx.Response:
+    def _get(self, url: str, params: dict | None = None, accept: str = "application/json",
+             interval: float = 0.0) -> httpx.Response:
         host = urlsplit(url).hostname
         if host in self._last:
-            wait = self._last[host] + self.min_interval - self.clock()
+            wait = self._last[host] + max(self.min_interval, interval) - self.clock()
             if wait > 0:
                 self.sleep(wait)
         self.request_count += 1
         try:
             return self.client.get(url, params=params, follow_redirects=False,
-                                   headers={"User-Agent": USER_AGENT, "Accept": "application/json"}, timeout=20)
+                                   headers={"User-Agent": USER_AGENT, "Accept": accept}, timeout=20)
         finally:
             self._last[host] = self.clock()
 
@@ -108,10 +112,21 @@ class Fetcher:
                     return FetchResult("gone", error="not on the employer's public board")
                 data = record
             else:
-                response = self._get(target.api_url, {"mode": "json"} if target.platform == "lever" else None)
+                page = target.platform in sites.PAGES
+                response = self._get(target.api_url, {"mode": "json"} if target.platform == "lever" else None,
+                                     "text/html" if page else "application/json",
+                                     PLATFORM_INTERVAL.get(target.platform, 0.0))
                 if response.status_code in GONE:
                     return FetchResult("gone", error=f"HTTP {response.status_code}")
+                if target.platform == "jobright" and response.is_redirect:
+                    # Some listings send logged-out visitors to another job board: Jobright has no page to read.
+                    return FetchResult("unsupported", error="Jobright sends this listing to another site")
                 response.raise_for_status()
+                if target.platform in sites.READERS:
+                    posting = sites.READERS[target.platform](response.text if page else response.json(), target)
+                    if posting is None:
+                        return FetchResult("gone", error="no longer listed on the employer's site")
+                    return FetchResult("ok", posting=posting)
                 data = response.json()
             _validate_record(target.platform, data, target.job_id)
             raw = RawPosting(source="enrichment", source_job_id=target.job_id, kind="api", posting={}, capture={},

@@ -1,0 +1,257 @@
+{
+ "total": 732,
+ "jobPostings": [
+  {
+   "title": "Quality Engineer - Orion Assembly",
+   "externalPath": "/job/Lake-Orion-Michigan-United-States-of-America/Quality-Engineer---Orion-Assembly_JR-202623131",
+   "locationsText": "Lake Orion, Michigan, United States of America",
+   "postedOn": "Posted Today",
+   "remoteType": "Onsite",
+   "bulletFields": [
+    "JR-202623131",
+    "Exempt"
+   ]
+  }
+ ],
+ "facets": [
+  {
+   "facetParameter": "Location_Country",
+   "descriptor": "Location Country/Territory",
+   "values": [
+    {
+     "descriptor": "United States of America",
+     "id": "bc33aa3152ec42d4995f4791a106ed09",
+     "count": 625
+    },
+    {
+     "descriptor": "Canada",
+     "id": "a30a87ed25634629aa6c3958aa2b91ea",
+     "count": 23
+    },
+    {
+     "descriptor": "Brazil",
+     "id": "1a29bb1357b240ab99a2fa755cc87c0e",
+     "count": 18
+    },
+    {
+     "descriptor": "China",
+     "id": "6cb77610a8a543aea2d6bc10457e35d4",
+     "count": 14
+    },
+    {
+     "descriptor": "Philippines",
+     "id": "e56f1daf83e04bacae794ba5c5593560",
+     "count": 13
+    },
+    {
+     "descriptor": "Korea, Republic of",
+     "id": "7a5a2aadf9d34086a2bfbfd408bc28da",
+     "count": 13
+    },
+    {
+     "descriptor": "Egypt",
+     "id": "d865e83093ad42319653b08e61f7db49",
+     "count": 5
+    },
+    {
+     "descriptor": "Ireland",
+     "id": "04a05835925f45b3a59406a2a6b72c8a",
+     "count": 5
+    },
+    {
+     "descriptor": "Mexico",
+     "id": "e2adff9272454660ac4fdb56fc70bb51",
+     "count": 5
+    },
+    {
+     "descriptor": "Australia",
+     "id": "d903bb3fedad45039383f6de334ad4db",
+     "count": 2
+    },
+    {
+     "descriptor": "Colombia",
+     "id": "e8106cd6a3534f2dba6fdee2d41db89d",
+     "count": 2
+    },
+    {
+     "descriptor": "Argentina",
+     "id": "e42ad5eac46d4cc9b367ceaef42577c5",
+     "count": 2
+    },
+    {
+     "descriptor": "Israel",
+     "id": "084562884af243748dad7c84c304d89a",
+     "count": 2
+    },
+    {
+     "descriptor": "Ecuador",
+     "id": "2752bce253374948a6bad7ed2059e054",
+     "count": 1
+    },
+    {
+     "descriptor": "India",
+     "id": "c4f78be1a8f14da0ab49ce1162348a5e",
+     "count": 1
+    },
+    {
+     "descriptor": "Japan",
+     "id": "8b705da2becf43cfaccc091da0988ab2",
+     "count": 1
+    }
+   ]
+  },
+  {
+   "facetParameter": "jobFamilyGroup",
+   "descriptor": "Job Category",
+   "values": [
+    {
+     "descriptor": "Engineering Group",
+     "id": "81219c91208501dea617b5999c1b01d6",
+     "count": 317
+    },
+    {
+     "descriptor": "Special Hiring Programs Group",
+     "id": "81219c91208501029134b6999c1b05d6",
+     "count": 88
+    },
+    {
+     "descriptor": "Software and Services Group",
+     "id": "5ce64061bbf21001e72608a46d250000",
+     "count": 67
+    },
+    {
+     "descriptor": "Information Technology Group",
+     "id": "81219c91208501f8ce07be999c1b21d6",
+     "count": 64
+    },
+    {
+     "descriptor": "Manufacturing Group",
+     "id": "81219c91208501dc4919bb999c1b17d6",
+     "count": 41
+    },
+    {
+     "descriptor": "Hourly Manufacturing Group",
+     "id": "81219c912085019d1307c2999c1b2dd6",
+     "count": 36
+    },
+    {
+     "descriptor": "Marketing, Sales, and Service Group",
+     "id": "81219c9120850192b95bbc999c1b1bd6",
+     "count": 21
+    },
+    {
+     "descriptor": "Creative Design Group",
+     "id": "81219c912085017addb4bb999c1b19d6",
+     "count": 16
+    },
+    {
+     "descriptor": "Research and Development Group",
+     "id": "81219c91208501da38bdc0999c1b29d6",
+     "count": 15
+    },
+    {
+     "descriptor": "Finance Group",
+     "id": "81219c9120850165d7e1b2999c1bfbd5",
+     "count": 13
+    },
+    {
+     "descriptor": "Purchasing and Supply Chain Group",
+     "id": "81219c91208501b6f157b4999c1bffd5",
+     "count": 12
+    },
+    {
+     "descriptor": "Human Resources Group",
+     "id": "81219c912085018226afbe999c1b23d6",
+     "count": 8
+    },
+    {
+     "descriptor": "Corporate Strategy, Development, and Planning Group",
+     "id": "81219c912085018f29e9bc999c1b1dd6",
+     "count": 8
+    },
+    {
+     "descriptor": "Medical Group",
+     "id": "81219c9120850156e617b9999c1b11d6",
+     "count": 5
+    },
+    {
+     "descriptor": "Data Management and Analytics Group",
+     "id": "81219c91208501c4eb61bf999c1b25d6",
+     "count": 4
+    },
+    {
+     "descriptor": "Hourly Warehousing Group",
+     "id": "81219c9120850168b229c3999c1b31d6",
+     "count": 3
+    },
+    {
+     "descriptor": "Hourly Operations Support Group",
+     "id": "81219c91208501fac797c2999c1b2fd6",
+     "count": 3
+    },
+    {
+     "descriptor": "Facilities and Real Estate Group",
+     "id": "81219c912085015f5ca0b9999c1b13d6",
+     "count": 3
+    },
+    {
+     "descriptor": "Quality Group",
+     "id": "81219c912085016d870eb8999c1b0dd6",
+     "count": 2
+    },
+    {
+     "descriptor": "Workplace Safety Group",
+     "id": "81219c91208501f836a9b6999c1b07d6",
+     "count": 2
+    },
+    {
+     "descriptor": "Contingent Group",
+     "id": "81219c9120850176bbbbb5999c1b03d6",
+     "count": 2
+    },
+    {
+     "descriptor": "Support Group",
+     "id": "81219c91208501eef97eb8999c1b0fd6",
+     "count": 1
+    },
+    {
+     "descriptor": "Communications Group",
+     "id": "81219c91208501fcc11db7999c1b09d6",
+     "count": 1
+    }
+   ]
+  },
+  {
+   "facetParameter": "locationMainGroup",
+   "values": [
+    {
+     "facetParameter": "locations",
+     "descriptor": "Locations",
+     "values": [
+      {
+       "descriptor": "Alpharetta US-SSM Southeast Regional Office - Alpharetta US-SSM Southeast Regional Office",
+       "id": "983c57f4d0d801c074ecab25581dc59e",
+       "count": 1
+      },
+      {
+       "descriptor": "Alvear, Santa Fe, Argentina",
+       "id": "107799e78de401f28c133467b8592f63",
+       "count": 2
+      },
+      {
+       "descriptor": "Arlington, Texas, United States of America",
+       "id": "d4e1946d0ed401c398089d06b71fbd13",
+       "count": 8
+      },
+      {
+       "descriptor": "Austin, Texas, United States of America",
+       "id": "e30192a1b9ad01b3b30272abb61faf4c",
+       "count": 85
+      }
+     ]
+    }
+   ]
+  }
+ ],
+ "userAuthenticated": false
+}

@@ -54,6 +54,20 @@ def test_platform_records_reuse_collectors_parsers():
     assert lv.status == "ok" and lv.posting.employment_type == "full_time"
 
 
+def test_eu_greenhouse_and_dotted_or_spaced_ashby_boards_are_fetched():
+    seen = []
+    def handler(request):
+        seen.append(str(request.url))
+        return httpx.Response(200, json=ASHBY if "ashby" in request.url.host else {**GREENHOUSE, "id": 4738026101})
+    f = fetcher(handler)
+    assert f.fetch(target_for("https://job-boards.eu.greenhouse.io/agency/jobs/4738026101")).status == "ok"
+    assert f.fetch(target_for(f"https://jobs.ashbyhq.com/Spectral%20Labs/{UUID}/application?embed=true")).status == "ok"
+    assert f.fetch(target_for(f"https://jobs.ashbyhq.com/jerry.ai/{OTHER}")).status == "ok"
+    assert seen == ["https://boards-api.greenhouse.io/v1/boards/agency/jobs/4738026101",
+                    "https://api.ashbyhq.com/posting-api/job-board/Spectral%20Labs?includeCompensation=true",
+                    "https://api.ashbyhq.com/posting-api/job-board/jerry.ai?includeCompensation=true"]
+
+
 def test_ashby_board_is_read_once_and_missing_jobs_are_gone():
     f = fetcher(lambda request: httpx.Response(200, json=ASHBY))
     first = f.fetch(target_for(f"https://jobs.ashbyhq.com/acme/{UUID}"))
@@ -89,6 +103,15 @@ def test_requests_on_one_host_always_wait_at_least_one_second():
     f.fetch(target_for(WD_URL))
     f.fetch(target_for(GH_URL))
     assert clock.sleeps == [1.0]
+
+
+def test_eightfold_tenants_wait_two_seconds():
+    clock = Clock()
+    f = fetcher(lambda request: httpx.Response(404), clock)
+    for job in ("1", "2"):
+        f.fetch(target_for(f"https://qualcomm.eightfold.ai/careers/job/44672115932{job}?domain=qualcomm.com"))
+    f.fetch(target_for(GH_URL))
+    assert clock.sleeps == [2.0] and f.request_count == 3
 
 
 @pytest.mark.parametrize("payload", [None, [], {}, {"jobs": None}])

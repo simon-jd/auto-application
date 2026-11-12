@@ -1,0 +1,368 @@
+{
+ "offset": 4,
+ "limit": 4,
+ "totalFound": 7,
+ "content": [
+  {
+   "id": "744000140949875",
+   "name": "Summer 2027 Intern - Hardware Engineering",
+   "uuid": "7bac11b3-fc38-4967-bb41-20ccf161bc6b",
+   "jobAdId": "e7ab7b6b-51ea-4168-a0b6-ac1f6397f26b",
+   "defaultJobAd": true,
+   "refNumber": "REF34107R",
+   "company": {
+    "identifier": "WesternDigital",
+    "name": "Western Digital"
+   },
+   "releasedDate": "2026-07-31T15:44:17.247Z",
+   "location": {
+    "city": "San Jose",
+    "region": "CA",
+    "country": "us",
+    "remote": false,
+    "hybrid": true,
+    "latitude": "37.33874",
+    "longitude": "-121.8852525",
+    "fullLocation": "San Jose, CA, United States"
+   },
+   "industry": {
+    "id": "computer_hardware",
+    "label": "Computer Hardware"
+   },
+   "department": {},
+   "function": {
+    "id": "engineering",
+    "label": "Engineering"
+   },
+   "typeOfEmployment": {
+    "id": "intern",
+    "label": "Intern"
+   },
+   "experienceLevel": {
+    "id": "internship",
+    "label": "Internship"
+   },
+   "customField": [
+    {
+     "fieldId": "61e861216796ff005736d217",
+     "fieldLabel": "Job Type (exemption status)",
+     "valueId": "f464bc93-cf91-46e3-9d02-1393d111a99c",
+     "valueLabel": "Non-Exempt position - Please see related compensation & benefits details below"
+    },
+    {
+     "fieldId": "61710328e65c003e53504dd0",
+     "fieldLabel": "Salary Range",
+     "valueId": "34.52-46.00",
+     "valueLabel": "34.52-46.00"
+    },
+    {
+     "fieldId": "625777e42ea6bf323c991b94",
+     "fieldLabel": "Positions",
+     "valueId": "P-NP",
+     "valueLabel": "New Position--P-NP"
+    },
+    {
+     "fieldId": "60706a574748e43c47b1856e",
+     "fieldLabel": "Business Function",
+     "valueId": "Engineering Support",
+     "valueLabel": "Engineering Support"
+    },
+    {
+     "fieldId": "69af98e74cf456484ba38b06",
+     "fieldLabel": "Business Group",
+     "valueId": "d916faf0-4658-4dc0-8f0b-5a41ab67b3f3",
+     "valueLabel": "Western Digital Technologies, Inc."
+    },
+    {
+     "fieldId": "606f52f879838c3f1a5df578",
+     "fieldLabel": "Brands",
+     "valueId": "default",
+     "valueLabel": "Western Digital"
+    },
+    {
+     "fieldId": "COUNTRY",
+     "fieldLabel": "Country/Region",
+     "valueId": "us",
+     "valueLabel": "United States"
+    },
+    {
+     "fieldId": "607069e34bb1b86edc4b1150",
+     "fieldLabel": "Job Profile",
+     "valueId": "107966",
+     "valueLabel": "Intern, Technical (Undergraduate) - 107966"
+    },
+    {
+     "fieldId": "60706c0fab6dab4d36f48132",
+     "fieldLabel": "Company",
+     "valueId": "CO_WD Western Digital Technologies, Inc.",
+     "valueLabel": "US-Western Digital Technologies, Inc.--CO_WD Western Digital Technologies, Inc."
+    },
+    {
+     "fieldId": "69af99ee1613dbfae2c0f4d8",
+     "fieldLabel": "Division",
+     "valueId": "def505ff-6f2e-47e7-b3c2-6c6f6629ba6a",
+     "valueLabel": "United States"
+    },
+    {
+     "fieldId": "60706ba04748e43c47b18571",
+     "fieldLabel": "Work Location",
+     "valueId": "LOC_WDT_USCA23",
+     "valueLabel": "San Jose Great Oaks Headquarters--LOC_WDT_USCA23"
+    },
+    {
+     "fieldId": "607066faab6dab4d36f48130",
+     "fieldLabel": "Requisition Type",
+     "valueId": "da8a84a7-ad64-4978-b93f-93cd382f61a4",
+     "valueLabel": "Pipeline - UR"
+    }
+   ],
+   "visibility": "PUBLIC",
+   "ref": "https://api.smartrecruiters.com/v1/companies/WesternDigital/postings/744000140949875",
+   "language": {
+    "code": "en",
+    "label": "English",
+    "labelNative": "English (US)"
+   }
+  },
+  {
+   "id": "744000140947335",
+   "name": "Hardware Engineer",
+   "uuid": "ea332f77-cec6-48fb-a2e5-f6b255c96031",
+   "jobAdId": "59efc070-6fb1-4395-a871-e73991d25160",
+   "defaultJobAd": true,
+   "refNumber": "REF34106I",
+   "company": {
+    "identifier": "WesternDigital",
+    "name": "Western Digital"
+   },
+   "releasedDate": "2026-07-31T15:38:51.667Z",
+   "location": {
+    "city": "San Jose",
+    "region": "CA",
+    "country": "us",
+    "remote": false,
+    "hybrid": false,
+    "latitude": "37.33874",
+    "longitude": "-121.8852525",
+    "fullLocation": "San Jose, CA, United States"
+   },
+   "industry": {
+    "id": "computer_hardware",
+    "label": "Computer Hardware"
+   },
+   "department": {},
+   "function": {
+    "id": "engineering",
+    "label": "Engineering"
+   },
+   "typeOfEmployment": {
+    "id": "permanent",
+    "label": "Full-time"
+   },
+   "experienceLevel": {
+    "id": "entry_level",
+    "label": "Entry Level"
+   },
+   "customField": [
+    {
+     "fieldId": "61e861216796ff005736d217",
+     "fieldLabel": "Job Type (exemption status)",
+     "valueId": "5f54df38-41d3-4559-9067-0b50c42e6e4f",
+     "valueLabel": "Exempt position - Please see related compensation & benefits details below"
+    },
+    {
+     "fieldId": "61710328e65c003e53504dd0",
+     "fieldLabel": "Salary Range",
+     "valueId": "91,100.00-121,500.00",
+     "valueLabel": "91,100.00-121,500.00"
+    },
+    {
+     "fieldId": "625777e42ea6bf323c991b94",
+     "fieldLabel": "Positions",
+     "valueId": "P-NP",
+     "valueLabel": "New Position--P-NP"
+    },
+    {
+     "fieldId": "60706a574748e43c47b1856e",
+     "fieldLabel": "Business Function",
+     "valueId": "Hardware Development Engineering",
+     "valueLabel": "Hardware Development"
+    },
+    {
+     "fieldId": "69af98e74cf456484ba38b06",
+     "fieldLabel": "Business Group",
+     "valueId": "d916faf0-4658-4dc0-8f0b-5a41ab67b3f3",
+     "valueLabel": "Western Digital Technologies, Inc."
+    },
+    {
+     "fieldId": "606f52f879838c3f1a5df578",
+     "fieldLabel": "Brands",
+     "valueId": "default",
+     "valueLabel": "Western Digital"
+    },
+    {
+     "fieldId": "COUNTRY",
+     "fieldLabel": "Country/Region",
+     "valueId": "us",
+     "valueLabel": "United States"
+    },
+    {
+     "fieldId": "607069e34bb1b86edc4b1150",
+     "fieldLabel": "Job Profile",
+     "valueId": "100224",
+     "valueLabel": "Engineer, Hardware Development Engineering - 100224"
+    },
+    {
+     "fieldId": "60706c0fab6dab4d36f48132",
+     "fieldLabel": "Company",
+     "valueId": "CO_WD Western Digital Technologies, Inc.",
+     "valueLabel": "US-Western Digital Technologies, Inc.--CO_WD Western Digital Technologies, Inc."
+    },
+    {
+     "fieldId": "69af99ee1613dbfae2c0f4d8",
+     "fieldLabel": "Division",
+     "valueId": "def505ff-6f2e-47e7-b3c2-6c6f6629ba6a",
+     "valueLabel": "United States"
+    },
+    {
+     "fieldId": "60706ba04748e43c47b18571",
+     "fieldLabel": "Work Location",
+     "valueId": "LOC_WDT_USCA23",
+     "valueLabel": "San Jose Great Oaks Headquarters--LOC_WDT_USCA23"
+    },
+    {
+     "fieldId": "607066faab6dab4d36f48130",
+     "fieldLabel": "Requisition Type",
+     "valueId": "da8a84a7-ad64-4978-b93f-93cd382f61a4",
+     "valueLabel": "Pipeline - UR"
+    }
+   ],
+   "visibility": "PUBLIC",
+   "ref": "https://api.smartrecruiters.com/v1/companies/WesternDigital/postings/744000140947335",
+   "language": {
+    "code": "en",
+    "label": "English",
+    "labelNative": "English (US)"
+   }
+  },
+  {
+   "id": "744000138717897",
+   "name": "Software Engineer",
+   "uuid": "f0f53e97-3d85-4b45-a8d7-e32f767906a6",
+   "jobAdId": "2cfe76ea-9276-4006-9696-c972ad69f257",
+   "defaultJobAd": true,
+   "refNumber": "REF33900Q",
+   "company": {
+    "identifier": "WesternDigital",
+    "name": "Western Digital"
+   },
+   "releasedDate": "2026-07-20T19:48:03.634Z",
+   "location": {
+    "city": "San Jose",
+    "region": "CA",
+    "country": "us",
+    "remote": false,
+    "hybrid": false,
+    "fullLocation": "San Jose, CA, United States"
+   },
+   "industry": {
+    "id": "computer_hardware",
+    "label": "Computer Hardware"
+   },
+   "department": {},
+   "function": {
+    "id": "engineering",
+    "label": "Engineering"
+   },
+   "typeOfEmployment": {
+    "id": "permanent",
+    "label": "Full-time"
+   },
+   "experienceLevel": {
+    "id": "entry_level",
+    "label": "Entry Level"
+   },
+   "customField": [
+    {
+     "fieldId": "61e861216796ff005736d217",
+     "fieldLabel": "Job Type (exemption status)",
+     "valueId": "5f54df38-41d3-4559-9067-0b50c42e6e4f",
+     "valueLabel": "Exempt position - Please see related compensation & benefits details below"
+    },
+    {
+     "fieldId": "61710328e65c003e53504dd0",
+     "fieldLabel": "Salary Range",
+     "valueId": "110,900.00-147,800.00",
+     "valueLabel": "110,900.00-147,800.00"
+    },
+    {
+     "fieldId": "625777e42ea6bf323c991b94",
+     "fieldLabel": "Positions",
+     "valueId": "P-NP",
+     "valueLabel": "New Position--P-NP"
+    },
+    {
+     "fieldId": "60706a574748e43c47b1856e",
+     "fieldLabel": "Business Function",
+     "valueId": "Software Development Engineering (Apps)",
+     "valueLabel": "Software Development"
+    },
+    {
+     "fieldId": "69af98e74cf456484ba38b06",
+     "fieldLabel": "Business Group",
+     "valueId": "d916faf0-4658-4dc0-8f0b-5a41ab67b3f3",
+     "valueLabel": "Western Digital Technologies, Inc."
+    },
+    {
+     "fieldId": "606f52f879838c3f1a5df578",
+     "fieldLabel": "Brands",
+     "valueId": "default",
+     "valueLabel": "Western Digital"
+    },
+    {
+     "fieldId": "COUNTRY",
+     "fieldLabel": "Country/Region",
+     "valueId": "us",
+     "valueLabel": "United States"
+    },
+    {
+     "fieldId": "607069e34bb1b86edc4b1150",
+     "fieldLabel": "Job Profile",
+     "valueId": "102227",
+     "valueLabel": "Senior Engineer, Software Development Engineering (Apps) - 102227"
+    },
+    {
+     "fieldId": "60706c0fab6dab4d36f48132",
+     "fieldLabel": "Company",
+     "valueId": "CO_WD Western Digital Technologies, Inc.",
+     "valueLabel": "US-Western Digital Technologies, Inc.--CO_WD Western Digital Technologies, Inc."
+    },
+    {
+     "fieldId": "69af99ee1613dbfae2c0f4d8",
+     "fieldLabel": "Division",
+     "valueId": "def505ff-6f2e-47e7-b3c2-6c6f6629ba6a",
+     "valueLabel": "United States"
+    },
+    {
+     "fieldId": "60706ba04748e43c47b18571",
+     "fieldLabel": "Work Location",
+     "valueId": "LOC_WDT_USCA23",
+     "valueLabel": "San Jose Great Oaks Headquarters--LOC_WDT_USCA23"
+    },
+    {
+     "fieldId": "607066faab6dab4d36f48130",
+     "fieldLabel": "Requisition Type",
+     "valueId": "da8a84a7-ad64-4978-b93f-93cd382f61a4",
+     "valueLabel": "Pipeline - UR"
+    }
+   ],
+   "visibility": "PUBLIC",
+   "ref": "https://api.smartrecruiters.com/v1/companies/WesternDigital/postings/744000138717897",
+   "language": {
+    "code": "en",
+    "label": "English",
+    "labelNative": "English (US)"
+   }
+  }
+ ]
+}

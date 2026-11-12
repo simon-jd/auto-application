@@ -1,0 +1,64 @@
+{
+ "status": 200,
+ "error": {
+  "message": "",
+  "body": ""
+ },
+ "metadata": null,
+ "data": {
+  "positions": [
+   {
+    "id": 446721155295,
+    "displayJobId": "3096846",
+    "name": "PE Software Engineer",
+    "locations": [
+     "Santa Clara, California, United States of America"
+    ],
+    "standardizedLocations": [
+     "Santa Clara, CA, US"
+    ],
+    "postedTs": 1789689600,
+    "solrScore": null,
+    "stars": 0,
+    "department": "Software Engineering",
+    "creationTs": 1789689600,
+    "isHot": 0,
+    "workLocationOption": "onsite",
+    "locationFlexibility": null,
+    "atsJobId": "3096846",
+    "positionUrl": "/careers/job/446721155295"
+   },
+   {
+    "id": 446720496987,
+    "displayJobId": "3095263",
+    "name": "Systems Engineer - Staff",
+    "locations": [
+     "Santa Clara, California, United States of America"
+    ],
+    "standardizedLocations": [
+     "Santa Clara, CA, US"
+    ],
+    "postedTs": 1789603200,
+    "solrScore": null,
+    "stars": 0,
+    "department": "Systems Engineering",
+    "creationTs": 1786579200,
+    "isHot": 0,
+    "workLocationOption": "onsite",
+    "locationFlexibility": "flexible_within_country",
+    "atsJobId": "3095263",
+    "positionUrl": "/careers/job/446720496987"
+   }
+  ],
+  "count": 5,
+  "sortBy": "timestamp",
+  "appliedFilters": {
+   "includeRemote": [
+    "0"
+   ],
+   "includeRelocation": [
+    "0"
+   ]
+  }
+ }
+}

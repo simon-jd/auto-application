@@ -193,3 +193,65 @@ def test_jobright_identity_merges_repeated_platform_url_without_guessing_employe
     }
     assert {item["title"] for item in page["items"]} == {"Backend Engineer"}
     assert {item["company"] for item in page["items"]} == {"Example"}
+
+
+def test_linkedin_and_handshake_copies_merge_despite_employment_type_spelling(store):
+    description = ("Build and operate the payment services that move money for millions of customers. "
+                   "You will design APIs in Go and Python, own on-call for the ledger, write migration plans, "
+                   "review code with senior engineers and ship features end to end with product and design. "
+                   "We look for a recent graduate who enjoys distributed systems and careful testing.")
+    rows = {
+        "grok-linkedin": {"id": "4470483355", "url": "https://www.linkedin.com/jobs/view/4470483355/",
+                          "employment_type": "FULL_TIME", "description": description},
+        "grok-handshake": {"id": "handshake-11828543", "url": "https://app.joinhandshake.com/jobs/11828543",
+                           "employment_type": "full_time",
+                           "description_text": "Salary: $120-150K/yr\nWorkplace: Onsite\n" + description},
+    }
+    for source, row in rows.items():
+        path = store.db_path.parent / f"{source}.json"
+        path.write_text(json.dumps([{"title": "Software Engineer", "company_name": "Example",
+                                     "locations": ["Seattle, WA"], "active": True, "is_visible": True,
+                                     "date_posted": 1704067200, **row}]), encoding="utf-8")
+        result = run_repository(store, source, str(path), format="simplify")
+        assert result["status"] == "ok" and result["issues"] == []
+    [job] = store.jobs()
+    assert job["sources"] == ["grok-handshake", "grok-linkedin"]
+
+
+def grok_jobright(store, url, listing_url):
+    path = store.db_path.parent / "grok-jobright.json"
+    path.write_text(json.dumps([{
+        "id": "jobright:6ae50f3ad7424a2a828eb51b", "url": f"{url}?jr_id=6ae50f3ad7424a2a828eb51b",
+        "listing_url": listing_url, "title": "Backend Engineer", "company_name": "Example",
+        "locations": ["Seattle, WA"], "active": True, "is_visible": True,
+    }]), encoding="utf-8")
+    result = run_repository(store, "grok-jobright", str(path), format="simplify")
+    assert result["status"] == "ok" and result["issues"] == []
+    return result
+
+
+@pytest.mark.parametrize("existing", ["jobright", "simplify"])
+def test_resolved_jobright_link_joins_the_listing_or_the_employer_job(store, existing):
+    # Grok resolves a Jobright listing to its employer link: the listing page and the employer link
+    # each identify the job, so either one already in the library is joined.
+    jobright_url = "https://jobright.ai/jobs/info/6ae50f3ad7424a2a828eb51b"
+    if existing == "jobright":
+        import_source(store, "jobright", jobright_url, source="jobright-swe-newgrad")
+    else:
+        import_source(store, "simplify", GREENHOUSE)
+    assert grok_jobright(store, GREENHOUSE, jobright_url)["jobs_created"] == 0
+    [job] = store.jobs()
+    assert job["sources"] == sorted(["grok-jobright", "jobright-swe-newgrad" if existing == "jobright" else "simplify"])
+    with store.engine.connect() as conn:
+        grok = conn.execute(select(T.postings.c.apply_url, T.postings.c.parsed)
+                            .where(T.postings.c.source == "grok-jobright")).one()
+    assert grok.apply_url == GREENHOUSE and grok.parsed["url"] == jobright_url
+
+
+def test_resolved_jobright_link_joins_one_of_two_existing_jobs_and_never_merges_them(store):
+    # Linking places new postings; two jobs that already exist stay two (decisions live on each).
+    jobright_url = "https://jobright.ai/jobs/info/6ae50f3ad7424a2a828eb51b"
+    import_source(store, "jobright", jobright_url, source="jobright-swe-newgrad")
+    import_source(store, "simplify", GREENHOUSE)
+    assert grok_jobright(store, GREENHOUSE, jobright_url)["jobs_created"] == 0
+    assert sorted(job["sources"] for job in store.jobs()) == [["grok-jobright", "jobright-swe-newgrad"], ["simplify"]]

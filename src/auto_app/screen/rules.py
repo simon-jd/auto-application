@@ -14,7 +14,7 @@ from pathlib import Path
 
 from auto_app.screen.locations import job_location
 
-RULES_VERSION = "7"  # bump when a pattern below changes meaning: every job is screened again
+RULES_VERSION = "8"  # bump when a pattern below changes meaning: every job is screened again
 
 INTERN = re.compile(r"\b(?:intern|interns|internship|internships|co-?op|apprentice|apprenticeship)\b", re.I)
 SEASON = re.compile(r"\b(?:summer|fall|autumn|winter|spring)\s*'?(?:20)?\d\d\b", re.I)
@@ -42,25 +42,92 @@ NON_CS_ROLE = re.compile(
     r"program\s+manager|project\s+manager|product\s+owner|designer|sales|account\s+executive|"
     r"business\s+development|marketing|recruiter|recruiting|human\s+resources|accountant|accounting|"
     r"financial\s+analyst|audit|tax|legal|paralegal|attorney|nurse|clinical|pharmacist|biologist|chemist)\b", re.I)
+# A software skill named anywhere in a description. "C++" and "C#" end in punctuation, so a trailing \b would
+# never match them before a space or period.
+SOFTWARE_EVIDENCE = re.compile(
+    r"(?<!\w)(?:c\+\+|c#)(?!\w)|"
+    r"\b(?:python|java|javascript|typescript|golang|rust|sql|scala|kotlin|swift|ruby|php|cobol|mainframe|"
+    r"programming|coding|computer\s+science|data\s+structures|algorithms?|apis?|git|github|linux|unix|kubernetes|"
+    r"docker|aws|gcp|azure|cloud|machine\s+learning|deep\s+learning|pytorch|tensorflow|llms?|embedded|firmware|"
+    r"rtos|microcontrollers?|scripting|software\s+(?:development|engineering|design|stack|systems?)|"
+    r"full[\s-]?stack|back[\s-]?end|front[\s-]?end|react|node(?:\.js)?|ci/cd|devops|databases?)\b", re.I)
+# A title part made only of level words: "Sr. Staff", "Senior Staff", "Principal Lead".
+LEVEL_PART = re.compile(r"(?:(?:senior|sr|staff|principal|lead)\.?\s*)+", re.I)
 CS_CATEGORIES = {"software", "software engineering", "ai/ml/data", "data science, ai & machine learning", "quant"}
 NON_CS_CATEGORIES = {"hardware", "hardware engineering", "product", "product management"}
 LABELS = {"offers sponsorship": "offers", "does not offer sponsorship": "no",
           "u.s. citizenship is required": "citizenship_required"}
 _US = r"(?:u\.?\s?s\.?|united\s+states)"
+_Q = r"[\"“”']?"  # a defined term is often quoted: “U.S. Person”
+_ITEM = r"(?:\(?(?:[ivx]+|[a-z]|\d)\)\s*)?"  # an enumerated list's "(i)", "(A)" or "1)"
+_RESIDENT = r"(?:active\s+)?(?:lawful\s+)?(?:green\s*card|permanent\s+resid)\w*(?:\s*holders?)?"
+# Requirements to be a U.S. citizen or U.S. person (ITAR/EAR), read one sentence at a time.
 CITIZENSHIP = re.compile(
     rf"{_US}\s+citizen(?:ship)?\s+(?:is\s+)?required|"
     rf"requires?\s+(?:an?\s+)?{_US}\s+citizenship|"
-    rf"must\s+(?:be|hold)\s+(?:a\s+)?{_US}\s+citizen|"
-    rf"{_US}\s+citizens?\s+only|"
-    r"(?:secret|top\s+secret|ts/sci)\s+(?:security\s+)?clearance\s+(?:is\s+)?required|"
-    r"security\s+clearance\s+(?:is\s+)?required|"
+    # "applicant must be a (i) U.S. citizen", "must either be (A) a U.S. person", "must qualify as a U.S. person"
+    rf"must\s+(?:(?:therefore|either|also)\s+){{0,2}}(?:be|hold|qualify\s+as)\s+(?:one\s+of\s+the\s+following:?\s*)?"
+    rf"(?:either\s+)?{_ITEM}(?:an?\s+)?{_ITEM}{_Q}{_US}\s+(?:citizen|person|national)|"
+    rf"{_US}\s+(?:citizens?|persons?){_Q}\s+only\b|{_US}\s+citizens?\s*(?:or|and|and/or|/)\s*{_RESIDENT}\s+only\b|"
+    rf"(?<!not\s)\bonly\s+(?:for\s+|to\s+)?{_Q}{_US}\s+(?:citizens?|persons?)|"
+    rf"(?<!not\s)\b(?:restricted|limited)\s+to\s+{_Q}{_US}\s+(?:citizens?|persons?)|"
+    rf"open\s+to\s+{_Q}{_US}\s+(?:citizens?|persons?){_Q}(?:\s*\([^)]*\))?\s+only\b|"
+    rf"{_US}\s+citizen(?:ship|s)?\s*(?:or|and|and/or|/)\s*{_RESIDENT}\s*\)?\s*(?:is\s+|are\s+)?required|"
+    rf"requir\w*\s+(?:\w+\s+){{0,3}}?{_Q}{_US}\s+persons?{_Q}\s+status|"
+    rf"(?:must\s+be|requires?\s+|required\s+to\s+be)\s*(?:an?\s+)?{_Q}{_US}\s+persons?\b|"
+    r"requires?\s+(?:the\s+)?(?:successful\s+|selected\s+)?(?:candidate|applicant|incumbent|individual|hire)s?\s+to\s+be\s+"
+    rf"(?:an?\s+)?{_Q}{_US}\s+(?:citizen|person)|"
+    rf"{_US}\s+persons?\s+(?:status\s+)?(?:is\s+)?required|"
+    # Access to export-controlled information with no export-license route.
+    r"(?:contingent|conditioned|requir\w*|must)\b[^.]{0,200}?\bwithout\s+(?:obtaining\s+|requiring\s+|needing\s+|"
+    r"additional\s+|the\s+need\s+for\s+)?(?:an?\s+)?(?:export\s+)?licens\w*|"
     r"must\s+be\s+eligible\s+for\s+(?:an?\s+)?(?:security\s+)?clearance|"
     r"must\s+(?:meet|satisfy|comply\s+with)\s+ITAR\s+(?:requirements|regulations)|"
-    r"(?:active|current)\s+(?:secret|top\s+secret|ts/sci)\s+(?:security\s+)?clearance|"
     r"(?:ability|able|eligible)\s+to\s+obtain\s+(?:and\s+maintain\s+)?(?:an?\s+)?(?:active\s+)?"
-    rf"(?:{_US}\s+)?(?:government\s+|dod\s+)?(?:security\s+)?clearance|"
-    rf"(?:must\s+be|requires?\s+|required\s+to\s+be)\s*(?:an?\s+)?{_US}\s+persons?\b|"
-    rf"{_US}\s+person\s+(?:status\s+)?(?:is\s+)?required", re.I)
+    rf"(?:{_US}\s+)?(?:government\s+|dod\s+)?(?:security\s+)?clearance", re.I)
+# A bullet that is only a status: "- U.S. Person status (ITAR requirement)", "- U.S. Citizen or Permanent Resident".
+STATUS_ITEM = re.compile(
+    rf"{_Q}{_US}\s+persons?{_Q}(?:\s+status)?(?:\s+only|\s+required)?(?:\s*\([^)]*\))?|"
+    rf"{_US}\s+citizen(?:ship)?(?:\s*(?:,|or|and/or|and|/)\s*(?:an?\s+)?{_RESIDENT}(?:\s+(?:status|of\s+the\s+{_US}))?)+"
+    r"(?:\s*\([^)]*\))?(?:\s+only|\s+required)?", re.I)
+# A security clearance by name: "Secret clearance", "TS/SCI clearance", "U.S. security clearance" — not
+# "customs clearance", "an active clearance" (pay differentials) or a Public Trust suitability check.
+_LEVEL = r"(?:top[\s-]*secret|secret|ts|sci|level\s+[ql])"
+CLEARANCE = re.compile(rf"\b(?:{_LEVEL}|security|government|federal|dod|doe|{_US})[\"”')]?\s+clearances?\b", re.I)
+LEVEL_CLEARANCE = re.compile(rf"\b{_LEVEL}[\"”')]?\s+clearances?\b", re.I)
+CLEARANCE_CUE = re.compile(r"\b(?:requir(?:e|es|ed|ing)|must|needs?\s+(?:to|an?|the)|ability|able|eligib\w*|obtain\w*|"
+                           r"possess\w*|hold|holds|holding|have|has|maintain\w*|active|current(?:ly)?|willing\w*|"
+                           r"condition)\b", re.I)
+PAY = re.compile(r"\b(?:compensation|salary|salaries|pay\s+(?:range|rate|scale)|base\s+pay|differential)\b", re.I)
+# "Security Clearance:" on its own line, with the level on the next: the two are read as one sentence.
+CLEARANCE_HEADING = re.compile(r"(?:(?:security|minimum)\s+)?clearance(?:\s+(?:required|requirements?|level|type))?"
+                               r"(?:\s+to\s+start)?\s*:?", re.I)
+CLEARANCE_VALUE = re.compile(r"\bclearance(?:\s+(?:required|requirements?|level|type))?(?:\s+to\s+start)?\s*:?\s*"
+                             rf"(?:active\s+|current\s+)?(?:{_US}\s+)?(?:top[\s-]*secret|ts\s*/\s*sci|ts|secret)\b", re.I)
+# The employer's clearance, an airport badge, or HR work on clearances: not the candidate's requirement.
+OTHER_CLEARANCE = re.compile(r"\b(?:facility|tsa\)?|airport|badge)\s+(?:security\s+)?clearances?\b|"
+                             r"\bclearances?\s+(?:processing|paperwork|administration)\b", re.I)
+NO_CLEARANCE = re.compile(r"\b(?:none|not\s+applicable|n/a)\b", re.I)
+# A sentence that also admits non-citizens or visa holders restricts nothing: "only U.S. citizens and lawfully
+# authorized non-U.S. citizens".
+NON_EXCLUSIVE = re.compile(rf"\bnon-?\s*(?:{_US}\s+)?(?:citizens?|persons?)\b|\b(?:h-?1b|opt|ead|work\s+visas?|"
+                           r"visa\s+holders?)\b", re.I)
+# A preferred section's heading starts with one of these words ("Nice to Have", "Ways to stand out from the
+# crowd"), or ends with a colon ("These Qualifications Would Be Nice to Have:"); "Rust is a plus" is an item.
+PREFERRED_HEADING = re.compile(r"(?:prefer\w*|desir\w*|bonus|nice[\s-]+to[\s-]+haves?|pluses|good\s+to\s+have|"
+                               r"ways\s+to\s+stand\s+out)\b", re.I)
+PREFERRED_WORD = re.compile(r"\b(?:prefer\w*|desir\w*|bonus|nice[\s-]+to[\s-]+haves?|a\s+plus|pluses|stand\s+out|"
+                            r"good\s+to\s+have)\b", re.I)
+EXPLICIT = re.compile(r"\b(?:required|requires?|must|mandatory)\b", re.I)
+BULLETS = " -–•*·▪"
+TITLE_CLEARANCE = re.compile(
+    r"(?<![-\w])cleared\b|(?<!customs\s)\bclearance\b|\bts\s*/\s*sci\b|\btop[\s-]*secret\b|\bpolygraph\b|"
+    r"(?:w/|with|full\s+scope|[-–(])\s*poly\b|\bactive\s+secret\b|[-–/(]\s*secret\s*(?:[-–/)]|$)|"
+    rf"\b{_US}\s+(?:citizen(?:ship|s)?|persons?)\b", re.I)
+# Conditional wording: the requirement applies to some roles, or a license may be obtained instead.
+HEDGE = re.compile(r"\b(?:may|might|could|possibly|potentially|typically|generally|so\s+designated|"
+                   r"if\s+(?:applicable|required|needed|necessary)|where\s+(?:required|applicable|necessary|permitted)|"
+                   r"(?:certain|some)\s+(?:positions|roles|jobs))\b", re.I)
 SPONSORSHIP_NOUN = r"(?:(?:visa|work|employment|immigration|h-?1b)\s+){0,3}sponsorship\b"
 NO_SPONSOR = re.compile(
     r"\b(?:(?:not|never|unable\s+to|cannot|can't|won't)\s+"
@@ -73,7 +140,7 @@ OFFERS_SPONSOR = re.compile(
     r"\b(?:(?:will|can|able\s+to|happy\s+to|glad\s+to)\s+(?:\w+\s+){0,2}sponsor\b|"
     r"sponsorship\s+(?:is\s+)?(?:available|offered|provided)|"
     r"offers?\s+" + SPONSORSHIP_NOUN + r")", re.I)
-YEARS = re.compile(r"(\d{1,2})\s*\+?\s*(?:(?:-|–|to)\s*\d{1,2}\s*\+?\s*)?(?:years?|yrs?)(?:\s+of)?"
+YEARS = re.compile(r"(\d{1,2})\s*\+?\s*(?:(?:-|–|~|to)\s*\d{1,2}\s*\+?\s*)?(?:years?|yrs?)(?:\s+of)?"
                    r"(?:\s+[\w/-]+){0,4}?\s+experience", re.I)
 SOFT = re.compile(r"prefer|nice\s+to\s+have|bonus|a\s+plus|desired|ideally|in\s+lieu|instead\s+of|equivalent", re.I)
 SENTENCE = re.compile(r"(?<=[.!?;])\s+|\n+")
@@ -82,6 +149,12 @@ NEGATED_REQUIREMENT = re.compile(
     r"\b(?:do\s+not|does\s+not|don't|doesn't|need\s+not)\s+(?:need|require|have\s+to|be)\b|"
     r"\bno\s+(?:prior\s+|previous\s+)?(?:experience|security\s+clearance|requirement|need)\b|"
     r"\bno\s+more\s+than\b", re.I)
+# "Meet one of the following:" opens a list of alternative routes; each item names a credential.
+ONE_OF = re.compile(r"\b(?:one|any|either)\s+of\s+the\s+following\b", re.I)
+CREDENTIAL = re.compile(r"\b(?:degree|diploma|bachelor\w*|master\w*|ph\.?d|doctora\w*|associate\w*|apprenticeship|"
+                        r"boot\s*camp|certificat\w*|program|ged)\b", re.I)
+DEGREE_ROUTE = re.compile(r"(?:an?\s+)?(?:(?:bachelor|master|associate)'?s?\s+(?:degree|of\s+(?:science|arts|engineering))|"
+                          r"ph\.?d\b|doctorate|doctoral\s+degree)", re.I)
 SOFT_HEADING = re.compile(r"^(?:preferred(?:\s+qualifications?)?|nice\s+to\s+have|bonus|desired\s+qualifications?)\s*:?$", re.I)
 HARD_HEADING = re.compile(r"^(?:(?:minimum|basic|required)\s+)?(?:qualifications?|requirements?)\s*:?$", re.I)
 NON_CANDIDATE_EXPERIENCE = re.compile(
@@ -128,6 +201,8 @@ class ScreeningRules:
     extra_cs_terms: tuple[str, ...] = ()  # more words that make a title a CS role
     extra_non_cs_terms: tuple[str, ...] = ()  # more words that make a title clearly not a CS role
     us_only: bool = True  # exclude jobs whose explicit locations are all outside the US
+    # Opt-in noise rule: a job whose title names no role and whose description names no software skill.
+    exclude_unknown_without_software_evidence: bool = False
 
     @property
     def version(self) -> str:
@@ -146,8 +221,13 @@ def years_required(description: str) -> int | None:
     """Combine mandatory constraints, keeping the least demanding explicit alternative route."""
     found = []
     preferred_section = False
+    one_of = None  # inside a "one of the following" list: False, then the index in `found` of its least route
     for sentence in _sentences(description or ""):
         sentence = sentence.strip().strip("#*• ")
+        if one_of is not None and sentence.strip("-– ") and not CREDENTIAL.search(sentence):
+            one_of = None  # the list ends at the first item that is not an education route
+        if ONE_OF.search(sentence):
+            one_of = False
         if SOFT_HEADING.fullmatch(sentence):
             preferred_section = True
         elif HARD_HEADING.fullmatch(sentence):
@@ -177,12 +257,24 @@ def years_required(description: str) -> int | None:
         shared_degree_choice = any(
             re.search(r"\b(?:bachelor|master)'?s?\b", route[list(YEARS.finditer(route))[-1].end():], re.I)
             for route, values in zip(alternatives[:-1], route_years[:-1]) if values)
-        if not shared_degree_choice and all(values or degree_only.fullmatch(route.strip())
-                                            for route, values in zip(alternatives, route_years)):
+        # "A Bachelor's degree in CS or 3+ years of experience": a degree route in a named field is an
+        # alternative only when no experience route names a degree ("BS in CS or MS in CS and 3 years" is not).
+        experience_or_degree = not any(CREDENTIAL.search(route) for route, values in zip(alternatives, route_years)
+                                       if values)
+        if not shared_degree_choice and all(
+                values or degree_only.fullmatch(route.strip())
+                or (experience_or_degree and DEGREE_ROUTE.match(route.strip(" -–")))
+                for route, values in zip(alternatives, route_years)):
             required = min(max(values, default=0) for values in route_years)
         else:
             required = max(value for values in route_years for value in values)
-        if continuation and found:
+        if one_of is not None:
+            if one_of is False:
+                found.append(required)
+                one_of = len(found) - 1
+            else:
+                found[one_of] = min(found[one_of], required)
+        elif continuation and found:
             found[-1] = min(found[-1], required)
         else:
             found.append(required)
@@ -193,13 +285,16 @@ def screen(facts: JobFacts, rules: ScreeningRules) -> Screening:
     title = " / ".join(t for t in facts.titles if t)
     new_grad = bool(NEW_GRAD.search(title))
     reasons = []
-    if rules.exclude_internships and _internship(facts, title, new_grad):
+    if rules.exclude_internships and _internship(facts, title):
         reasons.append("internship")
     if rules.exclude_senior and not new_grad and any(_senior(t) for t in facts.titles):
         reasons.append("senior_title")
     role = _role(facts, title, rules)
     if rules.exclude_non_cs and role == "non_cs":
         reasons.append("not_cs_role")
+    if rules.exclude_unknown_without_software_evidence and role == "unknown" and facts.description.strip() \
+            and not SOFTWARE_EVIDENCE.search(facts.description):
+        reasons.append("no_software_evidence")
     sponsorship = _sponsorship(facts)
     if rules.exclude_citizenship_required and sponsorship == "citizenship_required":
         reasons.append("citizenship_required")
@@ -217,10 +312,15 @@ def screen(facts: JobFacts, rules: ScreeningRules) -> Screening:
     return Screening("excluded" if reasons else "kept", tuple(reasons), signals)
 
 
-def _internship(facts: JobFacts, title: str, new_grad: bool) -> bool:
-    if any(value.strip().lower() == "internship" for value in facts.employment_types) or INTERN.search(title):
+def stated_internship(title: str, employment_types: tuple[str, ...] = ()) -> bool:
+    """An internship by its own title or employment type, the evidence one posting carries by itself."""
+    if any(value.strip().lower() == "internship" for value in employment_types) or INTERN.search(title):
         return True
-    if SEASON.search(title) and not new_grad:  # "Software Engineer (Summer 2027)"
+    return bool(SEASON.search(title)) and not NEW_GRAD.search(title)  # "Software Engineer (Summer 2027)"
+
+
+def _internship(facts: JobFacts, title: str) -> bool:
+    if stated_internship(title, facts.employment_types):
         return True
     return bool(facts.sources) and all(INTERN.search(source.replace("_", " ")) for source in facts.sources)
 
@@ -232,7 +332,7 @@ def _senior(title: str) -> bool:
     parts = re.split(r"\s+(?:[-–|])\s+|,\s*", title)
     if SENIOR.search(parts[0]):
         return True
-    return any(SENIOR.fullmatch(part.strip(" .()")) or
+    return any(SENIOR.fullmatch(part.strip(" .()")) or LEVEL_PART.fullmatch(part.strip(" .()")) or
                re.fullmatch(r"(?:iii|iv|v|vi)", part.strip(" .()"), re.I) or
                (SENIOR.search(part) and re.search(r"\b(?:engineer|developer|scientist|architect)\b", part, re.I))
                for part in parts[1:])
@@ -259,9 +359,7 @@ def _role(facts: JobFacts, title: str, rules: ScreeningRules) -> str:
 def _sponsorship(facts: JobFacts) -> str:
     labels = {LABELS.get(label.strip().lower()) for label in facts.sponsorship_labels} - {None}
     sentences = _sentences(facts.description or "")
-    required = any(CITIZENSHIP.search(s) and "?" not in s
-                   and not (NEGATED_REQUIREMENT.search(s) or SOFT.search(s))
-                   for s in sentences)
+    required = any(TITLE_CLEARANCE.search(t) for t in facts.titles) or bool(citizenship_evidence(facts.description))
     if "citizenship_required" in labels or required:
         return "citizenship_required"
     # Questions and conditional language supply no affirmative sponsorship evidence.
@@ -272,6 +370,52 @@ def _sponsorship(facts: JobFacts) -> str:
     if "offers" in labels or any(OFFERS_SPONSOR.search(s) for s in concrete):
         return "offers"
     return "no" if "no" in labels else "unknown"
+
+
+def _preferred_heading(line: str) -> bool:
+    line = line.strip("#*•() ")
+    return len(line.split()) <= 10 and bool(PREFERRED_HEADING.match(line)
+                                            or (line.endswith(":") and PREFERRED_WORD.search(line)))
+
+
+def citizenship_evidence(description: str) -> str | None:
+    """The first sentence that requires U.S. citizenship, U.S.-person status or a security clearance.
+
+    A preferred section ("Nice to Have", "Ways to stand out") holds list items only: the first line that is not
+    a list item ends it, so a later ITAR paragraph is read again.
+    """
+    text = re.sub(r"\bU\.\s*S\.", "US", description or "", flags=re.I).replace("’", "'")
+    heading, preferred, item = "", False, False
+    for line in text.splitlines():
+        line = line.strip()
+        if not line.strip(BULLETS):
+            item = item or bool(line)  # a lone "-": the next line is a list item
+            continue
+        if not (item or line[0] in BULLETS):
+            preferred = _preferred_heading(line)
+        item = False
+        if preferred and not EXPLICIT.search(line):
+            continue  # "Secret Clearance required." still counts when an employer lists it under "Preferred"
+        for sentence in re.split(r"(?<=[.!?;])\s+", line):
+            if CLEARANCE_HEADING.fullmatch(sentence.strip("#*•- ")):
+                heading = sentence + " "  # "Security Clearance" over "Top Secret/SCI required"
+                continue
+            sentence, heading = heading + sentence, ""
+            if "?" in sentence or NEGATED_REQUIREMENT.search(sentence) or SOFT.search(sentence) \
+                    or HEDGE.search(sentence):
+                continue
+            if not NON_EXCLUSIVE.search(sentence) and (
+                    CITIZENSHIP.search(sentence) or STATUS_ITEM.fullmatch(sentence.strip(BULLETS).rstrip(".;"))):
+                return sentence
+            sentence = OTHER_CLEARANCE.sub(" ", sentence)
+            if NO_CLEARANCE.search(sentence):
+                continue
+            named = CLEARANCE.search(sentence)
+            if CLEARANCE_VALUE.search(sentence) \
+                    or (named and CLEARANCE_CUE.search(sentence) and not PAY.search(sentence[:named.start()])) \
+                    or (LEVEL_CLEARANCE.search(sentence) and len(sentence.split()) <= 8):
+                return sentence
+    return None
 
 
 def load_rules(path: Path | None) -> ScreeningRules:

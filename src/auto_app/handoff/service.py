@@ -143,19 +143,22 @@ class HandoffService:
             if job['decision'] == 'applied':
                 add(job_id, job['decided_at'])
         daily = {job_id for job_id, at in submissions.items() if at >= day}
+        groups = guard.company_keys()  # names listed together in handoff.json share one company limit
+
+        def company_of(job_id):
+            name = (jobs.get(job_id) or {}).get('company_norm') or ''
+            return groups.get(name, name)
         company = {}
         for job_id, at in submissions.items():
             if at >= window:
-                name = (jobs.get(job_id) or {}).get('company_norm') or ''
-                company.setdefault(name, set()).add(job_id)
+                company.setdefault(company_of(job_id), set()).add(job_id)
         submitted_today = len(daily)
         for row in conn.execute(select(T.handoff_claims).where(T.handoff_claims.c.lease_until > now)).mappings():
             job_id = row['job_id']
             if job_id == exclude_claim_job or job_id in submissions:
                 continue
             daily.add(job_id)
-            name = (jobs.get(job_id) or {}).get('company_norm') or ''
-            company.setdefault(name, set()).add(job_id)
+            company.setdefault(company_of(job_id), set()).add(job_id)
         return len(daily), {name: len(ids) for name, ids in company.items()}, submitted_today
 
     def _candidates(self, conn, now: datetime, *, ignore_claim_job=None, only_job=None):
@@ -226,6 +229,7 @@ class HandoffService:
                 state = 'active'
             source_states.setdefault(posting['job_id'], []).append(state)
         gone = set(conn.execute(select(T.enrichments.c.url).where(T.enrichments.c.status == 'gone')).scalars())
+        groups = guard.company_keys()
         items, blocked = [], {}
         for row in rows:
             job_id = row['job_id']
@@ -261,7 +265,8 @@ class HandoffService:
                 reason = 'link_gone'
             elif not _safe_link(link):
                 reason = 'invalid_apply_url'
-            elif company_counts.get(row['company_norm'] or '', 0) >= guard.company_limit:
+            elif company_counts.get(groups.get(row['company_norm'] or '', row['company_norm'] or ''), 0) \
+                    >= guard.company_limit:
                 reason = 'company_cooldown'
             if reason:
                 blocked[reason] = blocked.get(reason, 0) + 1

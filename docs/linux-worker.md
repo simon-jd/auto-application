@@ -17,14 +17,46 @@ and no production services, runtime configuration or live data have been changed
 
 Only active imported postings awaiting enrichment are candidates. Rule-excluded jobs make no new employer
 requests; cache-only projection recovery can repair an interrupted write even after exclusion. Supported
-HTTPS application links resolve to the employer's public JSON API:
+HTTPS application links resolve to the employer's public JSON API, or for two sites to the public job page:
 
-| Platform | Accepted application link |
-|---|---|
-| Greenhouse | `boards.greenhouse.io/<board>/jobs/<numeric-id>` or `job-boards.greenhouse.io/<board>/jobs/<numeric-id>`; `/embed/job_app?for=<board>&token=<numeric-id>` on either host |
-| Lever | `jobs.lever.co/<board>/<UUID>` or `jobs.eu.lever.co/<board>/<UUID>`, optionally ending in `/apply` |
-| Ashby | `jobs.ashbyhq.com/<board>/<UUID>`, optionally ending in `/application` |
-| Workday | `<tenant>.wd<number>.myworkdayjobs.com/[locale/]<site>/job/.../<title>_<requisition>`, optionally ending in `/apply`, `/application` or `/applyManually` |
+| Platform | Accepted application link | Read from |
+|---|---|---|
+| Greenhouse | `boards.greenhouse.io/<board>/jobs/<numeric-id>`, `job-boards.greenhouse.io/<board>/jobs/<numeric-id>` and their EU hosts `boards.eu.greenhouse.io` / `job-boards.eu.greenhouse.io`; `/embed/job_app?for=<board>&token=<numeric-id>` on any of them | `boards-api.greenhouse.io/v1/boards/<board>/jobs/<id>` (it serves EU boards too; there is no `boards-api.eu` host) |
+| Lever | `jobs.lever.co/<board>/<UUID>` or `jobs.eu.lever.co/<board>/<UUID>`, optionally ending in `/apply` | `api.lever.co` / `api.eu.lever.co` |
+| Ashby | `jobs.ashbyhq.com/<board>/<UUID>`, optionally ending in `/application`; board names may contain dots and spaces (`jerry.ai`, `Spectral%20Labs`) | the board's posting API, once per round |
+| Workday | `<tenant>.wd<number>.myworkdayjobs.com/[locale/]<site>/job/.../<title>_<requisition>`, optionally ending in `/apply`, `/application` or `/applyManually` | the site's `wday/cxs` job API |
+| Microsoft | `apply.careers.microsoft.com/careers/job/<numeric-id>` | `apply.careers.microsoft.com/api/pcsx/position_details?position_id=<id>&domain=microsoft.com&hl=en` |
+| Eightfold tenants (2026-11-06) | `<tenant>.eightfold.ai/careers/job/<numeric-id>?domain=<domain>`, the links `eightfold-board` feeds write (Qualcomm's own `careers.qualcomm.com` links stay unsupported) | `<tenant>.eightfold.ai/api/pcsx/position_details?position_id=<id>&domain=<domain>&hl=en`, Microsoft's position API |
+| Oracle Recruiting Cloud (2026-11-06) | `<pod>.fa.<region>.oraclecloud.com/hcmUI/CandidateExperience/<language>/sites/<site>/job/<requisition>` | the pod's `hcmRestApi/resources/latest/recruitingCEJobRequisitionDetails` (finder `ById;Id="<requisition>",siteNumber=<site>`) |
+| TikTok / ByteDance | `lifeattiktok.com/search/<id>`, `joinbytedance.com/search/<id>`, `jobs.bytedance.com/[en/]position/<id>/detail` (it redirects to joinbytedance.com) | the job page on lifeattiktok.com or joinbytedance.com (its job API answers only POST requests) |
+| Jobright | `jobright.ai/jobs/info/<24-hex id>` (also `www.`) | the logged-out job page's `__NEXT_DATA__` |
+| SmartRecruiters | `jobs.smartrecruiters.com/<company>/<numeric-id>[-<title>]` or `/oneclick-ui/company/<company>/publication/<UUID>` | `api.smartrecruiters.com/v1/companies/<company>/postings/<id or UUID>` |
+| Workable | `apply.workable.com/<account>/j/<shortcode>`, optionally ending in `/apply` | `apply.workable.com/api/v2/accounts/<account>/jobs/<shortcode>` |
+| Amazon | `www.amazon.jobs` or `amazon.jobs`: `[<locale>/]jobs/<numeric-id>[/<title> or /apply]` | `www.amazon.jobs/en/search.json?base_query=<id>`, keeping the result whose `id_icims` is the id |
+
+Every request URL is rebuilt from the board and id read from the link: query strings, other hosts and other
+paths never reach the network. Pages are requested with `Accept: text/html`, the APIs with `application/json`.
+
+The sites differ in what they give and in how a closed job looks:
+
+- **Microsoft, other Eightfold tenants, SmartRecruiters, Workable** answer 404 for a closed job (`gone`).
+  SmartRecruiters `active: false` is `gone` too. An Eightfold or Oracle record never names the employer; the
+  feed's company stays on the posting.
+- **Oracle** answers a closed or unknown requisition with an empty `items` list (`gone`). The description is the
+  requisition's external description, responsibilities and qualifications (then the organization and corporate
+  descriptions when present). Lookup values such as the location text and job schedule follow the
+  requisition's own locale (Ford posts some in Brazilian Portuguese while the text is English), so the import's
+  English locations are kept.
+- **TikTok / ByteDance** pages give the title, `Location`, `Team`, `Employment Type` (`Regular` is full time),
+  `Job Code` (the requisition id) and the description between "Share this listing:" and the second "Apply to this
+  job"; the salary comes from its pay-transparency paragraph. A page that renders without the job's title and
+  apply link is `gone`; a page that names another job, or is not the career site, fails.
+- **Jobright** shows logged-out visitors its structured summary, not the employer's text: the description is
+  the summary, responsibilities, qualifications, preferred qualifications and benefits. `isDeleted` is `gone`.
+  About one listing in fifteen redirects logged-out visitors to another job board (ZipRecruiter); it is cached
+  `unsupported` with platform `jobright` and not retried.
+- **Amazon** has no per-job JSON: the job is the search hit with that `id_icims`. A job the index no longer lists
+  is `gone` (its page answers 404).
 
 The returned record must belong to the requested posting. For Workday, the request already names the
 exact posting path, so the record's `jobReqId` may differ in punctuation (`JR-123456` / `JR123456`), omit
@@ -33,7 +65,8 @@ the letter prefix (`123456`), or lack the URL's copy suffix (`R123456-1` / `R123
 
 Custom company domains and unrecognized links remain unsupported. Requests reject credentials, unusual
 ports, traversal and off-platform targets. Redirects are not followed. At most **200 actual HTTP requests**
-are made per round, with at least one second between requests to the same host. The User-Agent is
+are made per round, with at least one second between requests to the same host (two for Eightfold tenants,
+which answer bursts with HTTP 429). The User-Agent is
 `auto-app/1 (personal job search; one request per job)`. An Ashby board response is reused during the round;
 cache reuse consumes no request budget. `--enrich-limit` can reduce the budget to any integer from 0 to 200.
 
@@ -43,7 +76,7 @@ The `enrichments` table caches by canonical application URL:
 |---|---|
 | `ok` | A usable employer description is saved and merged into the posting. A later feed import that clears it restores it from cache without another request. |
 | `failed` | A request or parse failed. Retry after 30 minutes × 2^(attempts − 1), capped at 24 hours. |
-| `unsupported` | No supported public API is known, or the employer record has no description. No automatic retry. |
+| `unsupported` | No supported public API is known (platform `NULL`), the employer record has no description, or Jobright sends the listing to another site. No automatic retry, except that a link cached with platform `NULL` is read again in the first round after an adapter for it exists. |
 | `gone` | The employer API reports the opening absent/closed. No automatic retry; the next screening pass evaluates closure. |
 
 Enrichment preserves imported source evidence, stable job IDs, manual decisions and model verdicts. It fills
@@ -63,11 +96,12 @@ The optional rules file is `$AUTO_APP_HOME/config/screening.json`; without it, t
   "max_years_required": 3,
   "extra_cs_terms": [],
   "extra_non_cs_terms": [],
-  "us_only": true
+  "us_only": true,
+  "exclude_unknown_without_software_evidence": false
 }
 ```
 
-The four `exclude_*` values and `us_only` are booleans. `max_years_required` is the inclusive exclusion threshold: a
+The `exclude_*` values and `us_only` are booleans. `max_years_required` is the inclusive exclusion threshold: a
 clear requirement of 3 or more years excludes, **including a job titled new grad**; `null` disables this rule.
 The two `extra_*_terms` values are lists of nonempty title phrases extending CS/non-CS recognition.
 Unknown keys and invalid types fail visibly rather than silently reverting to defaults.
@@ -75,10 +109,11 @@ Unknown keys and invalid types fail visibly rather than silently reverting to de
 | Reason | Evidence |
 |---|---|
 | `internship` | Explicit intern/co-op/apprentice title or internship employment type; a seasonal title without a new-grad signal; or appearances exclusively in internship feeds. |
-| `senior_title` | Explicit senior/staff/principal/lead/manager/director/architect or III-and-above level. New-grad/entry/junior title signals suppress this title rule. Ambiguous uses such as “Member of Technical Staff” remain kept. |
+| `senior_title` | Explicit senior/staff/principal/lead/manager/director/architect or III-and-above level. New-grad/entry/junior title signals suppress this title rule. A comma- or dash-separated part made only of level words (“Sr. Staff”, “Senior Staff”, “Principal Lead”) is senior too. Ambiguous uses such as “Member of Technical Staff” and team suffixes (“- Staffing Platform”, “- Staff Tools”) remain kept. |
 | `not_cs_role` | An explicit non-CS title, or a non-CS repository category when the title is otherwise unknown. A CS title wins over a category; a generic Software category does not override an explicit non-CS title. Embedded software, firmware and FPGA remain in scope. |
-| `citizenship_required` | An explicit US citizenship, security-clearance or ITAR eligibility requirement. Negated, preferred or merely mentioned requirements and questions do not establish an exclusion. |
-| `experience_required:N` | Independent mandatory experience constraints use the highest requirement; explicit OR/degree alternatives use the least demanding route. N reaches the configured threshold. Preferred/nice-to-have, negated, degree-substitution and employer/team-history text do not count. |
+| `no_software_evidence` | Opt-in (`exclude_unknown_without_software_evidence`, off by default). The title names no role (`unknown`), the job has a description, and the description names no software skill: no language (Python, C++, C#, SQL …), no programming, computer science, APIs, Git, Linux, cloud, ML, embedded/firmware, software development/engineering, full-stack/back-end/front-end, CI/CD, DevOps or databases. A job without a description is never excluded by this rule. |
+| `citizenship_required` | An explicit US citizenship, US-person (ITAR/EAR) or security-clearance requirement, in the description or the title. Counted: enumerated ITAR lists ("must be a (i) U.S. citizen or national, (ii) …", "must either be (A) a U.S. person"); quoted terms ("require “U.S. Person” status"); "only for / restricted to U.S. persons"; "U.S. citizen or green card holder required"; access to export-controlled data "without" an export license; a named clearance (Secret, TS/SCI, DOE Q, security/government/DoD/U.S. clearance) with a requirement cue such as eligible, obtain, active, must or required; a heading/value pair ("Security Clearance" over "Top Secret/SCI required"); titles with Cleared, Clearance, TS/SCI, Top Secret, Polygraph/Poly or U.S. Person/Citizenship. Not counted: negated or hedged wording (may, if needed, where required, certain positions, typically); a licence route ("may require an export license", "contingent on ability to obtain authorization"); pay statements; facility, TSA or badge clearances; Public Trust; definitions and EEO text; statements that also admit non-citizens or visa holders; questions; and items under a preferred heading ("Preferred qualifications", "Nice to Have", "Ways to stand out") unless the item itself says "required" or "must". The first line that is not a list item ends a preferred section. |
+| `experience_required:N` | Independent mandatory experience constraints use the highest requirement; explicit OR/degree alternatives use the least demanding route. N reaches the configured threshold. A range counts from its lower bound (`1-3`, `1~3`). "A Bachelor's degree in CS … or 3+ years" is an alternative only when no experience route names a degree. Items of a "one of the following:" list of education routes are alternatives. Preferred/nice-to-have, negated, degree-substitution and employer/team-history text do not count. |
 | `closed_at_source` | Every saved application URL for the job has a `gone` employer result. One closed link alone does not close a job with other links. |
 | `outside_us` | `us_only` is on and every explicit place the job names is outside the US: another country, a region (EMEA, APAC, Europe …), a well-known foreign city, or Lever's structured country. Any US location (a state, `US`/`USA`, a common US city alias, "Remote - US") keeps the job, so "London or New York" stays; "Remote" alone, "Hybrid" and unrecognized places are unknown and stay. US evidence wins inside one location, so "Dublin, CA" is US. Country exclusions in `preferences.json` still apply on top. |
 
@@ -259,9 +294,11 @@ systemctl --user status auto-app-worker.service --no-pager
 ```
 
 The unit paths assume the default base; adjust them before installing at another destination. The accepted
-feed policy also disables `simplify-internships`, `speedyapply-swe-internships`, `speedyapply-ai-internships`
-and `jobright-swe-internships` in the **remote** `runtime/config/feeds.yaml`. That configuration change is
-still pending; deterministic screening independently excludes imported internship evidence.
+feed policy also removes `simplify-internships`, `speedyapply-swe-internships`, `speedyapply-ai-internships`
+and `jobright-swe-internships` from the **remote** `runtime/config/feeds.yaml`. That was done on 2026-11-02,
+together with the jobs screened as internships (docs/updates/2026-11-01-grok-feeds-dedup.md). The remote
+config also sets `skip_internships: true`, so internships that other feeds list are not imported
+(docs/updates/2026-11-02-skip-internships.md).
 
 For staged live checks, stop the continuous worker before forcing a manual round:
 
@@ -306,10 +343,13 @@ claimed by the local tests.
 
 `auto-app worker boards --yaml --top 30` reads saved, active, visible, rule-kept jobs and recommends employer
 board feeds, ranking sponsorship evidence first. It is a read-only suggestion; inspect the generated YAML
-and choose sources before editing **runtime** `config/feeds.yaml`. The three feed formats are
+and choose sources before editing **runtime** `config/feeds.yaml`. The suggested feed formats are
 `greenhouse-board`, `lever-board` and `ashby-board`; each is `kind: repository` with a public listing API
-`location`. Optional `company` is a display hint when the board API omits the company name. Source names
-stay stable across runs, and a board already configured is omitted from `--yaml` output.
+`location`. Workday, Eightfold, iCIMS Jibe, Oracle and SmartRecruiters boards (below) are added by hand. Optional `company` is a display hint when the board API omits the company name. Source names
+stay stable across runs, and a board already configured is omitted from `--yaml` output. Ashby board names may
+contain dots or spaces (`rivianvw.tech` → `board-ashby-rivianvw-tech`, `spectral labs` →
+`…/job-board/spectral%20labs`). A link whose board name no listing API accepts is skipped, and the listing
+continues.
 
 ```bash
 uv run auto-app worker boards --yaml --top 30
@@ -326,9 +366,39 @@ uv run auto-app worker boards --yaml --top 30
 regional public postings API; Ashby uses its public job-board API. The [disabled examples](../config/feeds.example.yaml)
 show their URL shapes. The feed adapter retains full descriptions, source history and exact ATS identities;
 repository copies of the same employer opening can then deduplicate by employer key. A partial board with
-malformed rows keeps earlier absent records for retry instead of treating them as closed. Workday is outside
-these three list formats because its list response does not provide the JD; the single-job P0 enrichment
-path remains available for Workday links.
+malformed rows keeps earlier absent records for retry instead of treating them as closed.
+
+**Workday** (`format: workday-board`, 2026-11-06): `location` is the careers URL
+`https://<tenant>.wd<N>.myworkdayjobs.com/<site>`, `company` is required, and optional `search` (one Workday
+search per text), `facets` (parameter or label → values as the site shows them) and `max_pages` (pages of 20,
+default 25, at most 100) narrow it. Every run POSTs each page with a one-second pause between requests. The
+list has no JD, so imported postings are pending. This worker's screen step judges their titles and
+locations, and its enrich step reads the CXS detail endpoint for each posting kept, within the round's
+request budget. A search that falls short of Workday's total, at the page cap or Workday's 2000-result cap, is a
+partial snapshot that closes nothing. Ready-to-review entries for GM, NVIDIA, Intel, Aptiv and Cisco, with
+their live counts and request volumes:
+[the Workday record](updates/2026-11-06-workday-board.md).
+
+**Eightfold, iCIMS Jibe, Oracle and SmartRecruiters** (`eightfold-board`, `icims-jibe-board`, `oracle-board`,
+`smartrecruiters-board`, 2026-11-06) read the same way: pages of the site's public search with a pause between
+requests, an optional `country`, `search` and `max_pages` (Eightfold also `filters`), and a partial snapshot
+when a search still falls short of the site's total after reading it a second time. Jibe lists carry the
+full JD, so its jobs import complete. The others import pending, and this worker's enrich step reads each
+kept posting's detail (Eightfold's `position_details`, Oracle's requisition details, SmartRecruiters' posting
+API; table in §1). The location shapes, options and the live read-only counts for Qualcomm, Garmin, AMD,
+Lutron, Rivian, Ford, TI, Honeywell, Bosch, Intuitive and Western Digital are in
+[the paged boards record](updates/2026-11-06-paged-boards.md).
+
+```yaml
+#   board-workday-aptiv:
+#     kind: repository
+#     format: workday-board
+#     company: Aptiv
+#     location: https://aptiv.wd5.myworkdayjobs.com/aptiv_careers
+#     facets:
+#       Country: [United States of America]
+#     max_pages: 10
+```
 
 After approved entries are added to `runtime/config/feeds.yaml` and enabled, the existing ingest worker
 loads them on its next round, ordinarily every **30 minutes**. The read-only suggestion command alone

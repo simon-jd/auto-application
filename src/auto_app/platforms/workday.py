@@ -20,8 +20,9 @@ from auto_app.core.models import CommonPosting
 from auto_app.sources.common.text import employment_of, html_to_text, salary_from_description, workplace_of
 from auto_app.sources.parsing import ParseError
 
-PAGE_SIZE = 20
+PAGE_SIZE = 20  # Workday answers a larger limit with HTTP 400
 MAX_RESULTS = 1000  # per keyword; Workday can't sort by date, so every page is read
+RESULT_CAP = 2000  # Workday lists no further (offset 2000 answers junk), whatever its total
 LOCALE = re.compile(r"^[a-z]{2}-[A-Z]{2}$")
 EMPLOYMENT = {"full_time": "full time", "part_time": "part time"}
 
@@ -161,8 +162,8 @@ class WorkdaySource(ApiSource):
         jobs: dict[str, RawJob] = {}
         for query_facets, location_faceted in queries:
             for kw in search.keywords or [""]:
-                offset = 0
-                while offset < MAX_RESULTS:
+                offset, total = 0, None
+                while True:
                     body = {"appliedFacets": query_facets, "limit": PAGE_SIZE, "offset": offset, "searchText": kw}
                     data = await ctx.post_json(self._api(board) + "/jobs", body)
                     postings = data.get("jobPostings") or []
@@ -171,12 +172,14 @@ class WorkdaySource(ApiSource):
                         jobs.setdefault(job.id, job)
                         if location_faceted:
                             facet_matches.add(job.id)
-                    total = data.get("total")
-                    if len(postings) < PAGE_SIZE or (isinstance(total, int) and offset + len(postings) >= total):
-                        break
+                    if offset == 0 and isinstance(data.get("total"), int):
+                        total = data["total"]  # the first page only: later pages report 0
                     offset += PAGE_SIZE
-                else:
-                    self.search_truncated = True
+                    if len(postings) < PAGE_SIZE or (total is not None and offset >= total):
+                        break  # Workday has no more
+                    if offset >= min(MAX_RESULTS, RESULT_CAP):
+                        self.search_truncated = True  # more are listed than may be read
+                        break
         return list(jobs.values())
 
     def to_job(self, p: dict, host: str, site: str) -> RawJob:

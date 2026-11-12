@@ -374,7 +374,17 @@ app 自己打开的链接（例如登录链接）写进 grokbot-app.service 的�
 |---|---|
 | home-ubuntu（grokbot）这台电脑的本机执行 | **始终允许**。危险操作由账户权限挡住：sudo 只放行 `jobq`，网络只到公网 IPv4 |
 | Mac 这台电脑的本机执行 | **每次询问**。Grok 在 Mac 上只用 Read 和 CopyToBox（§6） |
-| Auto-review | 加一条 **Ask first** 规则：提交申请表之前问我 |
+| Auto-review | 加四条 **Ask first** 规则：提交申请表之前问我；以及下面三条财务规则 |
+
+财务规则（Grok 连着 Gmail，帮你处理订阅和核对银行账单），原文照填：
+
+```text
+Ask first before sending, transferring, or moving money, or making any payment or purchase.
+Ask first before entering or changing any bank, card, or payment details on any site.
+Ask first before creating, changing, or cancelling any subscription or recurring payment.
+```
+
+Auto-review 由模型判断，是配合用的护栏，不是安全边界：Gmail 走 Grok 云端的 connector，§4 的账户和出口限制管不到它。
 
 ### 7.5 看 `check.sh` 的结果
 

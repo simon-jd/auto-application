@@ -128,6 +128,48 @@ def test_unsupported_links_do_not_consume_the_request_limit(tmp_path):
         store.engine.dispose()
 
 
+def test_links_cached_before_their_adapter_existed_are_fetched_now(tmp_path):
+    store = make_store(tmp_path)
+    try:
+        sr, other = "https://jobs.smartrecruiters.com/Acme/744000000000001", "https://careers.acme.com/jobs/202"
+        empty = "https://apply.workable.com/acme/j/5840ECEB50"
+        ingest(store, [record("201", "Backend Engineer", url=sr), record("202", "Data Engineer", url=other),
+                       record("203", "ML Engineer", url=empty)])
+        with store.engine.begin() as conn:
+            conn.execute(insert(T.enrichments), [
+                dict(url=sr, platform=None, status="unsupported", attempts=0, updated_at=NOW - timedelta(days=9),
+                     error="no public job API for this link"),
+                dict(url=other, platform=None, status="unsupported", attempts=0, updated_at=NOW - timedelta(days=9),
+                     error="no public job API for this link"),
+                # An adapter read this one and found no description: that verdict stands.
+                dict(url=empty, platform="workable", status="unsupported", attempts=0, updated_at=NOW - timedelta(days=9),
+                     error="employer record has no description")])
+        fetcher = FakeFetcher(ok("Ship features."))
+        report = enrich_jobs(store, fetcher, now=NOW)
+        assert fetcher.calls == ["https://api.smartrecruiters.com/v1/companies/Acme/postings/744000000000001"]
+        assert (report["ok"], report["unsupported"], report["jobs_enriched"]) == (1, 0, 1)
+        with store.engine.connect() as conn:
+            rows = {r["url"]: r for r in conn.execute(select(T.enrichments)).mappings()}
+        assert (rows[sr]["status"], rows[sr]["platform"]) == ("ok", "smartrecruiters")
+        assert rows[other]["status"] == rows[empty]["status"] == "unsupported"
+        enrich_jobs(store, fetcher, now=NOW + timedelta(days=1))
+        assert len(fetcher.calls) == 1
+    finally:
+        store.engine.dispose()
+
+
+def test_a_listing_the_site_sends_elsewhere_is_unsupported_and_not_retried(store):
+    url = "https://jobright.ai/jobs/info/68cb63c89e3a822f5d2459c7"
+    ingest(store, [record("101", "Software Engineer, New Grad", url=url)])
+    fetcher = FakeFetcher(FetchResult("unsupported", error="Jobright sends this listing to another site"))
+    assert enrich_jobs(store, fetcher, now=NOW)["unsupported"] == 1
+    row = cache_row(store)
+    assert (row["status"], row["platform"], row["error"]) == ("unsupported", "jobright",
+                                                              "Jobright sends this listing to another site")
+    enrich_jobs(store, fetcher, now=NOW + timedelta(days=3))
+    assert len(fetcher.calls) == 1
+
+
 def test_excluded_and_archived_jobs_are_not_candidates(store):
     job = job_id_of(store, "Software Engineer, New Grad")
     with store.engine.begin() as conn:
