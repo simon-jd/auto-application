@@ -1,0 +1,10 @@
+[Unit]
+Description=jd-resume-tailor: make and publish application packages for queued auto-app jobs (never submits)
+After=network-online.target
+OnFailure=auto-app-alert@%n.service
+
+[Service]
+Type=oneshot
+ExecStart=%h/Desktop/job-search/auto-application/deploy/jd-apply-queue.sh
+TimeoutStartSec=3h
+Nice=5

@@ -2,8 +2,9 @@
 
 It only calls the existing services. It takes no database or file-path arguments: the runtime is
 $AUTO_APP_HOME (the server's wrapper script pins it), and a missing database is reported, never created.
-stdout is one JSON object; exit status 0 is success, 1 a failed request (a database or file error is reported
-by its class name only), 2 bad arguments or configuration.
+stdout is one JSON object, except that `kit ID FILE` and `guide` print the file itself (so a PDF can be redirected
+into a file); an error is JSON either way. Exit status 0 is success, 1 a failed request (a database or file error is
+reported by its class name only), 2 bad arguments or configuration.
 """
 
 import argparse
@@ -25,6 +26,11 @@ TOKEN_PATTERN = re.compile(r"[A-Za-z0-9_-]{16,128}")
 STDIN_TOKEN = "-"  # `jobq packet -` (or no argument at all) reads the token from stdin
 MAX_TOKEN_LINE = 256  # bytes read from stdin while looking for the token
 FORBIDDEN_CATEGORIES = ("Cc", "Zl", "Zp")  # control characters (C0, DEL, C1), line and paragraph separators
+MAX_QUESTIONS_STDIN = 64 * 1024  # bytes of question JSON read from stdin (the service refuses more than this anyway)
+# The same names as HandoffService's KIT_FILES and KIT_GUIDES (a test checks it), kept here so that --help and
+# argument checks do not import the service.
+KIT_FILES = ("job.json", "fields.json", "jd.txt", "resume.pdf", "cover_letter.pdf", "answers.md", "message.txt")
+GUIDES = ("cheatsheet", "readme")
 
 
 class _StartupError(Exception):
@@ -93,6 +99,33 @@ def _claim_token(args) -> str:
     return line
 
 
+def _questions_json():
+    """The open questions, as a JSON list, from stdin after the token line (or all of stdin with a TOKEN argument)."""
+    if sys.stdin is None or sys.stdin.isatty():
+        raise _StartupError(2, "no questions: pipe the token line and then the JSON list, for example "
+                               "`printf '%s\\n%s' \"$token\" \"$json\" | jobq questions`")
+    text = sys.stdin.read(MAX_QUESTIONS_STDIN + 1)
+    if len(text.encode()) > MAX_QUESTIONS_STDIN:
+        raise _StartupError(2, "the questions on stdin are too long (at most 64 KiB)")
+    if not text.strip():
+        raise _StartupError(2, "no questions on stdin after the token")
+    try:
+        return json.loads(text)
+    except ValueError:
+        raise _StartupError(2, "the questions on stdin are not valid JSON") from None
+
+
+def _owner_only(command: str) -> None:
+    """Refuse a step that only the owner's side may take when jobq runs through sudo, which is how grokbot reaches it.
+
+    sudo always sets SUDO_USER and its env_reset keeps the caller from clearing it; Claude Code reaches jobq as
+    postedism, without sudo (on the server, or over ssh).
+    """
+    if os.environ.get("SUDO_USER"):
+        raise ValueError(f"`{command}` is the owner's step (Claude Code as postedism, without sudo); "
+                         "it is refused through sudo")
+
+
 class _SeenIds(argparse.Action):
     def __call__(self, parser, namespace, values, option_string=None):
         if len(values) > SEEN_LIMIT:
@@ -103,8 +136,9 @@ class _SeenIds(argparse.Action):
 def parser() -> argparse.ArgumentParser:
     root = argparse.ArgumentParser(
         prog="jobq", description="Read new jobs, record the user's decisions and run the application handoff.",
-        epilog='Prints one JSON object. Exit status: 0 success; 1 the request failed '
-               '({"status": "error", "error": "..."}); 2 bad arguments or configuration.')
+        epilog='Prints one JSON object, except that `kit ID FILE` and `guide` print the file itself. Exit status: '
+               '0 success; 1 the request failed ({"status": "error", "error": "..."}); 2 bad arguments or '
+               'configuration.')
     commands = root.add_subparsers(dest="command", required=True, metavar="COMMAND")
     text = plain_text(500)  # reasons, notes, an account's site and email
     short = plain_text(200)  # search filters
@@ -173,6 +207,41 @@ def parser() -> argparse.ArgumentParser:
 
     release = command("release", _cmd_release, "Give a claim back without an outcome.")
     claim_token(release)
+
+    hold = command("hold", _cmd_hold, "The form is filled and waits for the user's go: keep the claim for "
+                                      "hold_hours (default 24). Claiming the job again gives you a fresh token.")
+    claim_token(hold)
+
+    command("held", _cmd_held, "Filled forms waiting for the user's go (held, claim still live), oldest first, so "
+                               "they can be approved together.")
+
+    questions = command("questions", _cmd_questions,
+                        "Hand back the form's open questions that answers.md does not cover, or the user's change "
+                        "requests from the pre-submit check (this uses up the claim; the job waits until the revised "
+                        "package is published). stdin: the token line, then a JSON list of "
+                        '{"text", "required", "limit", "page", "kind"} ("kind": "question", the default, or "change" '
+                        "for the user's words verbatim); with a TOKEN argument, stdin is only the JSON.")
+    claim_token(questions)
+
+    command("answers-needed", _cmd_answers_needed, "Jobs waiting for answers, with the questions handed back.")
+
+    answers_ready = command("answers-ready", _cmd_answers_ready,
+                            "The owner's step after publishing the answers: the job returns to the queue. "
+                            "Refused through sudo.")
+    job_number(answers_ready)
+
+    kit = command("kit", _cmd_kit,
+                  "The published application packages, no claim token needed: with no ID, the index; with ID, that "
+                  "job's job.json; with ID FILE, the file itself on stdout (not JSON), for example "
+                  "`jobq kit 14143 resume.pdf > ~/kit/14143/resume.pdf`.")
+    kit.add_argument("job_id", metavar="ID", nargs="?", type=positive_int, help="The job number.")
+    kit.add_argument("file", metavar="FILE", nargs="?", choices=KIT_FILES,
+                     help=f"One of {', '.join(KIT_FILES)}.")
+
+    guide = command("guide", _cmd_guide, "The apply-kit's guide as plain text (not JSON): cheatsheet (answers.md, the "
+                                         "default) or readme (README.md).")
+    guide.add_argument("which", metavar="WHICH", nargs="?", choices=GUIDES, default="cheatsheet",
+                       help="cheatsheet (the default) or readme.")
 
     account = command("account", _cmd_account, "Note that an account exists on a hiring site (never its password).")
     account.add_argument("site", metavar="SITE", type=text, help="The site's host name.")
@@ -270,6 +339,62 @@ def _cmd_release(args, db: Path, home: Path) -> dict:
     return HandoffService(db).release(_claim_token(args))
 
 
+def _cmd_hold(args, db: Path, home: Path) -> dict:
+    from auto_app.handoff.service import HandoffService
+
+    return HandoffService(db).hold(_claim_token(args))
+
+
+def _cmd_questions(args, db: Path, home: Path) -> dict:
+    from auto_app.handoff.service import HandoffService
+
+    token = _claim_token(args)  # first: when it comes from stdin, it is the first line
+    return HandoffService(db).submit_questions(token, _questions_json())
+
+
+def _cmd_held(args, db: Path, home: Path) -> dict:
+    from auto_app.handoff.service import HandoffService
+
+    return HandoffService(db).held_applications()
+
+
+def _cmd_kit(args, db: Path, home: Path) -> dict | bytes:
+    from auto_app.handoff.service import HandoffService
+
+    service = HandoffService(db)
+    if args.job_id is None:
+        return service.kit_index()
+    data = service.kit_file(args.job_id, args.file or "job.json")
+    if args.file is not None:
+        return data  # printed as it is
+    try:
+        manifest = json.loads(data)
+    except ValueError:
+        raise ValueError(f"job #{args.job_id}'s job.json is not valid JSON") from None
+    if not isinstance(manifest, dict):
+        raise ValueError(f"job #{args.job_id}'s job.json is not a JSON object")
+    return manifest
+
+
+def _cmd_guide(args, db: Path, home: Path) -> bytes:
+    from auto_app.handoff.service import HandoffService
+
+    return HandoffService(db).kit_guide(args.which)
+
+
+def _cmd_answers_needed(args, db: Path, home: Path) -> dict:
+    from auto_app.handoff.service import HandoffService
+
+    return HandoffService(db).pending_questions()
+
+
+def _cmd_answers_ready(args, db: Path, home: Path) -> dict:
+    from auto_app.handoff.service import HandoffService
+
+    _owner_only("answers-ready")
+    return HandoffService(db).answers_ready(args.job_id)
+
+
 def _cmd_account(args, db: Path, home: Path) -> dict:
     from auto_app.handoff.service import HandoffService
 
@@ -315,6 +440,11 @@ def main(argv: list[str] | None = None) -> int:
         kind = "file" if isinstance(exc, OSError) else "database"
         _print({"status": "error", "error": f"{kind} error ({type(exc).__name__}); retry"})
         return 1
+    if isinstance(result, bytes):  # `kit ID FILE` and `guide`: the file itself, byte for byte
+        sys.stdout.flush()
+        sys.stdout.buffer.write(result)
+        sys.stdout.buffer.flush()
+        return 0
     _print(result)
     return 0
 

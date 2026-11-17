@@ -417,6 +417,17 @@ handoff_claims = Table(
     Column('lease_until', Ts, nullable=False),
 )
 
+handoff_questions = Table(  # open questions an agent found on a form and handed back for answers
+    'handoff_questions', metadata,
+    Column('question_set_id', Integer, primary_key=True, autoincrement=True),
+    Column('job_id', Integer, nullable=False, index=True),  # no FK: like applications, it outlives the job
+    Column('application_id', Integer, nullable=False),
+    Column('agent', String, nullable=False),
+    Column('questions', JSON, nullable=False),  # [{"text", "required", "limit", "page"}]
+    Column('submitted_at', Ts, nullable=False),
+    Column('answered_at', Ts),  # set when the owner marks the answers published (answers-ready)
+)
+
 resume_artifacts = Table(
     'resume_artifacts', metadata,
     Column('artifact_id', Integer, primary_key=True, autoincrement=True),

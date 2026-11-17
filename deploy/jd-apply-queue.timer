@@ -1,0 +1,10 @@
+[Unit]
+Description=Hourly jd-resume-tailor queue run (deploy/jd-apply-queue.sh)
+
+[Timer]
+OnCalendar=hourly
+RandomizedDelaySec=5min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

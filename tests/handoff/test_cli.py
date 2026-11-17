@@ -46,3 +46,22 @@ def test_cli_packet_account_resume_release_and_requeue(env):
     token = json.loads(output)['token']
     code, output = run(home, 'release', token)
     assert code == 0 and json.loads(output)['released'] is True
+
+
+def test_cli_questions_answers_and_hold(env, tmp_path):  # noqa: F811
+    home, ids = env
+    job = ids["ML Engineer"]
+    token = json.loads(run(home, "claim", str(job), "--agent", "my-agent")[1])["token"]
+    questions = tmp_path / "questions.json"
+    questions.write_text(json.dumps([{"text": "Why us?", "limit": "200 words"}]))
+    code, out = run(home, "questions", token, str(questions))
+    assert code == 0 and json.loads(out)["status"] == "needs_answers"
+    code, out = run(home, "answers-needed")
+    assert code == 0 and [i["job_id"] for i in json.loads(out)["items"]] == [job]
+    code, out = run(home, "answers-ready", str(job))
+    assert code == 0 and json.loads(out)["status"] == "queued"
+    token = json.loads(run(home, "claim", str(job), "--agent", "my-agent")[1])["token"]
+    code, out = run(home, "hold", token)
+    assert code == 0 and json.loads(out)["status"] == "ready"
+    code, out = run(home, "questions", token, str(tmp_path / "missing.json"))
+    assert code == 1 and "questions file" in out

@@ -17,6 +17,7 @@ class Guard:
     company_window_days: int = 30
     company_limit: int = 3  # submissions to one company within the window
     lease_minutes: int = 30  # how long a claim stays valid
+    hold_hours: int = 24  # how long `hold` keeps a filled form's claim while the user decides on Submit
     timezone: str | None = None  # IANA zone for the daily limit's day; None = the host's local zone
     # (other name, group name) pairs, both normalized like a job's company_norm: names that share the company limit
     company_groups: tuple[tuple[str, str], ...] = ()

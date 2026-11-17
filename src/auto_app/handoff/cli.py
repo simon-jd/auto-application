@@ -59,6 +59,45 @@ def release(token: str) -> None:
     _out(lambda: _service().release(token))
 
 
+@app.command("hold")
+def hold(token: str) -> None:
+    """The form is filled and waits for your go: keep the claim for hold_hours (default 24)."""
+    _out(lambda: _service().hold(token))
+
+
+@app.command("held")
+def held() -> None:
+    """Filled forms waiting for your go (held, claim still live), oldest first."""
+    _out(lambda: _service().held_applications())
+
+
+def _questions_file(path: Path):
+    from auto_app.handoff.service import HandoffError
+
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, ValueError) as exc:
+        raise HandoffError(f"cannot read the questions file {path}: {exc}") from None
+
+
+@app.command("questions")
+def questions(token: str, path: Annotated[Path, typer.Argument(help="A JSON list of {text, required, limit, page}.")]) -> None:
+    """Hand back the form's open questions that the published answers do not cover (uses up the claim)."""
+    _out(lambda: _service().submit_questions(token, _questions_file(path)))
+
+
+@app.command("answers-needed")
+def answers_needed() -> None:
+    """Jobs waiting for answers, with the questions the agent handed back."""
+    _out(lambda: _service().pending_questions())
+
+
+@app.command("answers-ready")
+def answers_ready(job: int) -> None:
+    """Once the answers are published, put a job that waited for them back into the queue."""
+    _out(lambda: _service().answers_ready(job))
+
+
 @app.command("requeue")
 def requeue(job: int) -> None:
     """Put a job that waited for you (needs_user / blocked) back into the queue."""

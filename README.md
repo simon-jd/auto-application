@@ -296,8 +296,9 @@ uv run auto-app-agent serve --db data/auto_app.db --transport streamable-http --
 ### Grok Bot (local execution)
 
 The Grok Bot desktop app runs on home-ubuntu as a separate low-privilege `grokbot` account and uses its local
-execution, so no tunnel, public listener or MCP is involved. It and Claude Code (over ssh) run one fixed-path
-command, `deploy/jobq`, which wraps the existing digest, query, decision and handoff services as small JSON commands.
+execution, so no tunnel, public listener or MCP is involved. It and Claude Code (as `postedism`, on the server or
+over ssh) run one fixed-path command, `deploy/jobq`, which wraps the existing digest, query, decision and handoff
+services as small JSON commands.
 The script pins `AUTO_APP_HOME` to the sibling `runtime/` directory, changes into it and starts Python with `-I` (no
 `PYTHON*` variables, no current or user directory on `sys.path`), so a caller cannot change the runtime, the working
 directory or what Python imports. Through sudo the environment is also reset, apart from sudo's short default list
@@ -322,14 +323,23 @@ check scripts are in `deploy/grokbot/`. [Guide, in Chinese](docs/grok-bot.md).
 | `packet [TOKEN]` | Everything needed to apply to the claimed job (`profile`, `answers` and `resumes` are empty: the server stores none). The token is read from **stdin** when the argument is left out or is `-`, which keeps it out of the sudo log and the process list; the argument still works |
 | `record [TOKEN] OUTCOME [--note TEXT]` | Record the outcome of an attempt, once per claim: `submitted`; `needs_user` or `blocked` (the job waits until the owner requeues it); `failed` (it can be claimed again); `skipped` (counts as not applying). No evidence files. Token on stdin as for `packet` |
 | `release [TOKEN]` | Give a claim back without an outcome. Token on stdin as for `packet` |
+| `hold [TOKEN]` | The form is filled and waits for the user's go: keep the claim for `hold_hours` (default 24) instead of the lease. `claim ID` on that job then returns a fresh token (`"resumed": true`). Token on stdin as for `packet` |
+| `held` | Filled forms waiting for the user's go (held, claim still live), oldest first: `job_id`, `title`, `company`, `apply_url`, `agent`, `lease_until`, `held_since`. The user approves them together ("提交 #a #b #c") |
+| `questions [TOKEN]` | Hand back the form's open questions that the package's `answers.md` does not cover, or the user's change requests from the pre-submit check; this uses up the claim and the job waits (`needs_answers`) until the revised package is published. stdin: the token line, then a JSON list of `{"text", "required", "limit", "page", "kind"}` (only `text` is needed; `kind` is `question`, the default, or `change` for the user's words verbatim; at most 60, 64 KiB); with a TOKEN argument, stdin is only the JSON |
+| `answers-needed` | Jobs waiting for answers, each with the latest questions handed back |
+| `answers-ready ID` | The owner's step once the answers are published: the job returns to the queue. Refused through sudo (grokbot); Claude Code runs it as `postedism`, without sudo |
+| `kit [ID [FILE]]` | The published application packages in the server's `apply-kit/` folder (the runtime's sibling), with **no claim token**: with no ID, `jobs/index.json`; with ID, that job's `job.json`; with ID FILE, the file itself on stdout, not JSON (`jobq kit 14143 resume.pdf > ~/kit/14143/resume.pdf`). `FILE` is `job.json`, `fields.json`, `jd.txt`, `resume.pdf`, `cover_letter.pdf`, `answers.md` or `message.txt`; a file not published yet is an error |
+| `guide [cheatsheet\|readme]` | The apply-kit's guide as plain text, not JSON: `cheatsheet` (`apply-kit/answers.md`, the default) or `readme` (`apply-kit/README.md`) |
 | `account SITE EMAIL [--existing] [--note TEXT]` | Note that an account exists on a hiring site (never its password); `--existing` means the user made it, not the agent |
 
 `--reason`, `--note`, `SITE` and `EMAIL` are one line of 1–500 characters after trimming, with no control characters
 (Unicode categories Cc, Zl and Zp); the `search` text filters allow 200 characters and `--cursor` 4096. `ID` is a whole
 number from 1 to 9223372036854775807. `TOKEN` is the value `claim` returned; claim tokens never begin with "-", so they
-work as plain arguments. Output is one JSON object. Exit status: 0 success; 1 the request failed
+work as plain arguments. Output is one JSON object, except that `kit ID FILE` and `guide` print the file itself (an
+error is still JSON). Exit status: 0 success; 1 the request failed
 (`{"status": "error", "error": "…"}`, including database and file errors); 2 bad arguments or configuration. After
-`needs_user` or `blocked`, only the owner's `auto-app handoff requeue` puts the job back.
+`needs_user` or `blocked`, only the owner's `auto-app handoff requeue` puts the job back; after `questions`, the
+owner's `answers-ready` does.
 
 ```bash
 # On home-ubuntu (as postedism); from the Mac, run the same command through ssh home-ubuntu
@@ -337,6 +347,9 @@ work as plain arguments. Output is one JSON object. Exit status: 0 success; 1 th
 /home/postedism/Desktop/job-search/auto-application/deploy/jobq search --sponsorship offers --limit 10
 # ssh joins its arguments into one string: quote the whole remote command when a value has spaces
 ssh home-ubuntu "/home/postedism/Desktop/job-search/auto-application/deploy/jobq want 123 --reason 'confirmed in chat'"
+# As grokbot (/usr/local/bin/jobq): a published package's file, byte for byte (no token), and the cheat sheet
+mkdir -p ~/kit/14143 && jobq kit 14143 resume.pdf > ~/kit/14143/resume.pdf
+jobq guide
 # Development checkout, without the wrapper (the runtime must already hold a database):
 AUTO_APP_HOME=/path/to/runtime uv run auto-app-jobq queue --limit 20
 ```
@@ -378,7 +391,13 @@ uv run auto-app bot run --db data/auto_app.db --credentials PATH/TO/bot.env
 `handoff` provides an eligible queue, quota-reserving leases, claim-gated JD/profile packets, external
 outcome recording, account metadata and resume registration. It does not call an agent/model or submit
 forms. Only allowed profile fields are exported; passwords are never accepted. Defaults are 20 per local
-calendar day (the host's zone, or `timezone` in `handoff.json`), 3 per company in 30 days and a 30-minute lease;
+calendar day (the host's zone, or `timezone` in `handoff.json`), 3 per company in 30 days, a 30-minute lease and a
+24-hour hold for a filled form that waits for the user's go (`hold_hours`); the server's runtime has used
+`"daily_submissions": 200` since 2026-11-17. `held` lists the forms waiting for that go, oldest first, so the user can
+approve them together. An agent can hand open questions back (`questions`), and the job waits until the owner's
+`answers-ready`. The published packages in `apply-kit/` (the runtime's sibling folder, written by jd-resume-tailor's
+`apply_kit.py`) are read with no claim token: `jobq kit` / `jobq guide`, or MCP `get_application_file` /
+`get_apply_guide`.
 `company_groups` in `handoff.json` makes an employer's other names (e.g. "amazon web services" for "amazon") share
 its company limit. Runtime `config/handoff.json` overrides the
 [example](config/handoff.example.json). Network tools require authenticated `--handoff-tools`.
@@ -390,6 +409,12 @@ uv run auto-app handoff queue --limit 20
 uv run auto-app handoff claim 123 --agent example-agent
 uv run auto-app handoff packet CLAIM_TOKEN
 uv run auto-app handoff release CLAIM_TOKEN
+# Open questions the package does not answer, then the owner's step once the answers are published:
+uv run auto-app handoff questions CLAIM_TOKEN questions.json
+uv run auto-app handoff answers-needed
+uv run auto-app handoff answers-ready 123
+# Filled forms waiting for the user's go:
+uv run auto-app handoff held
 ```
 
 ## Tracking after you apply
@@ -437,8 +462,8 @@ scripts/pull_backups.sh home-ubuntu
   - [`process`](#process--step-1b-postings--jobs) — `parse`, `normalize`, `dedup`
   - [`worker`](#linux-worker-screening-jd-enrichment-and-discord) — `run`, `watch`, `status`, `boards`
   - [`bot`](#discord-bot) — `run`
-  - [`jobq`](#grok-bot-local-execution) — `new`, `seen`, `search`, `show`, `want`, `skip`, `queue`, `claim`, `packet`, `record`, `release`, `account`
-  - [`handoff`](#application-handoff) — `queue`, `claim`, `packet`, `record`, `release`, `requeue`, `account`, `resume`
+  - [`jobq`](#grok-bot-local-execution) — `new`, `seen`, `search`, `show`, `want`, `skip`, `queue`, `claim`, `packet`, `record`, `release`, `hold`, `held`, `questions`, `answers-needed`, `answers-ready`, `kit`, `guide`, `account`
+  - [`handoff`](#application-handoff) — `queue`, `claim`, `packet`, `record`, `release`, `hold`, `held`, `questions`, `answers-needed`, `answers-ready`, `requeue`, `account`, `resume`
   - [`events`](#tracking-after-you-apply) — `add`, `list`, `unmatched`, `assign`, `dismiss`
   - [`ops`](#operations) — `backup`, `verify`, `prune`, `alert`
   - [`web`](#web--the-app-in-your-browser) — the app in your browser (Jobs; Apply, Audit, Status to come)
@@ -634,7 +659,8 @@ auto-app collect                 run · probe · stats    auto-app data     insp
 auto-app process                 parse · normalize · dedup
 auto-app worker                  run · watch · status · boards   deterministic screening, enrichment and board suggestions
 auto-app bot                     run   owner-only Discord digest and decisions
-auto-app handoff                 queue · claim · packet · record · release · requeue · account · resume
+auto-app handoff                 queue · claim · packet · record · release · hold · held · questions · answers-needed
+                                 answers-ready · requeue · account · resume
 auto-app events                  add · list · unmatched · assign · dismiss
 auto-app ops                     backup · verify · prune · alert
 auto-app ui                      the TUI                auto-app web      the app in your browser

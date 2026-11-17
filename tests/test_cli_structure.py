@@ -6,7 +6,8 @@ from typer.testing import CliRunner
 from auto_app.cli import app
 
 TREE = {
-    "handoff": ["queue", "claim", "packet", "record", "release", "requeue", "account", "resume"],
+    "handoff": ["queue", "claim", "packet", "record", "release", "hold", "held", "questions", "answers-needed",
+                "answers-ready", "requeue", "account", "resume"],
     "events": ["add", "list", "unmatched", "assign", "dismiss"],
     "ops": ["backup", "verify", "prune", "alert"],
     "worker": ["run", "watch", "status", "boards"],
@@ -34,8 +35,10 @@ def test_every_subcommand_exists_and_has_help():
 @pytest.mark.parametrize("group", list(TREE))
 def test_a_bare_group_shows_its_help_in_workflow_order(group):
     r = CliRunner().invoke(app, [group])
-    listed = [line.split()[1] for line in r.output.splitlines() if line.startswith("│ ") and len(line.split()) > 2
-              and line.split()[1] in TREE[group]]
+    # A command's row starts right after "│ "; a wrapped description continues on an indented line, whose first word
+    # can happen to be a command name (handoff's packet help wraps before "account").
+    listed = [line.split()[1] for line in r.output.splitlines() if line.startswith("│ ") and line[2:3] != " "
+              and len(line.split()) > 2 and line.split()[1] in TREE[group]]
     assert listed == TREE[group] and "Usage:" in r.output
 
 

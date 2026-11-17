@@ -7,8 +7,10 @@ one you applied to. A submitted outcome marks the job applied through the same s
 
 import hashlib
 import ipaddress
+import json
 import re
 import secrets
+import unicodedata
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -29,8 +31,23 @@ OUTCOMES = {  # agent outcome → (applications.status, attempts.outcome, job de
     "skipped": ("dropped", "unsupported", "not_applied"),
 }
 PARKED = ("needs_input", "action_needed")  # out of the queue until you requeue
+NEEDS_ANSWERS = "needs_answers"  # out of the queue until the owner marks the answers published (answers_ready)
+HELD = "ready"  # the form is filled and waits for the user's go; its claim lasts hold_hours (hold)
+MAX_QUESTIONS = 60
+MAX_QUESTION_TEXT = 4000
+MAX_QUESTIONS_BYTES = 64 * 1024
+QUESTION_FIELDS = ("text", "required", "limit", "page", "kind")
+# "question": an open question on the form that the package does not answer; "change": the user's own words asking
+# for a change to the materials (an answer, the resume or the cover letter), passed on verbatim at the pre-submit check
+QUESTION_KINDS = ("question", "change")
 APPLIER = "external-agent"  # the applier chain; an attempt records the agent that actually ran
 FAILED_ATTEMPT_LIMIT = 3  # consecutive failures before a job is parked instead of returned to the queue
+# The published application packages (jd-resume-tailor's apply_kit.py writes them) sit beside the runtime:
+# job-search/apply-kit next to job-search/runtime. Reading them needs no claim token.
+APPLY_KIT_DIR = "apply-kit"
+KIT_FILES = ("job.json", "fields.json", "jd.txt", "resume.pdf", "cover_letter.pdf", "answers.md", "message.txt")
+KIT_GUIDES = {"cheatsheet": "answers.md", "readme": "README.md"}  # apply-kit/answers.md is the agents' cheat sheet
+MAX_KIT_BYTES = 10 * 1024 * 1024
 
 
 class HandoffError(ValueError):
@@ -85,6 +102,49 @@ def _safe_link(value):
         return False
     except ValueError:
         return False
+
+
+def _control_free(text: str) -> bool:
+    """No control characters apart from line breaks and tabs, and no Unicode line or paragraph separators."""
+    return not any((unicodedata.category(c) == "Cc" and c not in "\n\t") or c in "\u2028\u2029" for c in text)
+
+
+def _questions(value) -> list[dict]:
+    """The open questions an agent hands back, each {text, required, limit, page}; anything else is refused."""
+    if not isinstance(value, list) or not 1 <= len(value) <= MAX_QUESTIONS:
+        raise HandoffError(f"questions must be a list of 1 to {MAX_QUESTIONS} objects")
+    cleaned = []
+    for item in value:
+        if not isinstance(item, dict):
+            raise HandoffError("each question must be an object with text, and optionally required, limit, page "
+                               "and kind")
+        unknown = sorted(str(k) for k in item if k not in QUESTION_FIELDS)
+        if unknown:
+            raise HandoffError(f"unknown question fields: {', '.join(unknown)} (allowed: {', '.join(QUESTION_FIELDS)})")
+        text = item.get("text")
+        text = text.strip() if isinstance(text, str) else ""
+        if not text or len(text) > MAX_QUESTION_TEXT:
+            raise HandoffError(f"question text must be 1 to {MAX_QUESTION_TEXT} characters")
+        if not _control_free(text):
+            raise HandoffError("question text must not contain control characters (line breaks and tabs are fine)")
+        required = item.get("required")
+        if required is not None and type(required) is not bool:
+            raise HandoffError("required must be true, false or null")
+        limit = item.get("limit")
+        if limit is not None and (not isinstance(limit, str) or not limit.strip() or len(limit) > 200
+                                  or "\n" in limit or not _control_free(limit)):
+            raise HandoffError('limit must be one short line such as "300 words", or null')
+        page = item.get("page")
+        if page is not None and (type(page) is not int or not 1 <= page <= 100):
+            raise HandoffError("page must be a whole number from 1 to 100, or null")
+        kind = item.get("kind", "question")
+        if kind not in QUESTION_KINDS:
+            raise HandoffError(f"kind must be one of: {', '.join(QUESTION_KINDS)}")
+        cleaned.append({"text": text, "required": required, "limit": limit.strip() if limit else None, "page": page,
+                        "kind": kind})
+    if len(json.dumps(cleaned, ensure_ascii=False).encode()) > MAX_QUESTIONS_BYTES:
+        raise HandoffError("questions are too long (at most 64 KiB in all)")
+    return cleaned
 
 
 class HandoffService:
@@ -255,6 +315,8 @@ class HandoffService:
                 reason = 'already_applied_repost'
             elif job_id in applied_history or any(a['status'] == 'submitted' or a['submitted_at'] is not None for a in app_rows):
                 reason = 'already_submitted'
+            elif app_rows and app_rows[-1]['status'] == NEEDS_ANSWERS:
+                reason = 'waiting_for_answers'
             elif app_rows and app_rows[-1]['status'] in PARKED:
                 reason = 'waiting_for_you'
             elif claim and job_id != ignore_claim_job and _aware(claim['lease_until']) > now:
@@ -300,11 +362,16 @@ class HandoffService:
         _job_id(job_id)
         if not isinstance(agent, str) or not agent.strip() or len(agent) > 80:
             raise HandoffError("agent must be a short name")
+        agent = agent.strip()
         store = self._store()
         try:
             with store.transaction(immediate=True):
                 conn = store._tx
-                items, blocked, daily, _ = self._candidates(conn, now, only_job=job_id)
+                # The agent that held a filled form (hold) may pick it up again, e.g. from a new chat once the user
+                # says "submit": it gets a fresh token, and the hold keeps its end. Anyone else still sees it claimed.
+                held = self._own_hold(conn, job_id, agent, now)
+                items, blocked, daily, _ = self._candidates(conn, now, only_job=job_id,
+                                                            ignore_claim_job=job_id if held else None)
                 if daily:
                     raise HandoffError("the daily submission limit is reached; try tomorrow")
                 item = next((i for i in items if i["job_id"] == job_id), None)
@@ -319,8 +386,10 @@ class HandoffService:
                 while token.startswith("-"):  # a command line would read it as an option, not as `packet TOKEN`
                     token = secrets.token_urlsafe(24)
                 lease = now + timedelta(minutes=self.guard().lease_minutes)
+                if held:
+                    lease = max(lease, _aware(held["lease_until"]))
                 conn.execute(delete(T.handoff_claims).where(T.handoff_claims.c.job_id == job_id))
-                conn.execute(insert(T.handoff_claims).values(job_id=job_id, agent=agent.strip(),
+                conn.execute(insert(T.handoff_claims).values(job_id=job_id, agent=agent,
                                                              token_hash=_hash(token), claimed_at=now,
                                                              lease_until=lease))
                 app_id = conn.execute(select(T.applications.c.application_id)
@@ -334,11 +403,25 @@ class HandoffService:
                         applier=APPLIER, created_at=now, updated_at=now)).inserted_primary_key[0]
                 else:
                     conn.execute(update(T.applications).where(T.applications.c.application_id == app_id).values(
-                        apply_url=item['apply_url'], platform=item['platform'], status='queued',
+                        apply_url=item['apply_url'], platform=item['platform'], status=HELD if held else 'queued',
                         applier=APPLIER, updated_at=now))
         finally:
             store.engine.dispose()
-        return {"token": token, "lease_until": lease.isoformat(), "application_id": app_id, "job": item}
+        return {"token": token, "lease_until": lease.isoformat(), "application_id": app_id, "job": item,
+                "resumed": bool(held)}
+
+    @staticmethod
+    def _latest_application(conn, job_id):
+        return conn.execute(select(T.applications).where(T.applications.c.job_id == job_id)
+                            .order_by(T.applications.c.application_id.desc()).limit(1)).mappings().first()
+
+    def _own_hold(self, conn, job_id: int, agent: str, now: datetime) -> dict | None:
+        """This agent's live claim on a held (filled, waiting for the user) application, or None."""
+        claim = conn.execute(select(T.handoff_claims).where(T.handoff_claims.c.job_id == job_id)).mappings().first()
+        if claim is None or claim["agent"] != agent or _aware(claim["lease_until"]) <= now:
+            return None
+        app = self._latest_application(conn, job_id)
+        return dict(claim) if app is not None and app["status"] == HELD else None
 
     def _claim(self, conn, token: str, now: datetime, *, allow_expired: bool = False) -> dict:
         if not isinstance(token, str) or not token or len(token) > 256:
@@ -361,6 +444,192 @@ class HandoffService:
         finally:
             store.engine.dispose()
         return {"job_id": claim["job_id"], "released": True}
+
+    def hold(self, token: str, now: datetime | None = None) -> dict:
+        """The form is filled and waits for the user's go: keep the claim for hold_hours instead of the lease.
+
+        The job stays out of the queue meanwhile, and the same agent can claim it again for a fresh token (claim).
+        """
+        now = _aware(now or utcnow()).astimezone(timezone.utc)
+        store = self._store()
+        try:
+            with store.transaction(immediate=True):
+                conn = store._tx
+                claim = self._claim(conn, token, now)
+                lease = max(now + timedelta(hours=self.guard().hold_hours), _aware(claim["lease_until"]))
+                conn.execute(update(T.handoff_claims).where(T.handoff_claims.c.job_id == claim["job_id"])
+                             .values(lease_until=lease))
+                app = self._latest_application(conn, claim["job_id"])
+                conn.execute(update(T.applications).where(
+                    T.applications.c.application_id == app["application_id"]).values(
+                    status=HELD, note="form filled; waiting for the user's go", updated_at=now))
+        finally:
+            store.engine.dispose()
+        return {"job_id": claim["job_id"], "status": HELD, "lease_until": lease.isoformat()}
+
+    def held_applications(self, now: datetime | None = None) -> dict:
+        """Filled forms waiting for the user's go: the latest application is held and its claim is still live.
+
+        Oldest first, so the user can approve them together in one go. Read-only.
+        """
+        now = _aware(now or utcnow()).astimezone(timezone.utc)
+        a, c, j, p = T.applications, T.handoff_claims, T.jobs, T.postings
+        latest = select(func.max(a.c.application_id)).group_by(a.c.job_id)
+        store = self._store()
+        try:
+            with store.engine.connect() as conn:
+                rows = conn.execute(
+                    select(a.c.job_id, a.c.apply_url, a.c.updated_at, c.c.agent, c.c.lease_until, p.c.title,
+                           p.c.company)
+                    .select_from(a.join(c, c.c.job_id == a.c.job_id).outerjoin(j, j.c.job_id == a.c.job_id)
+                                 .outerjoin(p, p.c.posting_id == j.c.primary_posting_id))
+                    .where(a.c.application_id.in_(latest), a.c.status == HELD)).mappings().all()
+        finally:
+            store.engine.dispose()
+        live = sorted((r for r in rows if _aware(r["lease_until"]) > now),
+                      key=lambda r: (_aware(r["updated_at"]), r["job_id"]))
+        return {"items": [{"job_id": r["job_id"], "title": r["title"], "company": r["company"],
+                           "apply_url": r["apply_url"], "agent": r["agent"],
+                           "lease_until": _aware(r["lease_until"]).isoformat(),
+                           "held_since": _aware(r["updated_at"]).isoformat()} for r in live]}
+
+    # ---- the published packages (apply-kit), read with no claim token -----------------------------------------
+
+    @property
+    def kit_dir(self) -> Path:
+        return self.home.parent / APPLY_KIT_DIR
+
+    def _kit_read(self, *parts: str) -> bytes | None:
+        """A file beneath apply-kit/ (no symlinks, the folder itself included; at most 10 MiB), or None if missing."""
+        return self._read_beneath(self.kit_dir, parts, MAX_KIT_BYTES, APPLY_KIT_DIR, missing_ok=True)
+
+    def kit_index(self) -> dict:
+        """apply-kit/jobs/index.json: the published packages, or {"jobs": []} before anything is published."""
+        data = self._kit_read("jobs", "index.json")
+        if data is None:
+            return {"jobs": []}
+        try:
+            index = json.loads(data)
+        except ValueError:  # UnicodeDecodeError is one too
+            raise HandoffError(f"{APPLY_KIT_DIR}/jobs/index.json is not valid JSON") from None
+        if not isinstance(index, dict) or not isinstance(index.get("jobs"), list):
+            raise HandoffError(f'{APPLY_KIT_DIR}/jobs/index.json is not a valid index (an object whose "jobs" is '
+                               'a list)')
+        return index
+
+    def kit_file(self, job_id: int, name: str) -> bytes:
+        """One file of a job's published package, apply-kit/jobs/<job_id>/<name>, as bytes."""
+        _job_id(job_id)
+        if not isinstance(name, str) or name not in KIT_FILES:
+            raise HandoffError(f"name must be one of: {', '.join(KIT_FILES)}")
+        data = self._kit_read("jobs", str(job_id), name)
+        if data is None:
+            raise HandoffError(f"job #{job_id} has no {name} in its package (not published yet?)")
+        return data
+
+    def kit_guide(self, which: str = "cheatsheet") -> bytes:
+        """apply-kit/answers.md (which="cheatsheet", the agents' cheat sheet) or apply-kit/README.md ("readme")."""
+        name = KIT_GUIDES.get(which) if isinstance(which, str) else None
+        if name is None:
+            raise HandoffError("which must be cheatsheet or readme")
+        data = self._kit_read(name)
+        if data is None:
+            raise HandoffError(f"{APPLY_KIT_DIR}/{name} ({which}) is missing")
+        return data
+
+    # ---- open questions --------------------------------------------------------------------------------------
+
+    def submit_questions(self, token: str, questions, now: datetime | None = None) -> dict:
+        """Hand back the form's open questions that the agent has no answers for, and use up the claim.
+
+        The job leaves the queue until the owner publishes the answers and marks them ready (answers_ready).
+        """
+        now = _aware(now or utcnow()).astimezone(timezone.utc)
+        cleaned = _questions(questions)
+        store = self._store()
+        try:
+            with store.transaction(immediate=True):
+                conn = store._tx
+                claim = self._claim(conn, token, now)
+                app = self._latest_application(conn, claim["job_id"])
+                set_id = conn.execute(insert(T.handoff_questions).values(
+                    job_id=claim["job_id"], application_id=app["application_id"], agent=claim["agent"],
+                    questions=cleaned, submitted_at=now)).inserted_primary_key[0]
+                reason = f"{len(cleaned)} open questions sent for answers"
+                conn.execute(insert(T.attempts).values(
+                    application_id=app["application_id"], applier=claim.get("agent") or APPLIER,
+                    **{"pass": "handoff"}, outcome="needs_input", reason=reason,
+                    started_at=_aware(claim["claimed_at"]), ended_at=now))
+                conn.execute(update(T.applications).where(
+                    T.applications.c.application_id == app["application_id"]).values(
+                    status=NEEDS_ANSWERS, note=f"waiting for answers to {len(cleaned)} open questions",
+                    updated_at=now))
+                conn.execute(delete(T.handoff_claims).where(T.handoff_claims.c.job_id == claim["job_id"]))
+        finally:
+            store.engine.dispose()
+        return {"job_id": claim["job_id"], "status": NEEDS_ANSWERS, "questions": len(cleaned),
+                "question_set_id": set_id}
+
+    def pending_questions(self) -> dict:
+        """Jobs waiting for answers: each job's latest unanswered question set, oldest first."""
+        store = self._store()
+        try:
+            with store.engine.connect() as conn:
+                q, j, p = T.handoff_questions, T.jobs, T.postings
+                sets = {}
+                for row in conn.execute(select(q).where(q.c.answered_at.is_(None))
+                                        .order_by(q.c.submitted_at, q.c.question_set_id)).mappings():
+                    sets[row["job_id"]] = row  # a later set for the same job replaces an earlier one
+                waiting = {job_id for job_id in sets
+                           if (self._latest_application(conn, job_id) or {}).get("status") == NEEDS_ANSWERS}
+                jobs = {r["job_id"]: r for r in conn.execute(
+                    select(j.c.job_id, j.c.decision, p.c.title, p.c.company)
+                    .select_from(j.outerjoin(p, p.c.posting_id == j.c.primary_posting_id))
+                    .where(j.c.job_id.in_(waiting))).mappings()}
+        finally:
+            store.engine.dispose()
+        items = []
+        for row in sorted((sets[job_id] for job_id in waiting), key=lambda r: (_aware(r["submitted_at"]),
+                                                                               r["question_set_id"])):
+            job = jobs.get(row["job_id"]) or {}
+            items.append({"job_id": row["job_id"], "title": job.get("title"), "company": job.get("company"),
+                          "decision": job.get("decision"), "agent": row["agent"],
+                          "question_set_id": row["question_set_id"],
+                          "submitted_at": _aware(row["submitted_at"]).isoformat(), "questions": row["questions"]})
+        return {"items": items}
+
+    def answers_ready(self, job_id: int, now: datetime | None = None) -> dict:
+        """The owner's step once the answers are published: the job returns to the queue for the agent."""
+        _job_id(job_id)
+        now = _aware(now or utcnow()).astimezone(timezone.utc)
+        store = self._store()
+        try:
+            with store.transaction(immediate=True):
+                conn = store._tx
+                job = store.job(job_id)
+                if job is None or job.get("decision") != "want_to_apply" or job.get("archived_at") is not None:
+                    raise HandoffError(f"job #{job_id} is no longer want_to_apply; nothing to put back in the queue")
+                app = self._latest_application(conn, job_id)
+                if app is None or app["status"] != NEEDS_ANSWERS:
+                    raise HandoffError(f"job #{job_id} is not waiting for answers")
+                conn.execute(update(T.applications).where(
+                    T.applications.c.application_id == app["application_id"]).values(
+                    status="queued", note="answers published", updated_at=now))
+                conn.execute(update(T.handoff_questions).where(
+                    T.handoff_questions.c.job_id == job_id, T.handoff_questions.c.answered_at.is_(None))
+                    .values(answered_at=now))
+        finally:
+            store.engine.dispose()
+        return {"job_id": job_id, "status": "queued", "answered_at": now.isoformat()}
+
+    def _open_questions(self, conn, job_id: int) -> dict | None:
+        row = conn.execute(select(T.handoff_questions).where(T.handoff_questions.c.job_id == job_id)
+                           .order_by(T.handoff_questions.c.question_set_id.desc()).limit(1)).mappings().first()
+        if row is None:
+            return None
+        return {"submitted_at": _aware(row["submitted_at"]).isoformat(),
+                "answered_at": _aware(row["answered_at"]).isoformat() if row["answered_at"] else None,
+                "questions": row["questions"]}
 
     # ---- outcomes ------------------------------------------------------------------------------
 
@@ -463,9 +732,6 @@ class HandoffService:
 
     def _read_local(self, folder: str, value: str, maximum: int, *, missing_ok=False):
         """Open beneath a fixed root with no symlink traversal and bounded reads."""
-        import os
-        import stat
-
         root = self.home / folder
         candidate = Path(value).expanduser()
         if not candidate.is_absolute():
@@ -478,6 +744,16 @@ class HandoffService:
             raise HandoffError(f'files must stay inside $AUTO_APP_HOME/{folder}/') from None
         if not parts:
             raise HandoffError(f'a regular file under {folder}/ is required')
+        return str(candidate), self._read_beneath(root, parts, maximum, folder, missing_ok=missing_ok)
+
+    @staticmethod
+    def _read_beneath(root: Path, parts: tuple[str, ...], maximum: int, folder: str, *, missing_ok=False):
+        """Read root/parts as bytes: each step opened with O_NOFOLLOW (root itself included), a regular file of at
+        most `maximum` bytes, unchanged while read. A missing file is None with missing_ok, an error otherwise.
+        `folder` names the root in error messages."""
+        import os
+        import stat
+
         descriptors = []
         try:
             descriptors.append(os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW))
@@ -500,10 +776,10 @@ class HandoffService:
             after = os.fstat(descriptor)
             if info.st_size != after.st_size or info.st_mtime_ns != after.st_mtime_ns:
                 raise HandoffError(f'{folder}/ file changed while reading')
-            return str(candidate), data
+            return data
         except FileNotFoundError:
             if missing_ok:
-                return str(candidate), None
+                return None
             raise HandoffError(f'an existing regular file under {folder}/ is required') from None
         except OSError:
             raise HandoffError(f'a regular file under {folder}/ with no symlinks is required') from None
@@ -587,6 +863,7 @@ class HandoffService:
                     resumes.append({'artifact_id': row['artifact_id'], 'path': path, 'sha256': digest,
                                     'bytes': len(data), 'note': row['note']})
                 # QueryService reads the same committed state while the writer lock prevents mutations.
+                open_questions = self._open_questions(store._tx, claim['job_id'])
                 with QueryService(self.db_path, self.preferences_path) as query:
                     job = query.job(claim['job_id'])
                 profile, answers = self._profile()
@@ -597,7 +874,7 @@ class HandoffService:
                 'job': {'job_id': job['job_id'], 'title': job.get('title'), 'company': job.get('company'),
                         'locations': job.get('locations'), 'apply_url': item['apply_url'],
                         'description': parsed.get('description_text') or '', 'screening': job.get('screening')},
-                'profile': profile, 'answers': answers, 'resumes': resumes,
+                'profile': profile, 'answers': answers, 'resumes': resumes, 'open_questions': open_questions,
                 'guard': {'note': 'Record exactly one outcome with this token before the lease ends.'}}
 
     def record_account(self, site: str, email: str, created_by_agent: bool = True, note: str | None = None,
