@@ -668,13 +668,19 @@ screening/enrichment/notification worker and the bot digest; the independent `in
 continues. The public MCP listener has a separate Bearer token and loopback bind behind a user-configured
 HTTPS tunnel. [Remote MCP guide](remote-mcp.md).
 
-The owner-only Discord bot posts the same eligible digest and offers decision buttons that record
+The owner-only Discord bot posts each eligible job in a separate message with its decision buttons below the card. The buttons record
 `want_to_apply`, `not_applied`, or an owner-reported `applied` state. `/jobs` filters by sponsorship,
 company and keyword; `/job`, `/status`, `/pause` and `/resume` are also available. It has no free chat,
 model call or application submission. In bot mode run the screening worker with
 `--steps screen,enrich,summary,health` so the bot alone delivers/marks digests; worker operational alerts may still use
 the separately configured webhook. Bot credentials come from a private mode-600 file, not a service
 environment variable. [Discord bot guide](discord-bot.md).
+
+For daily screening-feedback proposals, both **Apply** and **Discard** check the 24-hour expiry in the
+screening control service. An expired proposal releases its unresolved reasons for the next summary. The bot
+removes both buttons after a successful decision or when it finds the proposal expired or gone. A busy rules
+lock leaves both buttons available for retry. A rules revision mismatch requires a fresh preview to apply and
+leaves **Discard** available for the current proposal. [Proposal handling update](updates/2026-11-18-discord-proposal-decisions.md).
 
 These P1 paths have local implementation and scoped verification. No live Discord delivery, tunnel,
 Grok connector, Linux service activation or cross-client decision readback is claimed. The outstanding

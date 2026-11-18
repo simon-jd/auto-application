@@ -162,7 +162,11 @@ the [Linux checklist](../linux-connectors-setup.md) and
 
 Build it with a versioned output name, for example
 `--output /tmp/job-search-dot-0.4.1.zip`: `scripts/build_dot_plugin.py` will not
-overwrite an existing file. It was not built or uploaded here.
+overwrite an existing file. The supplied `job-search-dot-0.4.1.zip` matched the
+repository Skill and the previous private app binding. On 2026-11-17, **Upload
+new version** upgraded the existing Job Search plugin from 0.3.0 to 0.4.1.
+Reloading the plugin page confirmed version 0.4.1, the updated Skill description
+and the connected Job Search Backend.
 
 **Tests.** `uv run pytest -q -p no:cacheprovider`: 2,626 passed, 1 warning (the
 `audioop` deprecation in `discord/player.py`), in 597 s; 2,617 before. Added: four handoff tests and two

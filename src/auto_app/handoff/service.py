@@ -22,6 +22,7 @@ from sqlalchemy import delete, func, insert, inspect, select, update
 from auto_app.core.db import tables as T
 from auto_app.core.models import utcnow
 from auto_app.handoff.guard import load_guard
+from auto_app.handoff.kick import kick
 
 OUTCOMES = {  # agent outcome → (applications.status, attempts.outcome, job decision or None)
     "submitted": ("submitted", "submitted", "applied"),
@@ -49,6 +50,10 @@ APPLY_KIT_DIR = "apply-kit"
 KIT_FILES = ("job.json", "fields.json", "jd.txt", "resume.pdf", "cover_letter.pdf", "answers.md", "message.txt")
 KIT_GUIDES = {"cheatsheet": "answers.md", "readme": "README.md"}  # apply-kit/answers.md is the agents' cheat sheet
 MAX_KIT_BYTES = 10 * 1024 * 1024
+RUNNER_FILE = "runner.json"  # the package runner's state (deploy/jd-apply-queue.sh writes it)
+MAX_REQUEST_TEXT = 1000  # a change request's characters (request_change), and a cheat-sheet request's
+CHEATSHEET_OUTCOMES = ("applied", "declined")
+RECENT_CHEATSHEET = 20  # done cheat-sheet requests listed, newest first
 
 
 class HandoffError(ValueError):
@@ -576,6 +581,7 @@ class HandoffService:
                 conn.execute(delete(T.handoff_claims).where(T.handoff_claims.c.job_id == claim["job_id"]))
         finally:
             store.engine.dispose()
+        kick(self.home)
         return {"job_id": claim["job_id"], "status": NEEDS_ANSWERS, "questions": len(cleaned),
                 "question_set_id": set_id}
 
@@ -607,10 +613,21 @@ class HandoffService:
                           "submitted_at": _aware(row["submitted_at"]).isoformat(), "questions": row["questions"]})
         return {"items": items}
 
-    def answers_ready(self, job_id: int, now: datetime | None = None) -> dict:
-        """The owner's step once the answers are published: the job returns to the queue for the agent."""
+    def answers_ready(self, job_id: int, now: datetime | None = None, asked_at: str | None = None) -> dict:
+        """The owner's step once the answers are published: the job returns to the queue for the agent.
+
+        `asked_at` is the `submitted_at` of the round the package answers, as answers-needed listed it when the work
+        began. When the round changed since (a change request merged into it while the package was being made), the
+        job stays parked and nothing is marked answered, so the next run handles the new items.
+        """
         _job_id(job_id)
         now = _aware(now or utcnow()).astimezone(timezone.utc)
+        expected = None
+        if asked_at is not None:
+            try:
+                expected = _aware(datetime.fromisoformat(asked_at)).astimezone(timezone.utc)
+            except (TypeError, ValueError):
+                raise HandoffError("asked_at must be the submitted_at that answers-needed listed") from None
         store = self._store()
         try:
             with store.transaction(immediate=True):
@@ -621,6 +638,15 @@ class HandoffService:
                 app = self._latest_application(conn, job_id)
                 if app is None or app["status"] != NEEDS_ANSWERS:
                     raise HandoffError(f"job #{job_id} is not waiting for answers")
+                if expected is not None:
+                    current = self._unanswered(conn, job_id)
+                    latest = _aware(current["submitted_at"]).astimezone(timezone.utc) if current else None
+                    if latest != expected:
+                        raise HandoffError(
+                            f"job #{job_id}'s questions or changes changed at "
+                            f"{latest.isoformat() if latest else 'an unknown time'}, after the round of "
+                            f"{expected.isoformat()} this package answers: handle the new items, republish, then "
+                            "run answers-ready with the new submitted_at")
                 conn.execute(update(T.applications).where(
                     T.applications.c.application_id == app["application_id"]).values(
                     status="queued", note="answers published", updated_at=now))
@@ -639,6 +665,245 @@ class HandoffService:
         return {"submitted_at": _aware(row["submitted_at"]).isoformat(),
                 "answered_at": _aware(row["answered_at"]).isoformat() if row["answered_at"] else None,
                 "questions": row["questions"]}
+
+    @staticmethod
+    def _unanswered(conn, job_id: int):
+        q = T.handoff_questions
+        return conn.execute(select(q).where(q.c.job_id == job_id, q.c.answered_at.is_(None))
+                            .order_by(q.c.question_set_id.desc()).limit(1)).mappings().first()
+
+    @staticmethod
+    def _job_row(conn, job_id: int):
+        j, p = T.jobs, T.postings
+        return conn.execute(select(j.c.job_id, j.c.decision, j.c.archived_at, j.c.decided_at, p.c.title,
+                                   p.c.company, p.c.apply_url)
+                            .select_from(j.outerjoin(p, p.c.posting_id == j.c.primary_posting_id))
+                            .where(j.c.job_id == job_id)).mappings().first()
+
+    # ---- the user's change requests outside a claim ----------------------------------------------------------
+
+    def request_change(self, job_id: int, text: str, agent: str, now: datetime | None = None) -> dict:
+        """The user's words asking for a change to a wanted job's materials, passed on while no form is open.
+
+        Stored like a pre-submit change (kind "change") and the job leaves the queue, so no agent fills a form with
+        the old package; once the revised package is published, the owner's answers_ready puts it back. A job whose
+        form is being filled or held refuses: the change goes through that claim (`questions`, kind change) instead.
+        A second request before the first is handled joins the same set, and moves its time to now, so a package
+        published in between cannot pass answers_ready without it. A job parked for the user's input (needs_input)
+        accepts a request, which carries the user's answers to Claude; a blocked one (action_needed) refuses.
+        """
+        from auto_app.enrich.targets import target_for
+
+        _job_id(job_id)
+        now = _aware(now or utcnow()).astimezone(timezone.utc)
+        if not isinstance(agent, str) or not agent.strip() or len(agent) > 80:
+            raise HandoffError("agent must be a short name")
+        agent = agent.strip()
+        if not isinstance(text, str) or not text.strip() or len(text.strip()) > MAX_REQUEST_TEXT:
+            raise HandoffError(f"the request must be 1 to {MAX_REQUEST_TEXT} characters")
+        [item] = _questions([{"text": text, "kind": "change"}])
+        store = self._store()
+        try:
+            with store.transaction(immediate=True):
+                conn = store._tx
+                job = self._job_row(conn, job_id)
+                if job is None or job["decision"] != "want_to_apply" or job["archived_at"] is not None:
+                    raise HandoffError(f"job #{job_id} is not want_to_apply; change requests are only for jobs the "
+                                       "user wants to apply to")
+                lease = conn.execute(select(T.handoff_claims.c.lease_until)
+                                     .where(T.handoff_claims.c.job_id == job_id)).scalar()
+                if lease is not None and _aware(lease) > now:
+                    raise HandoffError(f"job #{job_id}'s form is open (claimed until {_aware(lease).isoformat()}): "
+                                       "pass the change on from that chat with `questions` (kind change)")
+                app = self._latest_application(conn, job_id)
+                # A job parked because the agent needs the user (needs_user → needs_input), e.g. items in answers.md
+                # only the user can confirm, takes the user's answers here: they go to Claude like any change, and
+                # answers_ready returns the job once the revised package is out. A blocked job (a login, a CAPTCHA,
+                # the site) is not fixed by new materials: the user requeues it.
+                if app is not None and app["status"] == "action_needed":
+                    raise HandoffError(f"job #{job_id} is blocked ({app['note'] or 'no note'}); new materials don't fix "
+                                       "that: the user requeues it once it is resolved")
+                if app is None:
+                    target = target_for(job["apply_url"])
+                    app_id = conn.execute(insert(T.applications).values(
+                        job_id=job_id, platform=target.platform if target else "other", apply_url=job["apply_url"],
+                        status=NEEDS_ANSWERS, chain=[APPLIER], chain_pos=0, applier=APPLIER, created_at=now,
+                        updated_at=now)).inserted_primary_key[0]
+                else:
+                    app_id = app["application_id"]
+                current = self._unanswered(conn, job_id)
+                if current is not None and app is not None and app["status"] == NEEDS_ANSWERS:
+                    merged = _questions([*current["questions"], item])
+                    set_id = current["question_set_id"]
+                    conn.execute(update(T.handoff_questions).where(T.handoff_questions.c.question_set_id == set_id)
+                                 .values(questions=merged, submitted_at=now))
+                else:
+                    merged = [item]
+                    set_id = conn.execute(insert(T.handoff_questions).values(
+                        job_id=job_id, application_id=app_id, agent=agent, questions=merged,
+                        submitted_at=now)).inserted_primary_key[0]
+                changes = sum(q.get("kind") == "change" for q in merged)
+                conn.execute(update(T.applications).where(T.applications.c.application_id == app_id).values(
+                    status=NEEDS_ANSWERS, note=f"waiting for {len(merged)} open questions or change requests",
+                    updated_at=now))
+        finally:
+            store.engine.dispose()
+        kick(self.home)
+        return {"job_id": job_id, "status": NEEDS_ANSWERS, "question_set_id": set_id, "changes": changes}
+
+    # ---- cheat-sheet requests: the user's general answers, for Claude to add to apply-kit/answers.md -----------
+
+    def request_cheatsheet(self, text: str, agent: str, now: datetime | None = None) -> dict:
+        """The user's words, verbatim, with an answer for every application (not one job's: that is request_change).
+        Claude adds it to the cheat sheet's answer sections, or declines with a reason; the agent never edits it."""
+        now = _aware(now or utcnow()).astimezone(timezone.utc)
+        if not isinstance(agent, str) or not agent.strip() or len(agent) > 80:
+            raise HandoffError("agent must be a short name")
+        if not isinstance(text, str) or not text.strip() or len(text.strip()) > MAX_REQUEST_TEXT:
+            raise HandoffError(f"the request must be 1 to {MAX_REQUEST_TEXT} characters")
+        text = text.strip()
+        if not _control_free(text):
+            raise HandoffError("the request must not contain control characters (line breaks and tabs are fine)")
+        store = self._store()
+        try:
+            with store.transaction(immediate=True):
+                request_id = store._tx.execute(insert(T.cheatsheet_requests).values(
+                    text=text, agent=agent.strip(), submitted_at=now)).inserted_primary_key[0]
+        finally:
+            store.engine.dispose()
+        kick(self.home)
+        return {"request_id": request_id, "status": "pending"}
+
+    def cheatsheet_requests(self, now: datetime | None = None) -> dict:
+        """Pending requests, oldest first, and the last 20 done ones, newest first, with outcome and note."""
+        c = T.cheatsheet_requests
+        store = self._store()
+        try:
+            with store.engine.connect() as conn:
+                pending = conn.execute(select(c).where(c.c.done_at.is_(None))
+                                       .order_by(c.c.submitted_at, c.c.request_id)).mappings().all()
+                recent = conn.execute(select(c).where(c.c.done_at.is_not(None))
+                                      .order_by(c.c.done_at.desc(), c.c.request_id.desc())
+                                      .limit(RECENT_CHEATSHEET)).mappings().all()
+        finally:
+            store.engine.dispose()
+        return {"pending": [{"request_id": r["request_id"], "text": r["text"], "agent": r["agent"],
+                             "submitted_at": _aware(r["submitted_at"]).isoformat()} for r in pending],
+                "recent": [{"request_id": r["request_id"], "text": r["text"], "agent": r["agent"],
+                            "submitted_at": _aware(r["submitted_at"]).isoformat(),
+                            "done_at": _aware(r["done_at"]).isoformat(), "outcome": r["outcome"], "note": r["note"]}
+                           for r in recent]}
+
+    def cheatsheet_done(self, request_id: int, outcome: str, note: str, now: datetime | None = None) -> dict:
+        """The owner's step (Claude, after editing the cheat sheet or deciding not to): applied or declined, with a
+        note saying what changed or why not."""
+        _job_id(request_id)
+        now = _aware(now or utcnow()).astimezone(timezone.utc)
+        if outcome not in CHEATSHEET_OUTCOMES:
+            raise HandoffError(f"outcome must be one of: {', '.join(CHEATSHEET_OUTCOMES)}")
+        if not isinstance(note, str) or not note.strip() or len(note.strip()) > MAX_REQUEST_TEXT:
+            raise HandoffError(f"the note must be 1 to {MAX_REQUEST_TEXT} characters")
+        c = T.cheatsheet_requests
+        store = self._store()
+        try:
+            with store.transaction(immediate=True):
+                conn = store._tx
+                row = conn.execute(select(c.c.done_at).where(c.c.request_id == request_id)).first()
+                if row is None:
+                    raise HandoffError(f"cheat-sheet request #{request_id} not found")
+                if row.done_at is not None:
+                    raise HandoffError(f"cheat-sheet request #{request_id} is already done")
+                conn.execute(update(c).where(c.c.request_id == request_id)
+                             .values(done_at=now, outcome=outcome, note=note.strip()))
+        finally:
+            store.engine.dispose()
+        return {"request_id": request_id, "outcome": outcome, "done_at": now.isoformat()}
+
+    # ---- one job's progress, in one read ---------------------------------------------------------------------
+
+    def _runner(self) -> dict | None:
+        """apply-kit/runner.json, which deploy/jd-apply-queue.sh writes; None when missing or unreadable."""
+        try:
+            data = self._kit_read(RUNNER_FILE)
+            value = json.loads(data) if data is not None else None
+        except (HandoffError, ValueError):
+            return None
+        if not isinstance(value, dict):
+            return None
+        keep = ("running", "round", "started_at", "ended_at", "checked_at", "exit", "items", "last_run")
+        return {k: value[k] for k in keep if k in value}
+
+    def status(self, job_id: int, now: datetime | None = None) -> dict:
+        """Where a job stands, for "is #N ready yet?": its decision, application, open claim, questions or changes
+        waiting for Claude, published package and the package runner, plus a one-line summary. Never a token."""
+        _job_id(job_id)
+        now = _aware(now or utcnow()).astimezone(timezone.utc)
+        store = self._store()
+        try:
+            with store.engine.connect() as conn:
+                job = self._job_row(conn, job_id)
+                if job is None:
+                    raise HandoffError(f"job #{job_id} not found")
+                app = self._latest_application(conn, job_id)
+                claim = conn.execute(select(T.handoff_claims.c.agent, T.handoff_claims.c.lease_until)
+                                     .where(T.handoff_claims.c.job_id == job_id)).mappings().first()
+                waiting = self._unanswered(conn, job_id)
+                queue_block = None
+                if job["decision"] == "want_to_apply" and job["archived_at"] is None:
+                    # The same guardrails as the queue: a job they keep out never reaches the package runner either.
+                    items, blocked, daily, _ = self._candidates(conn, now, only_job=job_id)
+                    queue_block = next(iter(blocked), None) if not items else ("daily_limit" if daily else None)
+        finally:
+            store.engine.dispose()
+        live = claim is not None and _aware(claim["lease_until"]) > now
+        held = live and app is not None and app["status"] == HELD
+        pending = None
+        if waiting is not None and app is not None and app["status"] == NEEDS_ANSWERS:
+            changes = sum(q.get("kind") == "change" for q in waiting["questions"])
+            pending = {"questions": len(waiting["questions"]) - changes, "changes": changes,
+                       "submitted_at": _aware(waiting["submitted_at"]).isoformat()}
+        entry = next((e for e in self.kit_index()["jobs"] if isinstance(e, dict) and e.get("job_id") == job_id), None)
+        package = {"published": entry is not None, "published_at": (entry or {}).get("published_at"),
+                   "has_message": bool((entry or {}).get("has_message"))}
+        runner = self._runner()
+        running = bool(runner and runner.get("running"))
+        working = f"; the package runner is running (since {runner.get('started_at')})" if running else ""
+        decision = job["decision"]
+        if decision == "applied":
+            summary = "applied" + ("; the follow-up message is in the package" if package["has_message"] else "")
+        elif decision != "want_to_apply" or job["archived_at"] is not None:
+            summary = f"not on the application list ({'archived' if job['archived_at'] else decision or 'undecided'})"
+        elif pending is not None:
+            summary = (f"waiting for Claude: {pending['changes']} change request(s) and {pending['questions']} open "
+                       f"question(s), sent {pending['submitted_at']}{working}")
+        elif held:
+            summary = f"the form is filled and waiting for your go (until {_aware(claim['lease_until']).isoformat()})"
+        elif live:
+            summary = f"the form is being filled by {claim['agent']} (claimed until " \
+                      f"{_aware(claim['lease_until']).isoformat()})"
+        elif app is not None and app["status"] == "needs_input":
+            summary = (f"parked for the user (needs_input): {app['note'] or 'no note'}; pass the user's answers or "
+                       "changes on with `request` (Claude revises the package and the job returns to the queue)")
+        elif app is not None and app["status"] in PARKED:
+            summary = f"blocked ({app['status']}): {app['note'] or 'no note'}; the user requeues it once resolved"
+        elif queue_block is not None and queue_block != "daily_limit":
+            summary = f"not in the queue ({queue_block}), so no package is made or used for it"
+        elif not package["published"]:
+            summary = "the package is not made yet" + (
+                "; today's submission limit hides the queue, so the package runner waits until it resets"
+                if queue_block == "daily_limit" else
+                working or "; the package runner starts on the next kick or within the hour")
+        else:
+            summary = f"the package is published ({package['published_at']}) and the job is in the queue" + (
+                "; today's submission limit is reached" if queue_block == "daily_limit" else "")
+        return {"job_id": job_id, "title": job["title"], "company": job["company"], "decision": decision,
+                "application": None if app is None else {
+                    "status": app["status"], "note": app["note"],
+                    "updated_at": _aware(app["updated_at"]).isoformat()},
+                "claim": {"agent": claim["agent"], "until": _aware(claim["lease_until"]).isoformat(),
+                          "held": held} if live else None,
+                "pending": pending, "package": package, "runner": runner, "queue_block": queue_block,
+                "summary": summary}
 
     # ---- outcomes ------------------------------------------------------------------------------
 

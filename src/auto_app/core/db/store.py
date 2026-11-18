@@ -423,13 +423,16 @@ class DbStore:
         with self.engine.begin() as conn:
             return conn.execute(update(T.jobs).where(T.jobs.c.job_id.in_(job_ids)).values(notified_at=when)).rowcount
 
-    def jobs(self, archived: bool | None = False, *, include_excluded: bool = True) -> list[dict]:
+    def jobs(self, archived: bool | None = False, *, include_excluded: bool = True,
+             job_id: int | None = None) -> list[dict]:
         """Jobs with their primary posting's title/company/date, locations and sources.
         archived: False = active jobs (default), True = archived records only, None = both.
+        An optional job_id limits the projection, including locations and sources.
         Internal callers retain every record; display/selection callers opt into preferences."""
         preferences = load_preferences(self.paths.preferences) if not include_excluded else None
         j, p = T.jobs, T.postings
-        counts = (select(p.c.job_id, func.count().label("n")).where(p.c.job_id.is_not(None))
+        postings_filter = p.c.job_id.is_not(None) if job_id is None else p.c.job_id == job_id
+        counts = (select(p.c.job_id, func.count().label("n")).where(postings_filter)
                   .group_by(p.c.job_id).subquery())
         q = (select(j, counts.c.n, p.c.source.label("primary_source"), p.c.title.label("title"),
                     p.c.company.label("company"), p.c.posted_at.label("posted_at"))
@@ -438,28 +441,32 @@ class DbStore:
              .order_by(j.c.job_id))
         if archived is not None:
             q = q.where(j.c.archived_at.is_not(None) if archived else j.c.archived_at.is_(None))
+        locations = T.job_locations
+        location_query = select(locations.c.job_id, locations.c.location_norm).order_by(locations.c.location_norm)
+        if job_id is not None:
+            q = q.where(j.c.job_id == job_id)
+            location_query = location_query.where(locations.c.job_id == job_id)
         with self._conn() as conn:
             rows = conn.execute(q).mappings().all()
             locs: dict[int, list[str]] = {}
-            for job_id, loc in conn.execute(select(T.job_locations.c.job_id, T.job_locations.c.location_norm)
-                                            .order_by(T.job_locations.c.location_norm)):
-                locs.setdefault(job_id, []).append(loc)
+            for row_id, loc in conn.execute(location_query):
+                locs.setdefault(row_id, []).append(loc)
             srcs: dict[int, list[str]] = {}
-            for job_id, src in conn.execute(select(p.c.job_id, p.c.source).where(p.c.job_id.is_not(None))
+            for row_id, src in conn.execute(select(p.c.job_id, p.c.source).where(postings_filter)
                                             .distinct().order_by(p.c.source)):
-                srcs.setdefault(job_id, []).append(src)
+                srcs.setdefault(row_id, []).append(src)
             raw_locations: dict[int, list[str]] = {}
             countries: dict[int, list[str]] = {}
             if preferences and preferences.exclude_countries:
-                for job_id, raw, country in conn.execute(select(p.c.job_id, func.json_extract(p.c.parsed, '$.locations'),
+                for row_id, raw, country in conn.execute(select(p.c.job_id, func.json_extract(p.c.parsed, '$.locations'),
                                                                func.json_extract(p.c.parsed, '$.extras.country'))
-                                               .where(p.c.job_id.is_not(None))):
-                    raw_locations.setdefault(job_id, []).extend(json.loads(raw) if raw else [])
-                    countries.setdefault(job_id, []).append(country)
-                for job_id, country in conn.execute(select(p.c.job_id,
+                                               .where(postings_filter)):
+                    raw_locations.setdefault(row_id, []).extend(json.loads(raw) if raw else [])
+                    countries.setdefault(row_id, []).append(country)
+                for row_id, country in conn.execute(select(p.c.job_id,
                         func.json_extract(T.ingest_entries.c.payload, '$.metadata.upstream.country'))
-                        .join(p, p.c.posting_id == T.ingest_entries.c.posting_id).where(p.c.job_id.is_not(None))):
-                    countries.setdefault(job_id, []).append(country)
+                        .join(p, p.c.posting_id == T.ingest_entries.c.posting_id).where(postings_filter)):
+                    countries.setdefault(row_id, []).append(country)
         out = []
         for r in rows:
             row = {k: iso(v) for k, v in r.items() if k != "archive_description"}

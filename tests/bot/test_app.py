@@ -9,7 +9,7 @@ import pytest
 from sqlalchemy import insert, update
 
 from auto_app.agent.service import AgentService
-from auto_app.bot.actions import BotSettings
+from auto_app.bot.actions import BUTTONS, BotSettings
 from auto_app.bot.app import JobBot, JobButton, digest_ready
 from auto_app.core.db import tables as T
 from auto_app.ingest.scheduler import _lock, _path
@@ -72,9 +72,10 @@ async def test_post_digest_marks_only_accepted_discord_messages(tmp_path, monkey
 
         def __init__(self):
             self.sent = []
+            self.unavailable = True
 
         async def send(self, **kwargs):
-            if self.sent:
+            if self.sent and self.unavailable:
                 raise RuntimeError("Discord unavailable")
             self.sent.append(kwargs)
 
@@ -84,9 +85,10 @@ async def test_post_digest_marks_only_accepted_discord_messages(tmp_path, monkey
     with pytest.raises(RuntimeError, match="Discord unavailable"):
         await bot.post_digest()
     assert len(channel.sent) == 1
-    assert len(channel.sent[0]["embeds"]) == 5
+    assert "embed" in channel.sent[0]
+    job_id = int(channel.sent[0]["embed"].footer.text.split()[-1])
     reopened = make_store(tmp_path)
-    assert len([job for job in reopened.jobs() if job["notified_at"]]) == 5
+    assert [job["job_id"] for job in reopened.jobs() if job["notified_at"]] == [job_id]
     reopened.engine.dispose()
     write_control(db_path, paused=True)
     await bot.post_digest()
@@ -95,12 +97,17 @@ async def test_post_digest_marks_only_accepted_discord_messages(tmp_path, monkey
     channel.guild = SimpleNamespace(id=999)
     with pytest.raises(ValueError, match="configured server"):
         await bot.post_digest()
+    channel.guild = SimpleNamespace(id=456)
+    channel.unavailable = False
+    await bot.post_digest()
+    delivered = {int(message["embed"].footer.text.split()[-1]) for message in channel.sent}
+    assert len(channel.sent) == len(delivered) == 7
     await bot.close()
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("intervention", ["completed_screen", "manual_decision"])
-async def test_later_digest_batch_uses_current_eligibility(tmp_path, monkeypatch, intervention):
+async def test_later_digest_message_uses_current_eligibility(tmp_path, monkeypatch, intervention):
     store = make_store(tmp_path)
     ingest(store, [record(str(100 + i), f"Engineer {i}") for i in range(7)])
     ids = [job_id_of(store, f"Engineer {i}") for i in range(7)]
@@ -129,8 +136,8 @@ async def test_later_digest_batch_uses_current_eligibility(tmp_path, monkeypatch
             self.sent.append(kwargs)
             if len(self.sent) != 1:
                 return
-            first_ids = {int(embed.footer.text.split()[-1]) for embed in kwargs["embeds"]}
-            remaining = [job_id for job_id in ids if job_id not in first_ids]
+            first_id = int(kwargs["embed"].footer.text.split()[-1])
+            remaining = [job_id for job_id in ids if job_id != first_id]
             if intervention == "completed_screen":
                 state_path.write_text(json.dumps({**state, "status": "running"}))
                 updated = make_store(tmp_path)
@@ -147,15 +154,21 @@ async def test_later_digest_batch_uses_current_eligibility(tmp_path, monkeypatch
     bot = JobBot(BotSettings("local.test.token", 123, 456, 789, db_path))
     monkeypatch.setattr(bot, "get_channel", lambda _: channel)
     await bot.post_digest()
-    delivered = [int(embed.footer.text.split()[-1]) for message in channel.sent for embed in message["embeds"]]
+    delivered = []
+    for message in channel.sent:
+        job_id = int(message["embed"].footer.text.split()[-1])
+        delivered.append(job_id)
+        assert [button.custom_id for button in message["view"].children] == [
+            f"job:{job_id}:{action}" for action in BUTTONS
+        ]
     checked = make_store(tmp_path)
     notified = {job["job_id"] for job in checked.jobs() if job["notified_at"]}
     checked.engine.dispose()
     if intervention == "completed_screen":
         assert len(channel.sent) == 1
-        assert set(delivered) == notified and len(notified) == 5
+        assert set(delivered) == notified and len(notified) == 1
     else:
-        assert len(channel.sent) == 2
+        assert len(channel.sent) == 6
         assert channel.handled not in delivered and channel.handled not in notified
         assert set(delivered) == notified and len(notified) == 6
     await bot.close()
@@ -219,4 +232,76 @@ async def test_post_digest_holds_back_a_newly_added_feed(tmp_path, monkeypatch):
     state_path.write_text(json.dumps({**state, "source_since": {"board-greenhouse-acme": None}}))
     await bot.post_digest()
     assert len(Channel.sent) == 1
+    await bot.close()
+
+
+@pytest.mark.asyncio
+async def test_bad_button_opens_the_reason_modal_for_the_owner_only(tmp_path):
+    from auto_app.bot.app import ShouldntModal
+
+    bot = JobBot(BotSettings("local.test.token", 123, 456, 789, tmp_path / "missing.db"))
+
+    class Response:
+        def __init__(self):
+            self.sent, self.modals = [], []
+
+        async def send_message(self, message, **kwargs):
+            self.sent.append(message)
+
+        async def send_modal(self, modal):
+            self.modals.append(modal)
+
+    response = Response()
+    interaction = SimpleNamespace(client=bot, guild_id=456, user=SimpleNamespace(id=999), response=response)
+    match = re.fullmatch(r"job:(?P<job>[1-9][0-9]{0,11}):(?P<action>want|skip|applied|bad)", "job:41:bad")
+    button = await JobButton.from_custom_id(interaction, None, match)
+    await button.callback(interaction)
+    assert response.sent == ["Owner only in the configured server."] and response.modals == []
+    interaction.user.id = 123
+    await button.callback(interaction)
+    [modal] = response.modals
+    assert isinstance(modal, ShouldntModal) and modal.job_id == 41
+    assert modal.reason.max_length == 300 and modal.reason.required
+    await bot.close()
+
+
+@pytest.mark.asyncio
+async def test_screening_updates_are_posted_once(tmp_path, monkeypatch):
+    from auto_app.agent.control import ControlService
+    from auto_app.screen.feedback import ScreeningFeedback
+    from auto_app.screen.rules import ScreeningRules
+    from auto_app.screen.store import screen_jobs
+
+    store = make_store(tmp_path)
+    ingest(store, [record("401", "Field Service Associate"), record("402", "Platform Engineer")])
+    screen_jobs(store, ScreeningRules())
+    field, platform = job_id_of(store, "Field Service Associate"), job_id_of(store, "Platform Engineer")
+    store.engine.dispose()
+    db_path = tmp_path / "data" / "auto_app.db"
+    feedback = ScreeningFeedback(db_path)
+    one = feedback.record(field, "现场服务")["feedback_id"]
+    two = feedback.record(platform, "方向不对")["feedback_id"]
+    proposal = ControlService(db_path).propose_screening_change({"extra_non_cs_terms": ["field service"]}, note="n")
+    feedback.attach([one], proposal["change_id"])
+    feedback.close([two], "关键词分不出方向")
+
+    class Channel:
+        guild = SimpleNamespace(id=456)
+
+        def __init__(self):
+            self.sent = []
+
+        async def send(self, **kwargs):
+            self.sent.append(kwargs)
+
+    channel = Channel()
+    bot = JobBot(BotSettings("local.test.token", 123, 456, 789, db_path))
+    monkeypatch.setattr(bot, "get_channel", lambda _: channel)
+    await bot.post_screening_updates()
+    assert len(channel.sent) == 2
+    ids = [item.custom_id for item in channel.sent[0]["view"].children]
+    assert ids == [f"screen:{proposal['change_id']}:apply", f"screen:{proposal['change_id']}:discard"]
+    assert "方向不对" in channel.sent[1]["content"]
+    await bot.post_screening_updates()
+    assert len(channel.sent) == 2  # each proposal and each closure once
     await bot.close()

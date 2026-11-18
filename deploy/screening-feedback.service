@@ -1,0 +1,10 @@
+[Unit]
+Description=Daily summary of Discord "shouldn't recommend" reasons into a screening-rule proposal (never applies it)
+After=network-online.target
+OnFailure=auto-app-alert@%n.service
+
+[Service]
+Type=oneshot
+ExecStart=%h/Desktop/job-search/auto-application/deploy/screening-feedback.sh
+TimeoutStartSec=1h
+Nice=5

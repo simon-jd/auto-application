@@ -12,6 +12,7 @@ TREE = {
     "ops": ["backup", "verify", "prune", "alert"],
     "worker": ["run", "watch", "status", "boards"],
     "bot": ["run"],
+    "screen-feedback": ["due", "list", "preview", "propose", "close"],
     "ingest": ["repository", "email", "run", "watch", "status", "systemd", "auth"],
     "source": ["list", "show", "add", "login", "health", "plan"],
     "collect": ["run", "probe", "stats"],

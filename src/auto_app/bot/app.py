@@ -9,20 +9,30 @@ from discord import app_commands
 from discord.ext import tasks
 
 from auto_app.bot.actions import (
-    ACTIONS,
+    BUTTONS,
+    ask_action,
+    ask_custom_id,
+    ask_embed,
     LABELS,
     BotSettings,
+    closure_message,
     custom_id,
     job_summary,
     jobs_summary,
+    proposal_action,
+    proposal_custom_id,
+    proposal_message,
     record_action,
+    record_shouldnt,
 )
 from auto_app.core.models import utcnow
 from auto_app.worker.control import is_paused
 
 log = logging.getLogger(__name__)
 STYLES = {"want": discord.ButtonStyle.success, "skip": discord.ButtonStyle.secondary,
-          "applied": discord.ButtonStyle.primary}
+          "applied": discord.ButtonStyle.primary, "bad": discord.ButtonStyle.danger}
+BOT_STATE = ".bot-state.json"
+POSTED_KEEP = 200  # proposal ids remembered as posted
 
 
 def digest_ready(state: dict, control: dict, now: datetime) -> bool:
@@ -39,8 +49,120 @@ def digest_ready(state: dict, control: dict, now: datetime) -> bool:
             and not is_paused(control, now))
 
 
+class ShouldntModal(discord.ui.Modal, title="Why shouldn't it be recommended?"):
+    """The reason for "Shouldn't recommend": it feeds the daily screening-rule summary."""
+
+    reason = discord.ui.TextInput(label="Reason", style=discord.TextStyle.paragraph, min_length=1, max_length=300,
+                                  required=True, placeholder="e.g. field service work, not software")
+
+    def __init__(self, job_id: int):
+        super().__init__(timeout=600)
+        self.job_id = job_id
+
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        settings = interaction.client.settings
+        if not _owner(interaction, settings):
+            await interaction.response.send_message("Owner only in the configured server.", ephemeral=True)
+            return
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        result = await asyncio.to_thread(record_shouldnt, settings.db_path, interaction.user.id, settings.owner_id,
+                                         self.job_id, str(self.reason.value))
+        await interaction.followup.send(result, ephemeral=True, allowed_mentions=discord.AllowedMentions.none())
+
+
+class ProposalButton(discord.ui.DynamicItem[discord.ui.Button],
+                     template=r"screen:(?P<change>[a-f0-9]{32}):(?P<action>apply|discard)"):
+    def __init__(self, change_id: str, action: str):
+        super().__init__(discord.ui.Button(
+            label="Apply" if action == "apply" else "Discard",
+            style=discord.ButtonStyle.success if action == "apply" else discord.ButtonStyle.secondary,
+            custom_id=proposal_custom_id(change_id, action)))
+        self.change_id, self.action = change_id, action
+
+    @classmethod
+    async def from_custom_id(cls, interaction, item, match):
+        return cls(match["change"], match["action"])
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        settings = interaction.client.settings
+        if not _owner(interaction, settings):
+            await interaction.response.send_message("Owner only in the configured server.", ephemeral=True,
+                                                    allowed_mentions=discord.AllowedMentions.none())
+            return
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        result = await asyncio.to_thread(proposal_action, settings.db_path, interaction.user.id, settings.owner_id,
+                                         self.change_id, self.action)
+        await interaction.followup.send(result.message, ephemeral=True, allowed_mentions=discord.AllowedMentions.none())
+        message = getattr(interaction, "message", None)
+        if result.remove_buttons and message is not None:
+            try:
+                await message.edit(view=None)
+            except discord.HTTPException:
+                pass
+
+
+class AskReplyModal(discord.ui.Modal, title="你的回复"):
+    """The owner's own words for one of Claude's questions."""
+
+    reply = discord.ui.TextInput(label="回复", style=discord.TextStyle.paragraph, min_length=1, max_length=1000,
+                                 required=True)
+
+    def __init__(self, question_id: int):
+        super().__init__(timeout=900)
+        self.question_id = question_id
+
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        settings = interaction.client.settings
+        if not _owner(interaction, settings):
+            await interaction.response.send_message("Owner only in the configured server.", ephemeral=True)
+            return
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        result = await asyncio.to_thread(ask_action, settings.db_path, interaction.user.id, settings.owner_id,
+                                         self.question_id, "reply", str(self.reply.value))
+        await interaction.followup.send(result.message, ephemeral=True, allowed_mentions=discord.AllowedMentions.none())
+        await _close_controls(interaction, result.remove_buttons)
+
+
+class AskButton(discord.ui.DynamicItem[discord.ui.Button],
+                template=r"ask:(?P<question>[1-9][0-9]{0,11}):(?P<action>opt[0-3]|reply|skip)"):
+    def __init__(self, question_id: int, action: str, label: str | None = None, row: int | None = None):
+        style = (discord.ButtonStyle.secondary if action == "skip" else
+                 discord.ButtonStyle.primary if action == "reply" else discord.ButtonStyle.success)
+        default = {"reply": "其他回复…", "skip": "不投"}.get(action, action)
+        super().__init__(discord.ui.Button(label=(label or default)[:80], style=style,
+                                           custom_id=ask_custom_id(question_id, action), row=row))
+        self.question_id, self.action = question_id, action
+
+    @classmethod
+    async def from_custom_id(cls, interaction, item, match):
+        return cls(int(match["question"]), match["action"])
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        settings = interaction.client.settings
+        if not _owner(interaction, settings):
+            await interaction.response.send_message("Owner only in the configured server.", ephemeral=True)
+            return
+        if self.action == "reply":  # a modal must be the interaction's first response
+            await interaction.response.send_modal(AskReplyModal(self.question_id))
+            return
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        result = await asyncio.to_thread(ask_action, settings.db_path, interaction.user.id, settings.owner_id,
+                                         self.question_id, self.action)
+        await interaction.followup.send(result.message, ephemeral=True, allowed_mentions=discord.AllowedMentions.none())
+        await _close_controls(interaction, result.remove_buttons)
+
+
+async def _close_controls(interaction, close: bool) -> None:
+    message = getattr(interaction, "message", None)
+    if close and message is not None:
+        try:
+            await message.edit(view=None)
+        except discord.HTTPException:
+            pass
+
+
 class JobButton(discord.ui.DynamicItem[discord.ui.Button],
-                template=r"job:(?P<job>[1-9][0-9]{0,11}):(?P<action>want|skip|applied)"):
+                template=r"job:(?P<job>[1-9][0-9]{0,11}):(?P<action>want|skip|applied|bad)"):
     def __init__(self, job_id: int, action: str, row: int | None = None):
         super().__init__(discord.ui.Button(label=LABELS[action], style=STYLES[action],
                                            custom_id=custom_id(job_id, action), row=row))
@@ -54,6 +176,9 @@ class JobButton(discord.ui.DynamicItem[discord.ui.Button],
         settings = interaction.client.settings
         if not _owner(interaction, settings):
             await interaction.response.send_message("Owner only in the configured server.", ephemeral=True)
+            return
+        if self.action == "bad":  # the reason first; a modal must be the interaction's first response
+            await interaction.response.send_modal(ShouldntModal(self.job_id))
             return
         await interaction.response.defer(ephemeral=True, thinking=True)
         result = await asyncio.to_thread(record_action, settings.db_path, interaction.user.id, settings.owner_id,
@@ -71,13 +196,14 @@ class JobBot(discord.Client):
         _commands(self)
 
     async def setup_hook(self) -> None:
-        self.add_dynamic_items(JobButton)
+        self.add_dynamic_items(JobButton, ProposalButton, AskButton)
         await self.tree.sync(guild=self.target_guild)
         self.digest.start()
 
     @tasks.loop(minutes=5)
     async def digest(self) -> None:
-        for deliver in (self.post_digest, self.post_handoff_updates):
+        for deliver in (self.post_digest, self.post_handoff_updates, self.post_screening_updates,
+                        self.post_owner_questions):
             try:
                 await deliver()
             except Exception:  # noqa: BLE001 - keep retrying; never log raw remote errors
@@ -116,95 +242,141 @@ class JobBot(discord.Client):
                 state["handoff_cursor"] = cursor
                 await asyncio.to_thread(_write_state, db, state, ".bot-state.json")
 
+    async def post_owner_questions(self) -> None:
+        """Claude's questions for the owner, each once, in the questions channel (or the main one), with buttons;
+        and, under each question, what Claude did with the answer. Not held back by a pause: the owner asked for
+        these to reach them."""
+        from auto_app.handoff.asks import OwnerQuestions
+
+        questions = OwnerQuestions(self.settings.db_path)
+        new, done = await asyncio.to_thread(lambda: (questions.to_post(), questions.to_report()))
+        if not new and not done:
+            return
+        channel_id = self.settings.questions_channel_id or self.settings.channel_id
+        channel = self.get_channel(channel_id) or await self.fetch_channel(channel_id)
+        if getattr(getattr(channel, "guild", None), "id", None) != self.settings.guild_id:
+            raise ValueError("Questions channel does not belong to the configured server")
+        for item in new:
+            view = discord.ui.View(timeout=None)
+            for index, option in enumerate(item["options"]):
+                view.add_item(AskButton(item["question_id"], f"opt{index}", option, row=0))
+            view.add_item(AskButton(item["question_id"], "reply", row=1))
+            if item.get("job_id") is not None:
+                view.add_item(AskButton(item["question_id"], "skip", row=1))
+            message = await channel.send(embeds=[discord.Embed.from_dict(ask_embed(item))], view=view,
+                                         allowed_mentions=discord.AllowedMentions.none())
+            await asyncio.to_thread(questions.mark_posted, item["question_id"], str(message.id))
+        for item in done:
+            label = f"#{item['job_id']} " if item.get("job_id") is not None else ""
+            await channel.send(content=f"{label}已处理：{item['handled_note']}"[:1900],
+                               reference=discord.MessageReference(message_id=int(item["message_id"]),
+                                                                  channel_id=channel.id, fail_if_not_exists=False),
+                               allowed_mentions=discord.AllowedMentions.none())
+            await asyncio.to_thread(questions.mark_reported, item["question_id"])
+
+    async def post_screening_updates(self) -> None:
+        """Screening proposals made from the owner's reasons (with Apply / Discard), and reasons no rule fits."""
+        from auto_app.ingest.scheduler import _read_state, _write_state
+        from auto_app.screen.feedback import ScreeningFeedback
+        from auto_app.worker.control import read_control
+
+        db = self.settings.db_path
+        if is_paused(await asyncio.to_thread(read_control, db), utcnow()):
+            return
+
+        def plan():
+            state = _read_state(db, BOT_STATE)
+            posted = set(state.get("posted_proposals") or [])
+            feedback = ScreeningFeedback(db)
+            proposals = [(change, proposal_message(db, change)) for change in feedback.open_proposals()
+                         if change not in posted]
+            return state, [(c, m) for c, m in proposals if m], feedback.unposted_closures()
+
+        state, proposals, closures = await asyncio.to_thread(plan)
+        if not proposals and not closures:
+            return
+        channel = self.get_channel(self.settings.channel_id) or await self.fetch_channel(self.settings.channel_id)
+        if getattr(getattr(channel, "guild", None), "id", None) != self.settings.guild_id:
+            raise ValueError("Digest channel does not belong to the configured server")
+        for change, message in proposals:
+            view = discord.ui.View(timeout=None)
+            view.add_item(ProposalButton(change, "apply"))
+            view.add_item(ProposalButton(change, "discard"))
+            await channel.send(content=message[:1900], view=view, allowed_mentions=discord.AllowedMentions.none())
+            state["posted_proposals"] = [*(state.get("posted_proposals") or []), change][-POSTED_KEEP:]
+            await asyncio.to_thread(_write_state, db, state, BOT_STATE)
+        if closures:
+            await channel.send(content=closure_message(closures)[:1900],
+                               allowed_mentions=discord.AllowedMentions.none())
+            await asyncio.to_thread(ScreeningFeedback(db).mark_posted, [c["feedback_id"] for c in closures])
+
     async def post_digest(self) -> None:
         from auto_app.core.db.store import DbStore
         from auto_app.settings import Paths
         from auto_app.worker import loop
         from auto_app.worker.control import read_control
-        from auto_app.worker.digest import batches, embed, mark_notified, pending
+        from auto_app.worker.digest import embed, mark_notified, pending
 
-        now = utcnow()
+        db = self.settings.db_path
+        home = db.parent.parent if db.parent.name == "data" else db.parent
 
         def generation(state: dict) -> tuple[str | None, str | None]:
             return state.get("last_run_at"), state.get("last_finished_at")
 
-        def plan():
-            state = loop.status(self.settings.db_path)
-            control = read_control(self.settings.db_path)
-            if not digest_ready(state, control, now):
-                return [], None
-            try:
-                since = datetime.fromisoformat(state["notify_since"])
-            except (TypeError, ValueError):
-                return [], None
-            db_path = self.settings.db_path
-            home = db_path.parent.parent if db_path.parent.name == "data" else db_path.parent
-            store = DbStore(db_path, Paths(home=home), migrate=False)
-            try:
-                planned, _ = batches(store, limit=30, since=since, now=now,
-                                     source_since=state.get("source_since"))
-                return planned, generation(state)
-            finally:
-                store.engine.dispose()
-
-        def revalidate(batch: list[dict], expected_generation: tuple[str | None, str | None]):
-            state = loop.status(self.settings.db_path)
-            control = read_control(self.settings.db_path)
-            current = utcnow()
-            if not digest_ready(state, control, current) or generation(state) != expected_generation:
+        def select_jobs(job_id: int | None = None, expected_generation: tuple[str | None, str | None] | None = None):
+            state = loop.status(db)
+            round_generation = generation(state)
+            now = utcnow()
+            if not digest_ready(state, read_control(db), now):
+                return None
+            if expected_generation is not None and round_generation != expected_generation:
                 return None
             try:
                 since = datetime.fromisoformat(state["notify_since"])
             except (TypeError, ValueError):
                 return None
-            db_path = self.settings.db_path
-            home = db_path.parent.parent if db_path.parent.name == "data" else db_path.parent
-            store = DbStore(db_path, Paths(home=home), migrate=False)
+            store = DbStore(db, Paths(home=home), migrate=False)
             try:
-                jobs, more = pending(store, limit=30, since=since, now=current,
-                                     source_since=state.get("source_since"))
+                jobs, more = pending(store, limit=30 if job_id is None else 1, since=since, now=now,
+                                     source_since=state.get("source_since"), job_id=job_id)
             finally:
                 store.engine.dispose()
             # Catch a round that finished while the database snapshot was being read.
-            latest = loop.status(self.settings.db_path)
-            if (generation(latest) != expected_generation
-                    or not digest_ready(latest, read_control(self.settings.db_path), utcnow())):
+            latest = loop.status(db)
+            if generation(latest) != round_generation or not digest_ready(latest, read_control(db), utcnow()):
                 return None
-            eligible = {job["job_id"]: job for job in jobs}
-            return [eligible[job["job_id"]] for job in batch if job["job_id"] in eligible], len(jobs) + more
+            return jobs, len(jobs) + more, round_generation
 
-        def mark(batch):
-            db_path = self.settings.db_path
-            home = db_path.parent.parent if db_path.parent.name == "data" else db_path.parent
-            store = DbStore(db_path, Paths(home=home), migrate=False)
+        def mark(job):
+            store = DbStore(db, Paths(home=home), migrate=False)
             try:
-                mark_notified(store, batch, now)
+                mark_notified(store, [job], utcnow())
             finally:
                 store.engine.dispose()
 
-        plan_batches, planned_generation = await asyncio.to_thread(plan)
-        if not plan_batches:
+        plan = await asyncio.to_thread(select_jobs)
+        if plan is None or not plan[0]:
             return
+        planned_jobs, total, planned_generation = plan
         channel = self.get_channel(self.settings.channel_id) or await self.fetch_channel(self.settings.channel_id)
         if getattr(getattr(channel, "guild", None), "id", None) != self.settings.guild_id:
             raise ValueError("Digest channel does not belong to the configured server")
-        sent = 0
-        for batch in plan_batches:
-            refreshed = await asyncio.to_thread(revalidate, batch, planned_generation)
+        header: str | None = f"**{total} new job(s)** — visa sponsorship first"
+        for candidate in planned_jobs:
+            refreshed = await asyncio.to_thread(select_jobs, candidate["job_id"], planned_generation)
             if refreshed is None:
                 return
-            current_batch, remaining = refreshed
-            if not current_batch:
+            current_jobs, _, _ = refreshed
+            if not current_jobs:
                 continue
+            [job] = current_jobs
             view = discord.ui.View(timeout=None)
-            for row, job in enumerate(current_batch):
-                for action in ACTIONS:
-                    view.add_item(JobButton(job["job_id"], action, row=row))
-            await channel.send(content=f"**{remaining} new job(s)** — visa sponsorship first" if sent == 0 else None,
-                               embeds=[discord.Embed.from_dict(embed(job)) for job in current_batch], view=view,
+            for action in BUTTONS:
+                view.add_item(JobButton(job["job_id"], action, row=0))
+            await channel.send(content=header, embed=discord.Embed.from_dict(embed(job)), view=view,
                                allowed_mentions=discord.AllowedMentions.none())
-            await asyncio.to_thread(mark, current_batch)
-            sent += len(current_batch)
+            await asyncio.to_thread(mark, job)
+            header = None
 
 
 def _owner(interaction: discord.Interaction, settings: BotSettings) -> bool:

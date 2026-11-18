@@ -200,7 +200,10 @@ description or the title excludes; a hedged one ("may require", "if needed"), a 
 only under a preferred heading does not. A clear requirement of at least 3 years' experience excludes by default,
 including new-grad titles ("1~3 years" counts as 1; "a degree or 3+ years" as 0); lack of sponsorship alone does not.
 The opt-in `exclude_unknown_without_software_evidence` (off by default) also excludes a job whose title
-names no role and whose description names no software skill. Rule details: [Linux worker §2](docs/linux-worker.md#2-deterministic-screening).
+names no role and whose description names no software skill. With `graduation` set (`"YYYY-MM"`, off by default), a job
+whose explicit start date or graduation class ends before it is excluded (`start_before_graduation`): "2026 New Grad",
+"start date: January 2027", "must graduate by August 2026"; earliest dates ("as early as"), open ends ("or later"),
+hedged or preferred mentions are kept. Rule details: [Linux worker §2](docs/linux-worker.md#2-deterministic-screening).
 
 ```bash
 # Optional project-local rules file (use $AUTO_APP_HOME/config on Linux):
@@ -328,8 +331,13 @@ check scripts are in `deploy/grokbot/`. [Guide, in Chinese](docs/grok-bot.md).
 | `hold [TOKEN]` | The form is filled and waits for the user's go: keep the claim for `hold_hours` (default 24) instead of the lease. `claim ID` on that job then returns a fresh token (`"resumed": true`). Token on stdin as for `packet` |
 | `held` | Filled forms waiting for the user's go (held, claim still live), oldest first: `job_id`, `title`, `company`, `apply_url`, `agent`, `lease_until`, `held_since`. The user approves them together ("提交 #a #b #c") |
 | `questions [TOKEN]` | Hand back the form's open questions that the package's `answers.md` does not cover, or the user's change requests from the pre-submit check; this uses up the claim and the job waits (`needs_answers`) until the revised package is published. stdin: the token line, then a JSON list of `{"text", "required", "limit", "page", "kind"}` (only `text` is needed; `kind` is `question`, the default, or `change` for the user's words verbatim; at most 60, 64 KiB); with a TOKEN argument, stdin is only the JSON |
+| `request ID --text TEXT` | Pass on the user's own words asking for a change to a wanted job's materials while no form is open (one line, 1–1000 characters): the job waits (`needs_answers`) until the revised package is published. Refused while a form is claimed or held (use `questions` with kind `change`), for a blocked job (`blocked`/`action_needed`: the owner requeues it) and for a job that is not `want_to_apply`. A job parked by `needs_user` accepts it: that is how the user's answers to items only they can confirm reach Claude, and the job returns to the queue once the revised package is published |
+| `cheatsheet --text TEXT` | Pass on the user's own words with an answer for every application (one line, 1–1000 characters) for Claude to add to the cheat sheet (`apply-kit/answers.md`); the agent never edits it. One job's answer goes through `request` |
+| `cheatsheet-requests` | Cheat-sheet requests: `pending`, and the last 20 done ones (`recent`) with `outcome` (`applied` / `declined`) and Claude's `note` |
+| `cheatsheet-done ID --outcome applied\|declined --note TEXT` | The owner's step after editing the cheat sheet or declining. Refused through sudo |
+| `status ID` | Where one job stands: `decision`, `application`, live `claim` (agent, until, held), `pending` questions and changes, `package` (published, published_at, has_message), `runner` (the package runner's `apply-kit/runner.json`), `queue_block` (what keeps a wanted job out of the queue, e.g. `screened_out`, `company_cooldown`, `link_gone`; `daily_limit`; or null) and a one-line `summary`; never a token |
 | `answers-needed` | Jobs waiting for answers, each with the latest questions handed back |
-| `answers-ready ID` | The owner's step once the answers are published: the job returns to the queue. Refused through sudo (grokbot); Claude Code runs it as `postedism`, without sudo |
+| `answers-ready ID [--asked-at SUBMITTED_AT]` | The owner's step once the answers are published: the job returns to the queue. With `--asked-at` (the round's `submitted_at` from `answers-needed`, which the skill's `apply_kit.py answers-ready` always passes), refused when the round changed since, e.g. a change request arrived while the package was being made. Refused through sudo (grokbot); Claude Code runs it as `postedism`, without sudo |
 | `kit [ID [FILE]]` | The published application packages in the server's `apply-kit/` folder (the runtime's sibling), with **no claim token**: with no ID, `jobs/index.json`; with ID, that job's `job.json`; with ID FILE, the file itself on stdout, not JSON (`jobq kit 14143 resume.pdf > ~/kit/14143/resume.pdf`). `FILE` is `job.json`, `fields.json`, `jd.txt`, `resume.pdf`, `cover_letter.pdf`, `answers.md` or `message.txt`; a file not published yet is an error |
 | `guide [cheatsheet\|readme]` | The apply-kit's guide as plain text, not JSON: `cheatsheet` (`apply-kit/answers.md`, the default) or `readme` (`apply-kit/README.md`) |
 | `account SITE EMAIL [--existing] [--note TEXT]` | Note that an account exists on a hiring site (never its password); `--existing` means the user made it, not the agent |
@@ -379,12 +387,45 @@ sudo bash ~/Desktop/job-search/auto-application/deploy/grokbot/check.sh
 
 ### Discord bot
 
-The owner-only bot adds `/jobs`, `/job`, `/status`, `/pause`, `/resume` and decision buttons. In bot mode,
-the screening worker runs `--steps screen,enrich,summary,health` and the bot owns digest delivery; no live bot account or
-message has been configured yet. [Discord bot setup](docs/discord-bot.md).
+The owner-only bot adds `/jobs`, `/job`, `/status`, `/pause`, `/resume` and decision buttons. Each job notification is
+a separate Discord message with that job's buttons directly below its card. In bot mode, the screening worker runs
+`--steps screen,enrich,summary,health` and the bot owns digest delivery. [Discord bot setup](docs/discord-bot.md).
 
 ```bash
 uv run auto-app bot run --db data/auto_app.db --credentials PATH/TO/bot.env
+```
+
+Each pushed job also has **Shouldn't recommend** (2026-11-18): a box asks for the reason (1–300 characters), the job
+becomes `not_applied`, and the reason is saved in `screening_feedback`. On home-ubuntu, `deploy/screening-feedback.timer`
+runs daily at 08:30. With 3 pending reasons, or one 3 days old, it starts `claude -p`, which saves one screening
+proposal (`auto-app screen-feedback preview` to try words, then one `propose`, with the usual preview) and closes the reasons no rule can express
+(`close`). The bot posts the proposal with **Apply** / **Discard**. Only the owner's Apply changes the rules.
+At 24 hours, a proposal expires and its unresolved reasons return to the next summary, even if the owner clicks
+Discard before cleanup. A busy screening configuration leaves the buttons available for retry. If the rules revision
+changes, Apply requires a fresh proposal and Discard remains available for the current one. Every `screen-feedback`
+command prints one JSON object (an error is `{"status": "error", …}`, exit 1).
+
+```bash
+uv run auto-app screen-feedback due     # {"due": false, "pending": 1}
+uv run auto-app screen-feedback list    # pending reasons with each job's title, company and verdict, and the rules
+uv run auto-app screen-feedback preview --changes '{"extra_non_cs_terms": ["...", "field service"]}'   # saves nothing
+uv run auto-app screen-feedback propose --changes '{"extra_non_cs_terms": ["...", "field service"]}' --ids 3,5 --note "..."
+uv run auto-app screen-feedback close --ids 8 --note "needs a judgment of the track, not a keyword"
+```
+
+### Phone control (2026-11-18)
+
+- **Faster pickup.** A changed `want_to_apply`, `jobq questions` and `jobq request` touch
+  `$AUTO_APP_HOME/data/apply-queue.kick`. `deploy/jd-apply-queue.path` then starts the package runner at once; the
+  hourly timer stays as the fallback. The runner does one more round when a kick arrived during its run (at most 3),
+  and writes `apply-kit/runner.json`, which `jobq status` reads.
+- **Remote Control.** `deploy/claude-remote.service` runs
+  `claude remote-control --spawn same-dir --permission-mode auto --name job-search` in tmux, in `auto-application`
+  with `AUTO_APP_HOME` set. The owner talks to it from the Claude app (Code). The first start's two prompts are
+  answered in `tmux -L claude-remote attach -t claude-remote`.
+
+```bash
+systemctl --user enable --now jd-apply-queue.path screening-feedback.timer claude-remote.service
 ```
 
 
@@ -470,7 +511,8 @@ scripts/pull_backups.sh home-ubuntu
   - [`process`](#process--step-1b-postings--jobs) — `parse`, `normalize`, `dedup`
   - [`worker`](#linux-worker-screening-jd-enrichment-and-discord) — `run`, `watch`, `status`, `boards`
   - [`bot`](#discord-bot) — `run`
-  - [`jobq`](#grok-bot-local-execution) — `new`, `seen`, `search`, `show`, `want`, `skip`, `queue`, `claim`, `packet`, `record`, `release`, `hold`, `held`, `questions`, `answers-needed`, `answers-ready`, `kit`, `guide`, `account`
+  - [`screen-feedback`](#discord-bot) — `due`, `list`, `preview`, `propose`, `close`
+  - [`jobq`](#grok-bot-local-execution) — `new`, `seen`, `search`, `show`, `want`, `skip`, `queue`, `claim`, `packet`, `record`, `release`, `hold`, `held`, `questions`, `request`, `status`, `cheatsheet`, `cheatsheet-requests`, `cheatsheet-done`, `answers-needed`, `answers-ready`, `kit`, `guide`, `account`
   - [`handoff`](#application-handoff) — `queue`, `claim`, `packet`, `record`, `release`, `hold`, `held`, `questions`, `answers-needed`, `answers-ready`, `requeue`, `account`, `resume`
   - [`events`](#tracking-after-you-apply) — `add`, `list`, `unmatched`, `assign`, `dismiss`
   - [`ops`](#operations) — `backup`, `verify`, `prune`, `alert`
@@ -667,6 +709,7 @@ auto-app collect                 run · probe · stats    auto-app data     insp
 auto-app process                 parse · normalize · dedup
 auto-app worker                  run · watch · status · boards   deterministic screening, enrichment and board suggestions
 auto-app bot                     run   owner-only Discord digest and decisions
+auto-app screen-feedback         due · list · preview · propose · close   Discord reasons → screening proposals
 auto-app handoff                 queue · claim · packet · record · release · hold · held · questions · answers-needed
                                  answers-ready · requeue · account · resume
 auto-app events                  add · list · unmatched · assign · dismiss

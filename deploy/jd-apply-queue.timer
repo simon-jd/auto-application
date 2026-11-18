@@ -1,5 +1,5 @@
 [Unit]
-Description=Hourly jd-resume-tailor queue run (deploy/jd-apply-queue.sh)
+Description=Hourly jd-resume-tailor queue run, the fallback to jd-apply-queue.path (deploy/jd-apply-queue.sh)
 
 [Timer]
 OnCalendar=hourly

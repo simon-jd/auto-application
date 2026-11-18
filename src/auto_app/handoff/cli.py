@@ -93,9 +93,12 @@ def answers_needed() -> None:
 
 
 @app.command("answers-ready")
-def answers_ready(job: int) -> None:
+def answers_ready(job: int,
+                  asked_at: str | None = typer.Option(None, "--asked-at", help="The submitted_at of the round the "
+                                                      "package answers (answers-needed); refused if it changed")
+                  ) -> None:
     """Once the answers are published, put a job that waited for them back into the queue."""
-    _out(lambda: _service().answers_ready(job))
+    _out(lambda: _service().answers_ready(job, asked_at=asked_at))
 
 
 @app.command("requeue")

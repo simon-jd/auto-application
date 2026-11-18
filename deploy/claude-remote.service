@@ -1,0 +1,16 @@
+[Unit]
+Description=Claude Code Remote Control for the job search (talk to Claude on this server from the phone)
+After=network-online.target
+OnFailure=auto-app-alert@%n.service
+
+[Service]
+# tmux gives Remote Control the terminal it expects, and lets you attach for its first-start prompts. Its own tmux
+# server (-L claude-remote) keeps it inside this service, apart from any tmux you run yourself.
+Type=forking
+ExecStart=/usr/bin/tmux -L claude-remote new-session -d -s claude-remote %h/Desktop/job-search/auto-application/deploy/claude-remote.sh
+ExecStop=/usr/bin/tmux -L claude-remote kill-server
+Restart=on-failure
+RestartSec=30
+
+[Install]
+WantedBy=default.target

@@ -22,6 +22,7 @@ from auto_app.core.logging import setup_logging
 from auto_app.core.models import utcnow
 from auto_app.ingest.cli import app as ingest_app
 from auto_app.bot.cli import app as bot_app
+from auto_app.screen.feedback_cli import app as screen_feedback_app
 from auto_app.worker.cli import app as worker_app
 from auto_app.handoff.cli import app as handoff_app
 from auto_app.track.cli import app as events_app
@@ -46,6 +47,7 @@ app.add_typer(collect_app, name="collect")
 app.add_typer(ingest_app, name="ingest")
 app.add_typer(worker_app, name="worker")
 app.add_typer(bot_app, name="bot")
+app.add_typer(screen_feedback_app, name="screen-feedback")
 app.add_typer(handoff_app, name="handoff")
 app.add_typer(events_app, name="events")
 app.add_typer(ops_app, name="ops")

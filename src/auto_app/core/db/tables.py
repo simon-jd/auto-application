@@ -417,6 +417,22 @@ handoff_claims = Table(
     Column('lease_until', Ts, nullable=False),
 )
 
+screening_feedback = Table(  # the user's "shouldn't recommend" from Discord: reasons behind screening-rule proposals
+    "screening_feedback", metadata,
+    Column("feedback_id", Integer, primary_key=True, autoincrement=True),
+    Column("job_id", Integer, nullable=False, index=True),  # no FK: the reason outlives the job (TTL)
+    Column("reason", Text, nullable=False),
+    Column("title", Text),
+    Column("company", Text),
+    Column("signals", JSON),  # the screening verdict (outcome, reasons, signals) when the user pressed the button
+    Column("created_at", Ts, nullable=False),
+    Column("proposal_id", String),  # the open screening proposal made from it (ControlService change id)
+    Column("resolved_at", Ts),
+    Column("resolution", String),  # applied | discarded | no_change
+    Column("resolution_note", Text),  # why no rule change (no_change)
+    Column("posted_at", Ts),  # when a no_change note went to Discord
+)
+
 handoff_questions = Table(  # open questions an agent found on a form and handed back for answers
     'handoff_questions', metadata,
     Column('question_set_id', Integer, primary_key=True, autoincrement=True),
@@ -426,6 +442,37 @@ handoff_questions = Table(  # open questions an agent found on a form and handed
     Column('questions', JSON, nullable=False),  # [{"text", "required", "limit", "page"}]
     Column('submitted_at', Ts, nullable=False),
     Column('answered_at', Ts),  # set when the owner marks the answers published (answers-ready)
+)
+
+cheatsheet_requests = Table(  # the user's general answers, passed on by an agent, for Claude to add to the cheat sheet
+    "cheatsheet_requests", metadata,
+    Column("request_id", Integer, primary_key=True, autoincrement=True),
+    Column("text", Text, nullable=False),  # the user's words, verbatim
+    Column("agent", String, nullable=False),
+    Column("submitted_at", Ts, nullable=False),
+    Column("done_at", Ts),  # set by the owner's side (Claude) once it edited the cheat sheet or declined
+    Column("outcome", String),  # applied | declined
+    Column("note", Text),  # what changed, or why not
+)
+
+owner_questions = Table(  # what Claude needs the owner to decide, posted to Discord and answered there
+    "owner_questions", metadata,
+    Column("question_id", Integer, primary_key=True, autoincrement=True),
+    Column("job_id", Integer, index=True),  # no FK; null for a question about no single job
+    Column("asked_by", String, nullable=False),
+    Column("question", Text, nullable=False),
+    Column("context", Text),  # why it is asked: the JD's words, the conflict, the recommendation
+    Column("options", JSON, nullable=False),  # up to 4 short answers offered as buttons
+    Column("recommended", Integer),  # index into options, or null
+    Column("created_at", Ts, nullable=False),
+    Column("posted_at", Ts),
+    Column("message_id", String),  # the Discord message, for the reply once handled
+    Column("answer", Text),
+    Column("answered_at", Ts),
+    Column("outcome", String),  # answered | skipped (the owner chose not to apply)
+    Column("handled_at", Ts),  # Claude acted on the answer
+    Column("handled_note", Text),
+    Column("reported_at", Ts),  # the bot posted handled_note under the question
 )
 
 resume_artifacts = Table(

@@ -15,7 +15,7 @@ from pathlib import Path
 
 from auto_app.screen.locations import job_location
 
-RULES_VERSION = "8"  # bump when a pattern below changes meaning: every job is screened again
+RULES_VERSION = "9"  # bump when a pattern below changes meaning: every job is screened again
 
 INTERN = re.compile(r"\b(?:intern|interns|internship|internships|co-?op|apprentice|apprenticeship)\b", re.I)
 SEASON = re.compile(r"\b(?:summer|fall|autumn|winter|spring)\s*'?(?:20)?\d\d\b", re.I)
@@ -213,6 +213,8 @@ class ScreeningRules:
     us_only: bool = True  # exclude jobs whose explicit locations are all outside the US
     # Opt-in noise rule: a job whose title names no role and whose description names no software skill.
     exclude_unknown_without_software_evidence: bool = False
+    # The user's graduation, "YYYY-MM": a job that explicitly starts, or wants graduates, before it is excluded.
+    graduation: str | None = None
 
     @property
     def version(self) -> str:
@@ -295,18 +297,118 @@ def _years_required(sentences) -> int | None:
     return max(found) if found else None
 
 
+# ---- start dates and graduation classes (the graduation rule) ------------------------------------------------
+_MONTH = (r"(?:january|february|march|april|may|june|july|august|september|october|november|december|"
+          r"jan|feb|mar|apr|jun|jul|aug|sept|sep|oct|nov|dec)")
+PERIOD = re.compile(rf"\b(?:(?P<month>{_MONTH})\.?\s+(?:\d{{1,2}}(?:st|nd|rd|th)?,?\s+)?|"
+                    r"(?P<season>spring|summer|fall|autumn|winter)\s+(?:of\s+)?|(?P<quarter>q[1-4])\s+)?"
+                    r"'?(?<![\d/\-])(?P<year>20\d\d)(?![/\-]?\d)", re.I)  # not in 11/18/2026, 2026-11-10, Req 2025-04567
+MONTH_NUMBER = {name: number for number, names in enumerate(
+    (("jan", "january"), ("feb", "february"), ("mar", "march"), ("apr", "april"), ("may",), ("jun", "june"),
+     ("jul", "july"), ("aug", "august"), ("sep", "sept", "september"), ("oct", "october"), ("nov", "november"),
+     ("dec", "december")), start=1) for name in names}
+SEASON_END = {"spring": 5, "summer": 8, "fall": 11, "autumn": 11}  # winter Y runs into Y+1: its end is Feb Y+1
+# "start date: January 2027", "starting summer 2026" (not "startup", "starting salary", "starting at $90k")
+START_THEN = re.compile(r"\b(?:start(?:s|ing)?|begin(?:s|ning)?)\b(?!\s*-?\s*ups?\b)"
+                        r"(?!\s+(?:salary|salaries|pay|rate|base|compensation|wage|range|point|at)\b)(?P<rest>.{0,80})",
+                        re.I)
+THEN_START = re.compile(PERIOD.pattern + r"\s+start(?:\s+date)?\b", re.I)  # "a Winter 2026 start"
+# A deadline needs its connector right after the word: "graduate by", "graduating between", "graduation date of"
+# (not "our graduate program, launched in 2025").
+GRADUATING = re.compile(r"\bgraduat(?:e|es|ed|ing|ion)\b(?:\s+date)?\s*(?:(?:is|of|:|-|–)\s*|(?:between|by|before|in|"
+                        r"from|on|during|through|prior\s+to|no\s+later\s+than)\s+)(?P<rest>.{0,60})|"
+                        r"\bdegree\b[^.]{0,40}?\b(?:complet\w*|conferr\w*)\b(?P<rest2>.{0,60})", re.I)
+# A start word about the hiring process, the posting, pay, benefits or the law is not the job's start date:
+# "interviews begin in November 2026", "posting start date", "401(k) match beginning in 2026".
+NOT_THE_JOB = re.compile(r"\b(?:applica\w*|apply|interview\w*|postings?|posted|review\w*|recruit\w*|deadline|pay|"
+                         r"salar\w*|compensation|wages?|bonus\w*|benefits?|401\s*\(?k\)?|match|pto|leave|insurance|"
+                         r"eligib\w*|enroll\w*|law|laws|effective|fiscal|hiring\s+events?|career\s+fairs?)\b", re.I)
+NEGATED = re.compile(r"\b(?:not|never|ineligible|cannot|can't)\b", re.I)  # "graduated in 2025 … are not eligible"
+TITLE_EVENT = re.compile(r"\b(?:hiring\s+events?|career\s+fairs?|events?|webinars?|info(?:rmation)?\s+sessions?|"
+                         r"open\s+house|req(?:uisition)?)\b", re.I)
+CLASS_YEAR = re.compile(r"\bclass\s+of\s+'?(?P<year>20\d\d)\b|\b(?P<year2>20\d\d)\s+(?:new\s+)?grad(?:uate)?s\b", re.I)
+# An earliest date or an open end is no deadline: "as early as January 2026", "2026 or later".
+OPEN_END = re.compile(r"\bas\s+early\s+as\b|\bno\s+earlier\s+than\b|\bearliest\b|\bafter\b|\bor\s+later\b|"
+                      r"\band\s+later\b|\bonwards?\b|\bbeyond\b", re.I)
+MAY_DATE = re.compile(r"\bmay\s+(?:\d{1,2}(?:st|nd|rd|th)?,?\s+)?'?20\d\d\b", re.I)  # the month, not the hedge
+CLASS_TITLE = re.compile(r"\b(?:new\s*grads?|new\s*graduates?|graduates?|grad|university|college|campus|"
+                         r"early[\s-]*career|class\s+of|start(?:ing)?|entry[\s-]*level|cohort)\b", re.I)
+
+
+def _period_end(match) -> tuple[int, int]:
+    """The last month a period covers: a month itself, a season's last month, a quarter's, a bare year's December."""
+    year = int(match["year"])
+    if match["month"]:
+        return year, MONTH_NUMBER[match["month"].lower().rstrip(".")]
+    if match["season"]:
+        season = match["season"].lower()
+        return (year + 1, 2) if season == "winter" else (year, SEASON_END[season])
+    if match["quarter"]:
+        return year, int(match["quarter"][1]) * 3
+    return year, 12
+
+
+def _latest(text: str) -> tuple[int, int] | None:
+    ends = [_period_end(m) for m in PERIOD.finditer(text)]
+    return max(ends) if ends else None
+
+
+def start_periods(titles, sentences) -> tuple[tuple[int, int], ...]:
+    """Each explicit start date or graduation class found, as the last (year, month) it allows: a title that names a
+    class ("2026 New Grad", "Class of 2026", "2026 Start"), or a required sentence that says when the job starts or
+    by when candidates graduate. Earliest dates, open ends, hedged and preferred sentences don't count."""
+    found = []
+    for title in titles:
+        if title and CLASS_TITLE.search(title) and not TITLE_EVENT.search(title):
+            latest = _latest(title)
+            if latest:
+                found.append(latest)
+    preferred_section = False
+    for sentence in sentences:
+        sentence = sentence.strip().strip("#*• ")
+        if SOFT_HEADING.fullmatch(sentence):
+            preferred_section = True
+            continue
+        if HARD_HEADING.fullmatch(sentence):
+            preferred_section = False
+            continue
+        if not DIGIT.search(sentence):
+            continue
+        if preferred_section or SOFT.search(sentence) or HEDGE.search(MAY_DATE.sub("DATE", sentence)) \
+                or OPEN_END.search(sentence) or NEGATED.search(sentence):
+            continue
+        items = []
+        if not NOT_THE_JOB.search(sentence):
+            for match in START_THEN.finditer(sentence):
+                before = sentence[:match.start()]
+                if re.search(r"\bsince\s+$", before, re.I):
+                    continue  # "since starting in 2025": history
+                if not before.strip() and re.match(r"\s*(?:in\s+|on\s+)?[^,]{0,30}?\b20\d\d\s*,", match["rest"]):
+                    continue  # a leading "Beginning January 1, 2025, …": when a rule or policy applies
+                items.append(_latest(match["rest"]))
+            for match in THEN_START.finditer(sentence):
+                items.append(_period_end(match))
+        for match in GRADUATING.finditer(sentence):
+            items.append(_latest(match["rest"] or match["rest2"] or ""))
+        for match in CLASS_YEAR.finditer(sentence):
+            items.append((int(match["year"] or match["year2"]), 12))
+        found += [item for item in items if item]
+    return tuple(found)
+
+
 @dataclass(frozen=True)
 class Evidence:
     """The slow part of screening, which no rule changes: read once to judge a job under several rule sets."""
     sponsorship: str
     years_required: int | None
     location: str
+    start_periods: tuple[tuple[int, int], ...] = ()  # start_periods(): explicit start dates and graduation classes
 
 
 def evidence(facts: JobFacts) -> Evidence:
     sentences = _sentences(facts.description or "")
     return Evidence(_sponsorship(facts, sentences), _years_required(sentences),
-                    job_location(facts.locations, facts.countries))
+                    job_location(facts.locations, facts.countries), start_periods(facts.titles, sentences))
 
 
 def screen(facts: JobFacts, rules: ScreeningRules, read: Evidence | None = None) -> Screening:
@@ -337,6 +439,14 @@ def screen(facts: JobFacts, rules: ScreeningRules, read: Evidence | None = None)
     location = read.location
     if rules.us_only and location == "non_us":
         reasons.append("outside_us")
+    if rules.graduation:
+        year, month = (int(part) for part in rules.graduation.split("-"))
+        # Years well before graduation are history ("since starting in 2019"), not this job's dates. With several
+        # dates, the latest decides: conflicting evidence keeps the job.
+        recent = [p for p in read.start_periods if p[0] >= year - 2]
+        if recent and max(recent) < (year, month):
+            last = max(recent)
+            reasons.append(f"start_before_graduation:{last[0]:04d}-{last[1]:02d}")
     signals = {"role": role, "sponsorship": sponsorship, "years_required": years, "new_grad_title": new_grad,
                "has_description": bool(facts.description.strip()), "location": location}
     return Screening("excluded" if reasons else "kept", tuple(reasons), signals)
@@ -475,6 +585,11 @@ def rules_from_dict(data, *, where: str = "screening rules") -> ScreeningRules:
             if not isinstance(value, list) or any(not isinstance(t, str) or not t.strip() for t in value):
                 raise ValueError(f"Cannot read {where}: {key} must be a list of nonempty strings")
             values[key] = tuple(t.strip() for t in value)
+        elif key == "graduation":
+            if value is not None and (not isinstance(value, str)
+                                      or not re.fullmatch(r"20\d\d-(?:0[1-9]|1[0-2])", value)):
+                raise ValueError(f"Cannot read {where}: graduation must be \"YYYY-MM\" (e.g. \"2027-05\") or null")
+            values[key] = value
         elif key == "max_years_required":
             if value is not None and (type(value) is not int or value < 1):
                 raise ValueError(f"Cannot read {where}: max_years_required must be a positive "

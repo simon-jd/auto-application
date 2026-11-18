@@ -7,15 +7,16 @@ no-change proposals. The preview took over 3 minutes against the tunnel's
 roughly 2-minute deadline; a preview that takes about 35 s on a copy of the live
 database is implemented locally and not deployed yet. A separate Dot cloud task
 passed the isolated handoff acceptance, and the real private listener now
-advertises the handoff tools. The Skill source is 0.4.1; no ChatGPT upload of
-0.4.0 or 0.4.1 is recorded. Dot has not yet filled a real form, uploaded a file
+advertises the handoff tools. The existing private Job Search plugin was
+upgraded to 0.4.1 and its Job Search Backend showed as connected after reload.
+Dot has not yet filled a real form, uploaded a file
 into a web form, run a question or change round, or submitted anything. See
 [deployment and acceptance](#option-c-private-handoff)
 and [the verification record](updates/2026-11-17-dot-loopback-handoff.md).
 
 **2026-10-21 compatibility review:** see [review and rollout boundaries](reviews/2026-10-21-dot-compatibility.md).
-The current session discovers 18 tools and five read calls succeeded. At that review the local
-plugin source was 0.3.1; it is now 0.4.1. Neither establishes the cloud installation.
+That session discovered 18 tools and five read calls succeeded. At the review the local
+plugin source was 0.3.1.
 Historical deployment claims below are dated.
 
 
@@ -304,10 +305,11 @@ python3 scripts/build_dot_plugin.py \
 ```
 
 The script refuses to overwrite an existing file, so name the output after the
-version in `plugins/job-search/plugin.json`. Upload the archive through ChatGPT's
-**Add → Upload plugin archive**, install it and confirm the installed version
-reads 0.4.1. The 2026-10-14 upload/readback confirmed version 0.3.0; no later
-upload is recorded. The package uses `.app.json`
+version in `plugins/job-search/plugin.json`. To upgrade the installed **Job Search**
+plugin, choose **More actions → Upload new version** (更多操作 → 上传新版本).
+For a first installation, use **Add → Upload plugin archive**. The 2026-11-17
+in-place upgrade from 0.3.0 was verified after reloading the plugin page, which
+showed 0.4.1 and **Job Search Backend** as connected. The package uses `.app.json`
 to refer to the registered cloud connection. It
 does not contain `mcp.json` or `.mcp.json`: those are desktop-only plugin paths.
 A `--skills-only` bundle contains instructions but does not connect a database.
@@ -463,10 +465,10 @@ and installed on home-ubuntu since 2026-11-17.
    Confirm the refreshed catalog exposes the handoff actions, including
    `submit_open_questions`, and has no `answers-ready`.
    [OpenAI plugin test guide](https://developers.openai.com/plugins/deploy/connect-chatgpt).
-2. Build the 0.4.1 ZIP as described above (`--output /tmp/job-search-dot-0.4.1.zip`)
-   and use **Add → Upload plugin archive**. Install the updated Skill for Dot
-   with the private backend attached, and confirm the installed version reads
-   0.4.1. Keep the connection and Skill private.
+2. Open **Job Search** and confirm the installed version reads 0.4.1 and
+   **Job Search Backend** shows connected. For an upgrade, build the versioned
+   ZIP and use **More actions → Upload new version** on the existing plugin.
+   Keep the connection and Skill private.
 3. Ask Dot to start a new cloud task. In it, explicitly select the private
    plugin with `@` if needed. Restrict the run to the single fictional job ID
    and expected title confirmed on Ubuntu. Call in order:

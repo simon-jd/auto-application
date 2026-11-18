@@ -62,6 +62,13 @@ file, copied out of `/tmp`) and `runtime/feeds/grok-jobright-20261101.json` (exp
 edited). A feed whose file is never refreshed keeps its jobs "seen" forever; remove the source when Grok
 stops updating it.
 
+On 2026-11-11 Grok had refreshed only `handshake-feed.json` (2,069 rows). For Jobright it wrote a batch of
+13 newly resolved rows, `jobright-employer-ready-2026-11-06.json`, instead of a complete `jobright-feed.json`.
+The batch has employer links and descriptions. It was merged by id with the 2026-11-01 export into
+`runtime/feeds/grok-jobright.json` (1,899 rows), and `grok-jobright` now reads that file. The import created
+13 postings, of which 8 became new jobs, and skipped 84 internship rows. The dated export was removed. No
+LinkedIn file exists yet, so `grok-linkedin` still reads the 2026-10-31 batch.
+
 ## Rehearsal on a copy of the Linux database (2026-11-02)
 
 The version bump alone does not re-normalize the library: feeds that answer HTTP 304 (both Simplify feeds and

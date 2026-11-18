@@ -128,6 +128,10 @@ class AgentService:
                                                                event_source=event_source)
         finally:
             store.engine.dispose()
+        if changed and status == "want_to_apply":
+            from auto_app.handoff.kick import kick
+
+            kick(home)  # the package runner starts on it (deploy/jd-apply-queue.path)
         return {"success": True, "changed": changed, "status": status, "job": self.get_job(job_id)}
 
     def record_event(self, job_id: int, kind: str, occurred_at: str | None = None,

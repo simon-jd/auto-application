@@ -7,5 +7,6 @@
   "extra_cs_terms": [],
   "extra_non_cs_terms": [],
   "us_only": true,
-  "exclude_unknown_without_software_evidence": false
+  "exclude_unknown_without_software_evidence": false,
+  "graduation": null
 }

@@ -225,10 +225,57 @@ def parser() -> argparse.ArgumentParser:
 
     command("answers-needed", _cmd_answers_needed, "Jobs waiting for answers, with the questions handed back.")
 
+    request = command("request", _cmd_request,
+                      "Pass on the user's own words asking for a change to a wanted job's materials (resume, cover "
+                      "letter or answers) while no form is open: the job leaves the queue until the revised package "
+                      "is published. While you hold a claim, use `questions` with kind change instead.")
+    job_number(request)
+    request.add_argument("--text", required=True, type=plain_text(1000),
+                         help="The user's words, verbatim, in one line (at most 1000 characters).")
+
+    cheatsheet = command("cheatsheet", _cmd_cheatsheet,
+                         "Pass on the user's own words with an answer for every application (e.g. the earliest start "
+                         "date) for Claude to add to the cheat sheet; one job's change goes through `request` instead. "
+                         "You never edit the cheat sheet yourself.")
+    cheatsheet.add_argument("--text", required=True, type=plain_text(1000),
+                            help="The user's words, verbatim, in one line (at most 1000 characters).")
+
+    command("cheatsheet-requests", _cmd_cheatsheet_requests,
+            "Cheat-sheet requests: pending ones oldest first, and the last 20 done ones with outcome and note.")
+
+    cheatsheet_done = command("cheatsheet-done", _cmd_cheatsheet_done,
+                              "The owner's step after editing the cheat sheet (or deciding not to). Refused through "
+                              "sudo.")
+    cheatsheet_done.add_argument("request_id", metavar="ID", type=positive_int, help="The request number.")
+    cheatsheet_done.add_argument("--outcome", required=True, choices=("applied", "declined"))
+    cheatsheet_done.add_argument("--note", required=True, type=plain_text(1000),
+                                 help="What changed in the cheat sheet, or why not, in one line.")
+
+    command("ask", _cmd_ask,
+            "The owner's side: ask the owner something (posted to Discord with buttons). stdin: a JSON object "
+            '{"job_id", "question", "context", "options", "recommended"} (job_id and context may be null; at most 4 '
+            "options; recommended is an option's index). An identical open question is not asked twice. Refused "
+            "through sudo.")
+    command("answered", _cmd_answered, "The owner's side: questions the owner answered that wait for Claude.")
+    question_done = command("question-done", _cmd_question_done,
+                            "The owner's side: Claude acted on the owner's answer; the note is posted under the "
+                            "question on Discord. Refused through sudo.")
+    question_done.add_argument("question_id", metavar="ID", type=positive_int, help="The question number.")
+    question_done.add_argument("--note", required=True, type=plain_text(1000),
+                               help="What was done with the answer, in one line.")
+
+    status = command("status", _cmd_status,
+                     "Where one job stands: its decision, application, open claim, questions or changes waiting for "
+                     "Claude, published package and the package runner, with a one-line summary.")
+    job_number(status)
+
     answers_ready = command("answers-ready", _cmd_answers_ready,
                             "The owner's step after publishing the answers: the job returns to the queue. "
                             "Refused through sudo.")
     job_number(answers_ready)
+    answers_ready.add_argument("--asked-at", type=plain_text(64), metavar="SUBMITTED_AT",
+                               help="The submitted_at of the round the package answers, as answers-needed listed it: "
+                                    "refused if the round changed since (new changes arrived meanwhile).")
 
     kit = command("kit", _cmd_kit,
                   "The published application packages, no claim token needed: with no ID, the index; with ID, that "
@@ -388,11 +435,75 @@ def _cmd_answers_needed(args, db: Path, home: Path) -> dict:
     return HandoffService(db).pending_questions()
 
 
+def _cmd_request(args, db: Path, home: Path) -> dict:
+    from auto_app.handoff.service import HandoffService
+
+    return HandoffService(db).request_change(args.job_id, args.text, AGENT)
+
+
+def _cmd_cheatsheet(args, db: Path, home: Path) -> dict:
+    from auto_app.handoff.service import HandoffService
+
+    return HandoffService(db).request_cheatsheet(args.text, AGENT)
+
+
+def _cmd_cheatsheet_requests(args, db: Path, home: Path) -> dict:
+    from auto_app.handoff.service import HandoffService
+
+    return HandoffService(db).cheatsheet_requests()
+
+
+def _cmd_cheatsheet_done(args, db: Path, home: Path) -> dict:
+    from auto_app.handoff.service import HandoffService
+
+    _owner_only("cheatsheet-done")
+    return HandoffService(db).cheatsheet_done(args.request_id, args.outcome, args.note)
+
+
+MAX_ASK_STDIN = 16 * 1024
+
+
+def _cmd_ask(args, db: Path, home: Path) -> dict:
+    from auto_app.handoff.asks import OwnerQuestions
+
+    _owner_only("ask")
+    if sys.stdin is None or sys.stdin.isatty():
+        raise _StartupError(2, "no question: pipe a JSON object into `jobq ask`")
+    text = sys.stdin.read(MAX_ASK_STDIN + 1)
+    if len(text.encode()) > MAX_ASK_STDIN:
+        raise _StartupError(2, "the question on stdin is too long (at most 16 KiB)")
+    try:
+        payload = json.loads(text)
+    except ValueError:
+        raise _StartupError(2, "the question on stdin is not valid JSON") from None
+    return OwnerQuestions(db).ask(payload, "claude-code")
+
+
+def _cmd_answered(args, db: Path, home: Path) -> dict:
+    from auto_app.handoff.asks import OwnerQuestions
+
+    _owner_only("answered")
+    return {"items": OwnerQuestions(db).answered()}
+
+
+def _cmd_question_done(args, db: Path, home: Path) -> dict:
+    from auto_app.handoff.asks import OwnerQuestions
+
+    _owner_only("question-done")
+    return OwnerQuestions(db).done(args.question_id, args.note)
+
+
+def _cmd_status(args, db: Path, home: Path) -> dict:
+    from auto_app.handoff.service import HandoffService
+
+    return HandoffService(db).status(args.job_id)
+
+
 def _cmd_answers_ready(args, db: Path, home: Path) -> dict:
     from auto_app.handoff.service import HandoffService
 
     _owner_only("answers-ready")
-    return HandoffService(db).answers_ready(args.job_id)
+    return HandoffService(db).answers_ready(args.job_id, asked_at=args.asked_at)
 
 
 def _cmd_account(args, db: Path, home: Path) -> dict:

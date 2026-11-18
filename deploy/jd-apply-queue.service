@@ -1,5 +1,5 @@
 [Unit]
-Description=jd-resume-tailor: make and publish application packages for queued auto-app jobs (never submits)
+Description=jd-resume-tailor: make and publish application packages for queued auto-app jobs (never submits; started by jd-apply-queue.path and .timer)
 After=network-online.target
 OnFailure=auto-app-alert@%n.service
 

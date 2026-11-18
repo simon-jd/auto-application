@@ -1,0 +1,10 @@
+[Unit]
+Description=Start the jd-resume-tailor queue run when jobq kicks it (a job wanted, a change requested, questions sent)
+
+[Path]
+# HandoffService and AgentService touch this file (auto_app/handoff/kick.py); the hourly timer stays as the fallback.
+PathChanged=%h/Desktop/job-search/runtime/data/apply-queue.kick
+Unit=jd-apply-queue.service
+
+[Install]
+WantedBy=default.target

@@ -344,6 +344,32 @@ def create_mcp_server(
             return handoff_call(handoff.submit_questions, token, questions)
 
         @server.tool(annotations=write)
+        def request_material_change(job_id: Annotated[int, Field(strict=True, ge=1)], text: str,
+                                    agent: str) -> dict[str, Any]:
+            """Pass on the user's own words asking for a change to a wanted job's materials (resume, cover letter or
+            answers) while no form is open; never rewrite them. The job leaves the queue until the revised package is
+            published. While you hold a claim, use submit_open_questions with kind "change" instead."""
+            return handoff_call(handoff.request_change, job_id, text, agent)
+
+        @server.tool(annotations=write)
+        def request_cheatsheet_change(text: str, agent: str) -> dict[str, Any]:
+            """Pass on the user's own words with an answer for every application (e.g. the earliest start date) for
+            Claude to add to the cheat sheet; never rewrite them, and never edit the cheat sheet yourself. One job's
+            change goes through request_material_change instead."""
+            return handoff_call(handoff.request_cheatsheet, text, agent)
+
+        @server.tool(annotations=read_annotations)
+        def get_cheatsheet_requests() -> dict[str, Any]:
+            """Cheat-sheet requests: pending ones, and the last 20 done ones with outcome and note."""
+            return handoff_call(handoff.cheatsheet_requests)
+
+        @server.tool(annotations=read_annotations)
+        def get_application_status(job_id: Annotated[int, Field(strict=True, ge=1)]) -> dict[str, Any]:
+            """Where one job stands: decision, application, open claim, questions or changes waiting for Claude,
+            published package and the package runner, with a one-line summary."""
+            return handoff_call(handoff.status, job_id)
+
+        @server.tool(annotations=write)
         def record_site_account(site: str, email: str,
                                 created_by_agent: Annotated[bool, Field(strict=True)] = True,
                                 note: str | None = None) -> dict[str, Any]:

@@ -71,10 +71,10 @@ def _announceable(job: dict, since: datetime | None, source_since: dict | None) 
 
 
 def pending(store, limit: int, since: datetime | None = None, now: datetime | None = None,
-            source_since: dict | None = None) -> tuple[list[dict], int]:
+            source_since: dict | None = None, *, job_id: int | None = None) -> tuple[list[dict], int]:
     """Return ready jobs up to the limit and the number of ready jobs left over."""
     now, since = _when(now or utcnow()), _when(since)
-    jobs = [job for job in store.jobs(include_excluded=False)
+    jobs = [job for job in store.jobs(include_excluded=False, job_id=job_id)
             if job["state"] in OPEN_STATES and not job.get("notified_at")
             and _announceable(job, since, source_since)]
     s, jd, p = T.job_screenings, T.judgments, T.postings

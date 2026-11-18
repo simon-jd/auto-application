@@ -151,10 +151,13 @@ def test_current_country_preferences_apply_to_pending_jobs(store):
         conn.execute(update(T.job_locations).where(T.job_locations.c.job_id == ids["Canada Engineer"])
                      .values(location_norm="remote"))
     assert [j["title"] for j in pending(store, limit=10, now=NOW)[0]] == ["US Engineer"]
+    assert pending(store, limit=1, now=NOW, job_id=ids["Canada Engineer"]) == ([], 0)
     with store.engine.begin() as conn:  # a US place beside Canada keeps the job in the digest
         conn.execute(update(T.postings).where(T.postings.c.job_id == ids["Canada Engineer"])
                      .values(parsed={**row, "locations": ["Boston, MA", "Remote in Canada"]}))
     assert {j["title"] for j in pending(store, limit=10, now=NOW)[0]} == {"US Engineer", "Canada Engineer"}
+    [job], more = pending(store, limit=1, now=NOW, job_id=ids["Canada Engineer"])
+    assert job["title"] == "Canada Engineer" and more == 0
 
 
 def test_maximum_embeds_stay_within_discord_limits():

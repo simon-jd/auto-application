@@ -25,6 +25,10 @@ class ControlError(ValueError):
     pass
 
 
+class ScreeningProposalUnavailable(ControlError):
+    """The saved proposal is missing, invalid, or expired."""
+
+
 def _atomic_json(path: Path, value: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, temporary = tempfile.mkstemp(prefix=path.name + ".", dir=path.parent)
@@ -163,11 +167,15 @@ class ControlService:
         with self._rules_lock():
             return self._screening_rules()
 
-    def propose_screening_change(self, changes: dict) -> dict:
+    def propose_screening_change(self, changes: dict, note: str | None = None) -> dict:
+        """A preview of `changes` to the rules, saved for 24 hours under a change id; nothing changes until
+        apply_screening_change. `note` (optional) says why, for the user, e.g. which feedback it answers."""
+        if note is not None and (not isinstance(note, str) or not note.strip() or len(note) > 2000):
+            raise ControlError("note must be 1 to 2000 characters, or null")
         with self._rules_lock():
-            return self._propose_screening_change(changes)
+            return self._propose_screening_change(changes, note.strip() if note else None)
 
-    def _propose_screening_change(self, changes: dict) -> dict:
+    def _propose_screening_change(self, changes: dict, note: str | None = None) -> dict:
         from auto_app.screen.rules import evidence, rules_from_dict, screen
         from auto_app.screen.store import load_facts
 
@@ -194,15 +202,52 @@ class ControlService:
                     {"job_id": fact.job_id, "title": " / ".join(fact.titles)})
         self._prune_proposals()
         change_id = uuid4().hex
+        diff = {key: [current["rules"][key], value] for key, value in asdict(proposed).items()
+                if current["rules"].get(key) != value}
+        preview = {"kept_before": kept_before, "kept_after": kept_after,
+                   "newly_excluded": len(newly_excluded), "newly_kept": len(newly_kept),
+                   "examples": {"newly_excluded": newly_excluded[:10], "newly_kept": newly_kept[:10]}}
+        # The diff, preview and note are saved too, so the Discord bot can show the proposal it did not make.
         _atomic_json(self.proposals / f"{change_id}.json",
             {"base_revision": current["revision"], "rules": asdict(proposed),
-             "created_at": datetime.now(timezone.utc).isoformat()})
-        diff = {key: [current["rules"][key], value] for key, value in asdict(proposed).items()
-                if current["rules"][key] != value}
-        return {"change_id": change_id, "base_revision": current["revision"], "diff": diff,
-                "preview": {"kept_before": kept_before, "kept_after": kept_after,
-                            "newly_excluded": len(newly_excluded), "newly_kept": len(newly_kept),
-                            "examples": {"newly_excluded": newly_excluded[:10], "newly_kept": newly_kept[:10]}}}
+             "created_at": datetime.now(timezone.utc).isoformat(), "diff": diff, "preview": preview, "note": note})
+        return {"change_id": change_id, "base_revision": current["revision"], "diff": diff, "preview": preview,
+                "note": note}
+
+    def screening_proposal(self, change_id: str) -> dict | None:
+        """A readable, open proposal with its change id, or None. An expired proposal is removed."""
+        try:
+            proposal = self._load_screening_proposal(change_id)
+        except ControlError:
+            return None
+        return {**proposal, "change_id": change_id}
+
+    def _load_screening_proposal(self, change_id: str) -> dict:
+        if not isinstance(change_id, str) or not re.fullmatch(r"[a-f0-9]{32}", change_id):
+            raise ScreeningProposalUnavailable("unknown change id")
+        path = self.proposals / f"{change_id}.json"
+        try:
+            proposal = json.loads(path.read_text())
+        except FileNotFoundError:
+            raise ScreeningProposalUnavailable("unknown, expired or already applied change id") from None
+        except ValueError:
+            raise ScreeningProposalUnavailable("invalid saved screening change; propose again") from None
+        except OSError:
+            raise ControlError("could not read the saved screening change; retry") from None
+        if not isinstance(proposal, dict) or self._expired(proposal):
+            path.unlink(missing_ok=True)
+            raise ScreeningProposalUnavailable("this screening change expired (proposals last 24 hours); propose again")
+        return proposal
+
+    def discard_screening_change(self, change_id: str) -> dict:
+        """Remove an active proposal the user turned down, so it can't be applied later."""
+        with self._rules_lock():
+            self._load_screening_proposal(change_id)
+            try:
+                (self.proposals / f"{change_id}.json").unlink()
+            except FileNotFoundError:
+                raise ScreeningProposalUnavailable("unknown, expired or already applied change id") from None
+        return {"change_id": change_id, "discarded": True}
 
     @staticmethod
     def _expired(proposal: dict) -> bool:
@@ -211,7 +256,7 @@ class ControlService:
         except (KeyError, TypeError, ValueError):
             return True
         created = created if created.tzinfo else created.replace(tzinfo=timezone.utc)
-        return datetime.now(timezone.utc) - created > PROPOSAL_TTL
+        return datetime.now(timezone.utc) - created >= PROPOSAL_TTL
 
     def _prune_proposals(self) -> None:
         """Drop expired or unreadable proposals so stale previews neither pile up nor stay applicable."""
@@ -227,29 +272,27 @@ class ControlService:
 
     def apply_screening_change(self, change_id: str, expected_revision: str) -> dict:
         with self._rules_lock():
-            return self._apply_screening_change(change_id, expected_revision)
+            proposal = self._load_screening_proposal(change_id)
+            return self._apply_screening_change(change_id, proposal, expected_revision)
 
-    def _apply_screening_change(self, change_id: str, expected_revision: str) -> dict:
+    def apply_screening_proposal(self, change_id: str) -> dict:
+        """Apply the owner's selected proposal against the revision saved with its preview."""
+        with self._rules_lock():
+            proposal = self._load_screening_proposal(change_id)
+            return self._apply_screening_change(change_id, proposal, proposal.get("base_revision"))
+
+    def _apply_screening_change(self, change_id: str, proposal: dict, expected_revision: str) -> dict:
         from auto_app.screen.rules import rules_from_dict
 
-        if not isinstance(change_id, str) or not re.fullmatch(r"[a-f0-9]{32}", change_id):
-            raise ControlError("unknown change id")
-        path = self.proposals / f"{change_id}.json"
-        if not path.exists():
-            raise ControlError("unknown or already applied change id")
         try:
-            proposal = json.loads(path.read_text())
             rules = asdict(rules_from_dict(proposal["rules"]))
             base_revision = proposal["base_revision"]
-        except (ValueError, KeyError, TypeError, OSError):
+        except (ValueError, KeyError, TypeError):
             raise ControlError("invalid saved screening change; propose again") from None
-        if self._expired(proposal):
-            path.unlink(missing_ok=True)
-            raise ControlError("this screening change expired (proposals last 24 hours); propose again")
         if expected_revision != base_revision or self._revision() != base_revision:
             raise ControlError("the rules file changed since this proposal (revision mismatch); propose again")
         _atomic_json(self.rules_path, rules)
-        path.unlink()
+        (self.proposals / f"{change_id}.json").unlink(missing_ok=True)
         return {"revision": self._revision(), "rules": rules,
                 "note": "the worker applies the new rules at its next round"}
 
