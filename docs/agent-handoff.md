@@ -10,8 +10,9 @@ holds for a filled form were added and deployed on 2026-11-17 ([record](updates/
 The list of held forms and token-free reads of the published packages in `apply-kit/` were added the same day; they
 were deployed the same day ([record](updates/2026-11-17-held-kit-files.md)). Since 2026-11-17 Dot also reaches these
 tools over its private loopback listener; it passed a fictional queue-to-release acceptance and has not filled a real
-form ([record](updates/2026-11-17-dot-loopback-handoff.md)). A fix that returns a released hold to `queued` was made
-the same day and is not deployed yet.
+form ([record](updates/2026-11-17-dot-loopback-handoff.md)). The fix that returns a released hold to `queued` was
+deployed the same day (18:34 PST) and passed a real-data run of the full Dot sequence on an isolated copy of the
+live database.
 
 ## Runtime and guardrails
 
