@@ -135,6 +135,10 @@ def embed(job: dict) -> dict:
         notes.append("title only — open the link for the description")
     if notes:
         fields.append({"name": "Notes", "value": _clip("\n".join(notes), 400)})
+    if job.get("history"):  # the owner's record with this company (worker/history.py), added by the Discord bot
+        from auto_app.worker.history import history_text
+
+        fields.append({"name": "同公司记录", "value": _clip(history_text(job["history"]), 1000)})
     result = {"title": _clip(f"#{job['job_id']} {job.get('title') or 'Untitled'} — {job.get('company') or '?'}", 256),
               "color": COLOR.get(sponsorship, COLOR["unknown"]), "fields": fields,
               "footer": {"text": f"job {job['job_id']}"}}

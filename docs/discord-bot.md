@@ -114,3 +114,24 @@ channel when that is not set. A question is not posted again while it is unanswe
   - The bot replies under your question with that note, for example "已处理：材料已发布，进入投递队列，Grok 下一轮会填表".
   - A published job is in the queue, and Grok's 15-minute Routine picks it up.
 - **Pause.** Questions are not held back by `/pause`.
+
+## Digest pace (2026-11-18)
+
+The new-job digest sends at most **5 messages per five-minute check**, **10 per rolling hour** and **100 per
+rolling 24 hours** (`DIGEST_PER_CHECK`, `DIGEST_PER_HOUR` and `DIGEST_PER_DAY` in `bot/app.py`).
+
+Each card has a **同公司记录** field (`worker/history.py`) with your record at that company:
+- the jobs you applied to there, with titles and dates;
+- how many you want to apply to, and how many you skipped;
+- the 30-day submissions against the handoff's company limit;
+- a ⚠ line when you applied to, or want, a job with the same normalized title.
+
+It is computed from the database with the handoff's `company_groups`, not by a model. The day is counted from the bot's own sends, kept as
+`digest_sent` in `<db>.bot-state.json`. `notified_at` is not used for this count, because it also marks jobs the
+owner chose not to see.
+
+When the bot first went live it worked through a month of backlog: notifications had been handed to the bot since
+2026-10-14, but the bot was never configured. It pushed 701 jobs in three hours. On the owner's go, 4,455 pending
+jobs first seen more than 3 days earlier were marked notified without being sent. They stay in the library
+(`/jobs`, `jobq search`). Their list is in `runtime/data/digest-cleared-20261118.json`; clearing `notified_at` for
+those IDs sends them again.

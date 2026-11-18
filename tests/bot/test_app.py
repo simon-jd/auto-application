@@ -81,6 +81,7 @@ async def test_post_digest_marks_only_accepted_discord_messages(tmp_path, monkey
 
     channel = Channel()
     bot = JobBot(BotSettings("local.test.token", 123, 456, 789, db_path))
+    bot.digest_per_check = 30  # this test is about rechecks, not the rate
     monkeypatch.setattr(bot, "get_channel", lambda channel_id: channel)
     with pytest.raises(RuntimeError, match="Discord unavailable"):
         await bot.post_digest()
@@ -152,6 +153,7 @@ async def test_later_digest_message_uses_current_eligibility(tmp_path, monkeypat
 
     channel = Channel()
     bot = JobBot(BotSettings("local.test.token", 123, 456, 789, db_path))
+    bot.digest_per_check = 30  # this test is about rechecks, not the rate
     monkeypatch.setattr(bot, "get_channel", lambda _: channel)
     await bot.post_digest()
     delivered = []
@@ -304,4 +306,56 @@ async def test_screening_updates_are_posted_once(tmp_path, monkeypatch):
     assert "方向不对" in channel.sent[1]["content"]
     await bot.post_screening_updates()
     assert len(channel.sent) == 2  # each proposal and each closure once
+    await bot.close()
+
+
+@pytest.mark.asyncio
+async def test_the_digest_sends_at_most_five_per_check_ten_an_hour_and_a_hundred_a_day(tmp_path, monkeypatch):
+    from datetime import timedelta
+
+    from auto_app.bot.app import BOT_STATE, DIGEST_PER_CHECK, DIGEST_PER_DAY, DIGEST_PER_HOUR
+    from auto_app.ingest.scheduler import _read_state, _write_state
+
+    assert (DIGEST_PER_CHECK, DIGEST_PER_HOUR, DIGEST_PER_DAY) == (5, 10, 100)
+    store = make_store(tmp_path)
+    ingest(store, [record(str(300 + i), f"Engineer {i}") for i in range(14)])
+    with store.engine.begin() as conn:
+        conn.execute(update(T.jobs).values(first_seen_at=NOW))
+        for i in range(14):
+            conn.execute(insert(T.job_screenings).values(
+                job_id=job_id_of(store, f"Engineer {i}"), rules_version="t", facts_hash="h", outcome="kept",
+                reasons=[], signals={"sponsorship": "offers", "has_description": True}, screened_at=NOW))
+    store.engine.dispose()
+    db_path = tmp_path / "data" / "auto_app.db"
+    db_path.with_name(db_path.name + ".worker-state.json").write_text(json.dumps({
+        "status": "ok", "notify_since": "2026-10-12T00:00:00+00:00",
+        "last_report": {"steps": {"screen": {"status": "ok"}}}}))
+
+    class Channel:
+        guild = SimpleNamespace(id=456)
+
+        def __init__(self):
+            self.sent = []
+
+        async def send(self, **kwargs):
+            self.sent.append(kwargs)
+
+    channel = Channel()
+    bot = JobBot(BotSettings("local.test.token", 123, 456, 789, db_path))
+    monkeypatch.setattr(bot, "get_channel", lambda channel_id: channel)
+    await bot.post_digest()
+    assert len(channel.sent) == 5  # one check
+    await bot.post_digest()
+    assert len(channel.sent) == 10
+    await bot.post_digest()
+    assert len(channel.sent) == 10  # the hour's 10 are used
+    assert len(_read_state(db_path, BOT_STATE)["digest_sent"]) == 10
+    two_hours = (datetime.now(UTC) - timedelta(hours=2)).isoformat()
+    _write_state(db_path, {**_read_state(db_path, BOT_STATE), "digest_sent": [two_hours] * 100}, BOT_STATE)
+    await bot.post_digest()
+    assert len(channel.sent) == 10  # the day's 100 are used, though not in this hour
+    old = (datetime.now(UTC) - timedelta(hours=25)).isoformat()
+    _write_state(db_path, {**_read_state(db_path, BOT_STATE), "digest_sent": [old] * 100}, BOT_STATE)
+    await bot.post_digest()
+    assert len(channel.sent) == 14  # older sends no longer count; the last 4 jobs go out
     await bot.close()

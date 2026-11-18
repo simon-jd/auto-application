@@ -44,3 +44,16 @@ file; the full suite passed with 2,767. The skill is synced, and its tests pass 
 - #30226's context says that #30271, the conflict it stopped for, has since been taken down.
 
 How-to: [discord-questions-howto.md](../discord-questions-howto.md).
+
+## Follow-up: the digest's pace
+
+- **The problem.** Once configured, the bot pushed a month of backlog (701 jobs in 3 hours, 4,791 pending).
+- **The backlog.** On the owner's go, 4,455 pending jobs first seen more than 3 days earlier were marked notified
+  without being sent (list: `runtime/data/digest-cleared-20261118.json`). 306 newer ones stayed pending.
+- **The pace.** At most 5 per five-minute check, 10 per rolling hour (the owner's figure) and 100 per rolling 24
+  hours, counted from the bot's own sends (`digest_sent`). The test was written first.
+- **Company history on each card** (`worker/history.py`, field 同公司记录): applied jobs at the same company (company
+  groups apply) with titles and dates, wanted and skipped counts, 30-day submissions against the company limit, and
+  a warning for a same-title job already applied to or wanted. Computed from the database, not by a model.
+- Deployed 2026-11-18 15:26 PST (2,770 full-suite pass). The bot reconnected. On live data, #546 shows "已投 1：Software
+  Engineer, New Grad - Query Engines" and #30226 shows "想投 1" (the taken-down #30271).

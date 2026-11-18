@@ -32,6 +32,13 @@ log = logging.getLogger(__name__)
 STYLES = {"want": discord.ButtonStyle.success, "skip": discord.ButtonStyle.secondary,
           "applied": discord.ButtonStyle.primary, "bad": discord.ButtonStyle.danger}
 BOT_STATE = ".bot-state.json"
+# The new-job digest's pace (2026-11-18): at most this many messages per five-minute check, per rolling hour and per
+# rolling 24 hours.
+# The day is counted from the bot's own sends (digest_sent in .bot-state.json), not from notified_at, which also marks
+# jobs the owner chose not to see.
+DIGEST_PER_CHECK = 5
+DIGEST_PER_HOUR = 10
+DIGEST_PER_DAY = 100
 POSTED_KEEP = 200  # proposal ids remembered as posted
 
 
@@ -190,6 +197,7 @@ class JobBot(discord.Client):
     def __init__(self, settings: BotSettings):
         super().__init__(intents=discord.Intents.default())
         self.settings = settings
+        self.digest_per_check, self.digest_per_hour, self.digest_per_day = DIGEST_PER_CHECK, DIGEST_PER_HOUR, DIGEST_PER_DAY
         self._handoff_lock = asyncio.Lock()
         self.tree = app_commands.CommandTree(self)
         self.target_guild = discord.Object(id=settings.guild_id)
@@ -317,11 +325,35 @@ class JobBot(discord.Client):
         from auto_app.worker.control import read_control
         from auto_app.worker.digest import embed, mark_notified, pending
 
+        from auto_app.ingest.scheduler import _read_state, _write_state
+
         db = self.settings.db_path
         home = db.parent.parent if db.parent.name == "data" else db.parent
 
         def generation(state: dict) -> tuple[str | None, str | None]:
             return state.get("last_run_at"), state.get("last_finished_at")
+
+        def recent_sends(hours: int = 24) -> list[str]:
+            cutoff = utcnow() - timedelta(hours=hours)
+            kept = []
+            for stamp in _read_state(db, BOT_STATE).get("digest_sent") or []:
+                try:
+                    moment = datetime.fromisoformat(stamp)
+                except (TypeError, ValueError):
+                    continue
+                if (moment if moment.tzinfo else moment.replace(tzinfo=cutoff.tzinfo)) > cutoff:
+                    kept.append(stamp)
+            return kept
+
+        def record_send() -> None:
+            state = _read_state(db, BOT_STATE)
+            state["digest_sent"] = [*recent_sends(), utcnow().isoformat()][-self.digest_per_day:]
+            _write_state(db, state, BOT_STATE)
+
+        budget = min(self.digest_per_check, self.digest_per_hour - len(await asyncio.to_thread(recent_sends, 1)),
+                     self.digest_per_day - len(await asyncio.to_thread(recent_sends)))
+        if budget <= 0:
+            return
 
         def select_jobs(job_id: int | None = None, expected_generation: tuple[str | None, str | None] | None = None):
             state = loop.status(db)
@@ -337,8 +369,15 @@ class JobBot(discord.Client):
                 return None
             store = DbStore(db, Paths(home=home), migrate=False)
             try:
-                jobs, more = pending(store, limit=30 if job_id is None else 1, since=since, now=now,
+                jobs, more = pending(store, limit=budget if job_id is None else 1, since=since, now=now,
                                      source_since=state.get("source_since"), job_id=job_id)
+                if jobs:  # the owner's record with each job's company, for the card
+                    from auto_app.handoff.guard import load_guard
+                    from auto_app.worker.history import company_history
+
+                    history = company_history(store, [j["job_id"] for j in jobs], load_guard(home / "config" / "handoff.json"),
+                                              now=now)
+                    jobs = [{**j, "history": history.get(j["job_id"])} for j in jobs]
             finally:
                 store.engine.dispose()
             # Catch a round that finished while the database snapshot was being read.
@@ -376,6 +415,7 @@ class JobBot(discord.Client):
             await channel.send(content=header, embed=discord.Embed.from_dict(embed(job)), view=view,
                                allowed_mentions=discord.AllowedMentions.none())
             await asyncio.to_thread(mark, job)
+            await asyncio.to_thread(record_send)
             header = None
 
 
