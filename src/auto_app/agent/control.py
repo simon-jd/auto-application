@@ -168,7 +168,7 @@ class ControlService:
             return self._propose_screening_change(changes)
 
     def _propose_screening_change(self, changes: dict) -> dict:
-        from auto_app.screen.rules import rules_from_dict, screen
+        from auto_app.screen.rules import evidence, rules_from_dict, screen
         from auto_app.screen.store import load_facts
 
         if not isinstance(changes, dict) or not changes:
@@ -184,8 +184,9 @@ class ControlService:
         finally:
             store.engine.dispose()
         newly_excluded, newly_kept, kept_before, kept_after = [], [], 0, 0
-        for fact in facts:
-            old, new = screen(fact, before).outcome, screen(fact, proposed).outcome
+        for fact in facts:  # read each job's description once and judge it under both rule sets
+            read = evidence(fact)
+            old, new = screen(fact, before, read).outcome, screen(fact, proposed, read).outcome
             kept_before += old == "kept"
             kept_after += new == "kept"
             if old != new:

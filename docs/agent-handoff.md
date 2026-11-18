@@ -8,7 +8,10 @@ to end through `jobq` up to the Submit button on 2026-10-21, and no real submiss
 2026-11-11. See [the dated record](updates/2026-10-13-agent-handoff.md). Open questions handed back to the owner and
 holds for a filled form were added and deployed on 2026-11-17 ([record](updates/2026-11-17-handoff-questions.md)).
 The list of held forms and token-free reads of the published packages in `apply-kit/` were added the same day; they
-were deployed the same day ([record](updates/2026-11-17-held-kit-files.md)).
+were deployed the same day ([record](updates/2026-11-17-held-kit-files.md)). Since 2026-11-17 Dot also reaches these
+tools over its private loopback listener; it passed a fictional queue-to-release acceptance and has not filled a real
+form ([record](updates/2026-11-17-dot-loopback-handoff.md)). A fix that returns a released hold to `queued` was made
+the same day and is not deployed yet.
 
 ## Runtime and guardrails
 
@@ -87,7 +90,7 @@ Do not commit or disclose tokens.
 | `claim 123 --agent example-agent` | `claim_application(job_id=123, agent="example-agent")` | Token, lease expiry, application ID, job and `resumed` (true when the same agent picks up its own hold). |
 | `packet CLAIM_TOKEN` | `get_application_packet(token=...)` | Requires an unexpired live token. |
 | `record CLAIM_TOKEN needs_user --note "verification pending"` | `record_application_attempt(token=..., outcome=..., note=..., evidence=...)` | Consumes the claim after one accepted outcome. |
-| `release CLAIM_TOKEN` | `release_application(token=...)` | Returns an active claim without an outcome. |
+| `release CLAIM_TOKEN` | `release_application(token=...)` | Returns an active claim without an outcome. A held form (application `ready`) goes back to `queued` and its hold note is cleared, in the same transaction; any other note is kept. Releasing a claim that was never held leaves the application as it was. |
 | `hold CLAIM_TOKEN` | `hold_application(token=...)` | The form is filled and waits for the user's go: the claim lasts `hold_hours` and the application is `ready`. The same agent name may `claim` the job again for a fresh token (`"resumed": true`, the hold's end kept); others still see it claimed. |
 | `held` | `get_held_applications()` | Read-only. Jobs whose latest application is `ready` (held) and whose claim is still live, oldest `held_since` first (then job ID): `job_id`, `title`, `company`, `apply_url` (the application's), `agent` (the claim's), `lease_until`, `held_since` (the application's last update; a re-claim by the same agent moves it). |
 | `questions CLAIM_TOKEN FILE` | `submit_open_questions(token=..., questions=[...])` | Hands back open questions the package does not answer, or the user's change requests from the pre-submit check: 1–60 `{"text", "required", "limit", "page", "kind"}` (`kind` is `question`, the default, or `change` for the user's words verbatim; text 1–4000 characters, no control characters but line breaks and tabs, 64 KiB in all; unknown fields refused). Uses up the claim; the application becomes `needs_answers` and the job leaves the queue. |
@@ -116,12 +119,19 @@ caller's report of an external submission; the service does not independently in
 | `blocked` | `action_needed` / `action_needed` | Decision unchanged; parked until explicit requeue. |
 | `failed` | `failed` / `failed` | Decision unchanged; may be claimed again if eligible. |
 | (`questions`) | `needs_answers` / `needs_input` (pass `handoff`) | Decision unchanged; out of the queue until `answers-ready`. |
-| (`hold`) | `ready` / no attempt | Decision unchanged; the claim lasts `hold_hours`, then the job is eligible again. |
+| (`hold`) | `ready` / no attempt | Decision unchanged; the claim lasts `hold_hours`, then the job is eligible again (the next fresh claim sets it to `queued` and drops the hold's note). |
+| (`release` of a hold) | `queued` / no attempt | Decision unchanged; the job is eligible again at once. |
 | `skipped` | `dropped` / `unsupported` | `not_applied`; reason identifies agent source. |
 
-Handoff MCP tools are opt-in. The network entry point requires both authentication flags and
-Streamable HTTP; `--handoff-tools` without authentication is rejected, including over stdio. Existing
-private Dot configuration does not silently gain these tools. See [remote MCP](remote-mcp.md).
+Enable `--handoff-tools` with Streamable HTTP and either the existing Bearer
+configuration (`--auth-token-file` and `--public-url`) or the private
+`--allow-unauthenticated-loopback-handoff` opt-in at `--host 127.0.0.1`.
+The latter enforces the selected local Host and Origin and permits callers on
+the Ubuntu host to reach the same tools. Dot's private 8767 listener has used it
+since 2026-11-17 through the override
+[`deploy/auto-app-agent.service.d/50-dot-loopback-handoff.conf`](../deploy/auto-app-agent.service.d/50-dot-loopback-handoff.conf).
+See [remote MCP](remote-mcp.md) and the
+[isolated Ubuntu and ChatGPT acceptance steps](dot-setup.md#option-c-private-handoff).
 
 ```bash
 uv run auto-app-agent serve --db /srv/job-search/runtime/data/auto_app.db \
@@ -193,4 +203,6 @@ An accepted message followed by a lost response/state write can still duplicate 
 Local tests use fictional jobs/files and fake Discord transports. Real acceptance still requires an
 owner-authorized external test, result readback through the intended client, Discord receipt, expired
 token rejection and duplicate/quota refusal. No application, production profile access, network
-listener activation or deployment was performed for this implementation.
+listener activation or deployment was performed for the original 2026-10-13 implementation. On 2026-11-17 the
+private Dot listener enabled these tools through the loopback opt-in after an isolated acceptance
+([record](updates/2026-11-17-dot-loopback-handoff.md)).

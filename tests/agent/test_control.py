@@ -56,6 +56,17 @@ def test_rule_changes_are_previewed_then_applied_only_at_the_same_revision(db):
         control.apply_screening_change(proposal["change_id"], applied["revision"])  # used once
 
 
+def test_preview_reads_each_job_once_for_both_rule_sets(db, monkeypatch):
+    from auto_app.screen import rules
+
+    reads, read = [], rules.evidence
+    monkeypatch.setattr(rules, "evidence", lambda facts: reads.append(facts.job_id) or read(facts))
+    preview = service(db).propose_screening_change({"exclude_non_cs": False})["preview"]
+    assert len(reads) == len(set(reads)) == 2
+    assert {k: preview[k] for k in ("kept_before", "kept_after", "newly_excluded", "newly_kept")} == {
+        "kept_before": 1, "kept_after": 2, "newly_excluded": 0, "newly_kept": 1}
+
+
 def test_invalid_rule_changes_are_rejected_before_any_preview(db):
     with pytest.raises(ValueError, match="unknown keys"):
         service(db).propose_screening_change({"exclude_everything": True})

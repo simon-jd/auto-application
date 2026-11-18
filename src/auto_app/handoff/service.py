@@ -33,6 +33,7 @@ OUTCOMES = {  # agent outcome → (applications.status, attempts.outcome, job de
 PARKED = ("needs_input", "action_needed")  # out of the queue until you requeue
 NEEDS_ANSWERS = "needs_answers"  # out of the queue until the owner marks the answers published (answers_ready)
 HELD = "ready"  # the form is filled and waits for the user's go; its claim lasts hold_hours (hold)
+HOLD_NOTE = "form filled; waiting for the user's go"  # the note hold sets; release clears it
 MAX_QUESTIONS = 60
 MAX_QUESTION_TEXT = 4000
 MAX_QUESTIONS_BYTES = 64 * 1024
@@ -392,9 +393,8 @@ class HandoffService:
                 conn.execute(insert(T.handoff_claims).values(job_id=job_id, agent=agent,
                                                              token_hash=_hash(token), claimed_at=now,
                                                              lease_until=lease))
-                app_id = conn.execute(select(T.applications.c.application_id)
-                                      .where(T.applications.c.job_id == job_id)
-                                      .order_by(T.applications.c.application_id.desc()).limit(1)).scalar()
+                app = self._latest_application(conn, job_id)
+                app_id = app["application_id"] if app is not None else None
                 if app_id is None:
                     target = target_for(item["apply_url"])
                     app_id = conn.execute(insert(T.applications).values(
@@ -402,9 +402,11 @@ class HandoffService:
                         apply_url=item["apply_url"], status="queued", chain=[APPLIER], chain_pos=0,
                         applier=APPLIER, created_at=now, updated_at=now)).inserted_primary_key[0]
                 else:
+                    # A fresh claim after an expired hold must not keep the hold's note; any other note stays.
+                    note = app["note"] if held or app["note"] != HOLD_NOTE else None
                     conn.execute(update(T.applications).where(T.applications.c.application_id == app_id).values(
                         apply_url=item['apply_url'], platform=item['platform'], status=HELD if held else 'queued',
-                        applier=APPLIER, updated_at=now))
+                        applier=APPLIER, note=note, updated_at=now))
         finally:
             store.engine.dispose()
         return {"token": token, "lease_until": lease.isoformat(), "application_id": app_id, "job": item,
@@ -435,12 +437,19 @@ class HandoffService:
         return dict(row)
 
     def release(self, token: str, now: datetime | None = None) -> dict:
+        """Give the job back without an outcome. A held form (hold) goes back to queued and loses its hold note."""
         now = _aware(now or utcnow()).astimezone(timezone.utc)
         store = self._store()
         try:
             with store.transaction(immediate=True):
-                claim = self._claim(store._tx, token, now)
-                store._tx.execute(delete(T.handoff_claims).where(T.handoff_claims.c.job_id == claim["job_id"]))
+                conn = store._tx
+                claim = self._claim(conn, token, now)
+                app = self._latest_application(conn, claim["job_id"])
+                if app is not None and app["status"] == HELD:
+                    conn.execute(update(T.applications).where(
+                        T.applications.c.application_id == app["application_id"]).values(
+                        status="queued", note=None if app["note"] == HOLD_NOTE else app["note"], updated_at=now))
+                conn.execute(delete(T.handoff_claims).where(T.handoff_claims.c.job_id == claim["job_id"]))
         finally:
             store.engine.dispose()
         return {"job_id": claim["job_id"], "released": True}
@@ -462,7 +471,7 @@ class HandoffService:
                 app = self._latest_application(conn, claim["job_id"])
                 conn.execute(update(T.applications).where(
                     T.applications.c.application_id == app["application_id"]).values(
-                    status=HELD, note="form filled; waiting for the user's go", updated_at=now))
+                    status=HELD, note=HOLD_NOTE, updated_at=now))
         finally:
             store.engine.dispose()
         return {"job_id": claim["job_id"], "status": HELD, "lease_until": lease.isoformat()}

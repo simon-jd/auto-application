@@ -120,6 +120,88 @@ def test_held_writes_nothing_and_follows_a_pick_up_by_the_same_agent(env):  # no
     assert item["held_since"].startswith("2026-10-12T14:00") and item["lease_until"].startswith("2026-10-13T12:00")
 
 
+def test_releasing_a_held_form_puts_it_back_in_the_queue_with_no_hold_left(env):  # noqa: F811
+    home, ids = env
+    s, job = service(home), ids["Backend Engineer"]
+    token = s.claim(job, "agent-a", now=NOW)["token"]
+    s.hold(token, now=NOW + timedelta(minutes=5))
+    (app,), _ = rows(home)
+    assert (app["status"], app["note"]) == ("ready", "form filled; waiting for the user's go")
+    assert s.release(token, now=NOW + timedelta(minutes=10)) == {"job_id": job, "released": True}
+    (app,), claims = rows(home)
+    assert (app["status"], app["note"], claims) == ("queued", None, [])
+    assert app["updated_at"].isoformat().startswith("2026-10-12T12:10")
+    assert s.held_applications(now=NOW + timedelta(minutes=10)) == {"items": []}
+    assert job in [i["job_id"] for i in s.queue(now=NOW + timedelta(minutes=10))["items"]]
+    # Any agent can claim it afresh: it is not a resumed hold.
+    assert s.claim(job, "agent-b", now=NOW + timedelta(minutes=15))["resumed"] is False
+
+
+def test_releasing_a_resumed_hold_with_its_fresh_token_also_clears_it(env):  # noqa: F811
+    home, ids = env
+    s, job = service(home), ids["Backend Engineer"]
+    s.hold(s.claim(job, "agent-a", now=NOW)["token"], now=NOW)
+    again = s.claim(job, "agent-a", now=NOW + timedelta(hours=1))
+    assert again["resumed"] is True
+    s.release(again["token"], now=NOW + timedelta(hours=1))
+    (app,), claims = rows(home)
+    assert (app["status"], app["note"], claims) == ("queued", None, [])
+
+
+def set_note(home, job, note):
+    from sqlalchemy import update
+
+    store = make_store(home)
+    try:
+        with store.engine.begin() as conn:
+            conn.execute(update(T.applications).where(T.applications.c.job_id == job).values(note=note))
+    finally:
+        store.engine.dispose()
+
+
+def test_releasing_a_hold_keeps_a_note_that_is_not_the_holds_own(env):  # noqa: F811
+    home, ids = env
+    s, job = service(home), ids["Backend Engineer"]
+    token = s.claim(job, "agent-a", now=NOW)["token"]
+    s.hold(token, now=NOW)
+    set_note(home, job, "owner note")  # still `ready`, but someone else's note
+    s.release(token, now=NOW + timedelta(minutes=10))
+    (app,), claims = rows(home)
+    assert (app["status"], app["note"], claims) == ("queued", "owner note", [])
+
+
+def test_a_fresh_claim_after_an_expired_hold_drops_the_holds_note(env):  # noqa: F811
+    home, ids = env
+    s, job = service(home), ids["Backend Engineer"]
+    s.hold(s.claim(job, "agent-a", now=NOW)["token"], now=NOW)
+    later = NOW + timedelta(hours=25)  # the 24-hour hold has ended without a release
+    (app,), _ = rows(home)
+    assert (app["status"], app["note"]) == ("ready", "form filled; waiting for the user's go")
+    assert s.claim(job, "agent-b", now=later)["resumed"] is False
+    (app,), _ = rows(home)
+    assert (app["status"], app["note"]) == ("queued", None)
+    # Any other note survives a fresh claim.
+    s.release(s.claim(ids["Data Engineer"], "agent-a", now=later)["token"], now=later)
+    set_note(home, ids["Data Engineer"], "owner note")
+    s.claim(ids["Data Engineer"], "agent-b", now=later)
+    assert [a["note"] for a in rows(home)[0] if a["job_id"] == ids["Data Engineer"]] == ["owner note"]
+
+
+def test_releasing_a_plain_claim_leaves_the_application_unchanged(env):  # noqa: F811
+    from auto_app.handoff.service import HandoffError
+
+    home, ids = env
+    s, job = service(home), ids["Backend Engineer"]
+    token = s.claim(job, "agent-a", now=NOW)["token"]
+    (before,), _ = rows(home)
+    assert before["status"] == "queued"
+    assert s.release(token, now=NOW + timedelta(minutes=10)) == {"job_id": job, "released": True}
+    (after,), claims = rows(home)
+    assert after == before and claims == []
+    with pytest.raises(HandoffError, match="unknown or released"):  # the token is used up
+        s.release(token, now=NOW + timedelta(minutes=11))
+
+
 def test_held_reads_only_each_jobs_latest_application(env):  # noqa: F811
     """A job can have several application rows (apply/queue.py inserts them too); only the newest one counts."""
     home, ids = env

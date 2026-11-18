@@ -10,6 +10,7 @@ import hashlib
 import json
 import re
 from dataclasses import asdict, dataclass, fields
+from functools import lru_cache
 from pathlib import Path
 
 from auto_app.screen.locations import job_location
@@ -165,6 +166,15 @@ NON_CANDIDATE_EXPERIENCE = re.compile(
     r"\b(?!(?:candidate|applicant|developer|engineer|employee|person|individual)\b)"
     r"(?-i:[A-Z][\w&'-]*)\s+(?:has|brings?)\s+(?:over\s+|more\s+than\s+|nearly\s+)?"
     r"\d{1,3}\+?\s+years?\s+of\s+(?:\w+\s+){0,2}experience\b", re.I)
+DEGREE_ONLY = re.compile(r"(?:an?\s+)?(?:bachelor'?s?|master'?s?|doctoral)\s+degree[.!;]?|"
+                         r"(?:an?\s+)?(?:ph\.?d\.?|doctorate)[.!;]?", re.I)
+OR_START = re.compile(r"^or\b", re.I)
+# Shortcuts that skip only text which cannot match (re.I like the patterns they guard, so the same case folding).
+# Every match citizenship_evidence returns on, and every clearance heading, contains one of these words;
+CITIZENSHIP_WORD = re.compile(r"citizen|person|national|licens|clearance|itar", re.I)
+# every NO_SPONSOR or OFFERS_SPONSOR match contains "sponsor", and every YEARS match a digit.
+SPONSOR_WORD = re.compile(r"sponsor", re.I)
+DIGIT = re.compile(r"\d")
 
 
 def _sentences(text: str):
@@ -219,10 +229,14 @@ class Screening:
 
 def years_required(description: str) -> int | None:
     """Combine mandatory constraints, keeping the least demanding explicit alternative route."""
+    return _years_required(_sentences(description or ""))
+
+
+def _years_required(sentences) -> int | None:
     found = []
     preferred_section = False
     one_of = None  # inside a "one of the following" list: False, then the index in `found` of its least route
-    for sentence in _sentences(description or ""):
+    for sentence in sentences:
         sentence = sentence.strip().strip("#*• ")
         if one_of is not None and sentence.strip("-– ") and not CREDENTIAL.search(sentence):
             one_of = None  # the list ends at the first item that is not an education route
@@ -232,6 +246,8 @@ def years_required(description: str) -> int | None:
             preferred_section = True
         elif HARD_HEADING.fullmatch(sentence):
             preferred_section = False
+        if not DIGIT.search(sentence) and not (found and OR_START.match(sentence)):
+            continue  # no number of years here, and no degree route to an earlier requirement
         if preferred_section or SOFT.search(sentence) or NEGATED_REQUIREMENT.search(sentence) \
                 or NON_CANDIDATE_EXPERIENCE.search(sentence):
             continue
@@ -240,14 +256,12 @@ def years_required(description: str) -> int | None:
                           lambda m: str(min(int(m[1]), int(m[2]))), sentence, flags=re.I)
         # Only split an OR that introduces a numeric requirement or degree route.
         # "experience in C++ or Python and 2 years ..." still has two mandatory constraints.
-        continuation = bool(re.match(r"^or\b", sentence, re.I))
+        continuation = bool(OR_START.match(sentence))
         alternatives = re.split(
             r"\bor\s+(?=(?:an?\s+)?(?:\d|bachelor\b|master\b|master's\b|bachelor's\b|"
             r"ph\.?d\b|doctorate\b|doctoral\b))", re.sub(r"^or\s+", "", sentence, flags=re.I), flags=re.I)
         route_years = [[int(m.group(1)) for m in YEARS.finditer(route)] for route in alternatives]
-        degree_only = re.compile(r"(?:an?\s+)?(?:bachelor'?s?|master'?s?|doctoral)\s+degree[.!;]?|"
-                                 r"(?:an?\s+)?(?:ph\.?d\.?|doctorate)[.!;]?", re.I)
-        if continuation and found and degree_only.fullmatch(alternatives[0].strip()):
+        if continuation and found and DEGREE_ONLY.fullmatch(alternatives[0].strip()):
             found[-1] = 0
             continue
         if not any(route_years):
@@ -262,7 +276,7 @@ def years_required(description: str) -> int | None:
         experience_or_degree = not any(CREDENTIAL.search(route) for route, values in zip(alternatives, route_years)
                                        if values)
         if not shared_degree_choice and all(
-                values or degree_only.fullmatch(route.strip())
+                values or DEGREE_ONLY.fullmatch(route.strip())
                 or (experience_or_degree and DEGREE_ROUTE.match(route.strip(" -–")))
                 for route, values in zip(alternatives, route_years)):
             required = min(max(values, default=0) for values in route_years)
@@ -281,7 +295,23 @@ def years_required(description: str) -> int | None:
     return max(found) if found else None
 
 
-def screen(facts: JobFacts, rules: ScreeningRules) -> Screening:
+@dataclass(frozen=True)
+class Evidence:
+    """The slow part of screening, which no rule changes: read once to judge a job under several rule sets."""
+    sponsorship: str
+    years_required: int | None
+    location: str
+
+
+def evidence(facts: JobFacts) -> Evidence:
+    sentences = _sentences(facts.description or "")
+    return Evidence(_sponsorship(facts, sentences), _years_required(sentences),
+                    job_location(facts.locations, facts.countries))
+
+
+def screen(facts: JobFacts, rules: ScreeningRules, read: Evidence | None = None) -> Screening:
+    """`read` is evidence(facts), passed in when the caller judges the same job under several rule sets."""
+    read = evidence(facts) if read is None else read
     title = " / ".join(t for t in facts.titles if t)
     new_grad = bool(NEW_GRAD.search(title))
     reasons = []
@@ -295,16 +325,16 @@ def screen(facts: JobFacts, rules: ScreeningRules) -> Screening:
     if rules.exclude_unknown_without_software_evidence and role == "unknown" and facts.description.strip() \
             and not SOFTWARE_EVIDENCE.search(facts.description):
         reasons.append("no_software_evidence")
-    sponsorship = _sponsorship(facts)
+    sponsorship = read.sponsorship
     if rules.exclude_citizenship_required and sponsorship == "citizenship_required":
         reasons.append("citizenship_required")
-    years = years_required(facts.description)
+    years = read.years_required
     if rules.max_years_required is not None and years is not None \
             and years >= rules.max_years_required:
         reasons.append(f"experience_required:{years}")
     if facts.closed_at_source:
         reasons.append("closed_at_source")
-    location = job_location(facts.locations, facts.countries)
+    location = read.location
     if rules.us_only and location == "non_us":
         reasons.append("outside_us")
     signals = {"role": role, "sponsorship": sponsorship, "years_required": years, "new_grad_title": new_grad,
@@ -338,6 +368,7 @@ def _senior(title: str) -> bool:
                for part in parts[1:])
 
 
+@lru_cache(maxsize=32)
 def _terms(terms: tuple[str, ...]) -> re.Pattern | None:
     return re.compile(r"(?<!\w)(?:" + "|".join(re.escape(t) for t in terms) + r")(?!\w)", re.I) if terms else None
 
@@ -356,14 +387,13 @@ def _role(facts: JobFacts, title: str, rules: ScreeningRules) -> str:
     return "unknown"
 
 
-def _sponsorship(facts: JobFacts) -> str:
+def _sponsorship(facts: JobFacts, sentences: list[str]) -> str:
     labels = {LABELS.get(label.strip().lower()) for label in facts.sponsorship_labels} - {None}
-    sentences = _sentences(facts.description or "")
     required = any(TITLE_CLEARANCE.search(t) for t in facts.titles) or bool(citizenship_evidence(facts.description))
     if "citizenship_required" in labels or required:
         return "citizenship_required"
     # Questions and conditional language supply no affirmative sponsorship evidence.
-    concrete = [s for s in sentences if not re.search(
+    concrete = [s for s in sentences if SPONSOR_WORD.search(s) and not re.search(
         r"\?|\b(?:guarantee|might|may|possibly|not\s+unavailable)\b", s, re.I)]
     if any(NO_SPONSOR.search(s) for s in concrete):  # employer words win over repository labels
         return "no"
@@ -396,7 +426,11 @@ def citizenship_evidence(description: str) -> str | None:
         item = False
         if preferred and not EXPLICIT.search(line):
             continue  # "Secret Clearance required." still counts when an employer lists it under "Preferred"
+        if not heading and not CITIZENSHIP_WORD.search(line):
+            continue
         for sentence in re.split(r"(?<=[.!?;])\s+", line):
+            if not heading and not CITIZENSHIP_WORD.search(sentence):
+                continue
             if CLEARANCE_HEADING.fullmatch(sentence.strip("#*•- ")):
                 heading = sentence + " "  # "Security Clearance" over "Top Secret/SCI required"
                 continue

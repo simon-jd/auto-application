@@ -2,7 +2,8 @@
 
 服务模板可以先安装，连接器保持 disabled/inactive，等你在 Linux 填好配置后再启动。
 本页命令供你随后在 `home-ubuntu` 上执行；配置文件、真实密钥与连接成功是分别验证的状态。
-Grok 的公开入口使用独立的 Bearer 认证服务；现有 Dot 私有入口使用 8767。
+Grok 的公开入口使用独立的 Bearer 认证服务。Dot 通过 OpenAI Secure MCP Tunnel 访问
+`127.0.0.1:8767`，启用 handoff 需要按后文单独配置。
 
 ## 需要你准备的值
 
@@ -87,7 +88,8 @@ chmod 600 "runtime/credentials/$TUNNEL_UUID.json"
 Bearer 必需和 `--control-tools`；本模板不启用 `--handoff-tools`。
 
 部署脚本只同步代码，不安装 unit 文件。仓库里的 unit 有更新时（这次：worker 的
-`--steps`、各服务的重启上限），先把它们复制到 systemd 用户目录：
+`--steps`、各服务的重启上限），先把它们复制到 systemd 用户目录（`auto-app-agent.service`
+的 `ExecStart` 改了的话，同样的改动也要写进下文 Dot 一节的持久 override）：
 
 ```bash
 cd ~/Desktop/job-search
@@ -119,6 +121,35 @@ systemctl --user --no-pager --lines=0 status auto-app-agent-public.service job-s
 worker 模板固定使用 `screen,enrich,summary,health`，不包含 `notify`，由 Bot 发 digest 和
 handoff 结果，避免双方重复发送。只用 Webhook、不运行 Bot 时，才在 `--steps` 里加回 `notify`。
 worker 与 Bot 的通知职责见 [Discord 运行方式](discord-bot.md)。订阅源采集独立继续运行。
+
+## Dot 私有 handoff（选项 C）
+
+- 获得部署批准后，从 Mac checkout 运行 `scripts/deploy_linux.sh home-ubuntu`。
+- 在 Ubuntu 按 [Dot 验收清单](dot-setup.md#option-c-private-handoff) 准备隔离数据库
+  和材料包。用独立的临时 systemd override 在 8767 启动测试监听。只给这个私有
+  loopback 监听加 `--handoff-tools --allow-unauthenticated-loopback-handoff`。
+- 在新的 Dot 云端对话跑虚构任务，核对 `ready`、`agent="dot"` 及释放后的隔离
+  `jobq held`。还原临时 override。验收通过后用单独的持久 override 开启正式服务。
+- 8769 的 Bearer 配置和 Grok 的 `jobq` 按现有步骤操作。
+
+开启后，Ubuntu 上能连到 127.0.0.1:8767 的进程都能不经认证调用 handoff 工具。这是单人使用、
+8767 只经私有隧道对外的取舍：grokbot 被 [grok-bot.md §4](grok-bot.md#4-grokbot-账户的隔离边界)
+的防火墙挡住，以 `postedism` 运行的本机进程本来就能读同样的数据库和 apply-kit 文件。
+
+持久 override 在仓库里：`deploy/auto-app-agent.service.d/50-dot-loopback-handoff.conf`
+（和 home-ubuntu 上 2026-11-17 起生效的那份只差注释）。安装或重建：
+
+```bash
+cd ~/Desktop/job-search
+install -d -m 700 ~/.config/systemd/user/auto-app-agent.service.d
+cp auto-application/deploy/auto-app-agent.service.d/50-dot-loopback-handoff.conf ~/.config/systemd/user/auto-app-agent.service.d/
+systemctl --user daemon-reload
+systemctl --user restart auto-app-agent.service
+```
+
+持久 override `50-dot-loopback-handoff.conf` 整行替换了 `ExecStart`。以后仓库里
+`auto-app-agent.service` 的 `ExecStart` 有改动时，复制 unit 之后要把同样的改动写进这个
+override（仓库里的这份一起改）。回滚：删除该 override，`daemon-reload`，重启。
 
 ## 4. 可选 Webhook 告警与周报
 

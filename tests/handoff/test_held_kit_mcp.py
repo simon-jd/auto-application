@@ -9,6 +9,7 @@ import pytest
 from mcp import Client
 
 from auto_app.agent.mcp_server import create_mcp_server
+from tests.agent.test_mcp import _session
 from tests.handoff.test_questions_mcp import wanted_job
 
 RESUME = b"%PDF-1.7\n%\xe2\xe3\xcf\xd3 fictional resume\x00\n%%EOF\n"
@@ -81,3 +82,41 @@ async def test_without_handoff_tools_the_reads_are_absent(kit):
     db, _ = kit
     async with Client(create_mcp_server(db)) as client:
         assert not NEW_TOOLS & {t.name for t in (await client.list_tools()).tools}
+
+
+async def test_loopback_http_handoff_through_the_cli(kit, tmp_path, monkeypatch, capsys):
+    from auto_app.jobq.cli import main as jobq
+
+    db, job = kit
+    async with _session("streamable-http", db, tmp_path, serve_args=(
+        "--handoff-tools", "--allow-unauthenticated-loopback-handoff",
+    )) as session:
+        await session.initialize()
+        tools = {tool.name: tool for tool in (await session.list_tools()).tools}
+        assert not any("answers_ready" in name or "answers-ready" in name for name in tools)
+        assert tools["claim_application"].annotations.read_only_hint is False
+        assert tools["submit_open_questions"].annotations.read_only_hint is False
+
+        async def call(tool_name, **arguments):
+            result = await session.call_tool(tool_name, arguments)
+            assert not result.is_error, tool_name
+            return result.structured_content
+
+        queue = await call("get_application_queue")
+        assert [item["job_id"] for item in queue["items"]] == [job]
+        claim = await call("claim_application", job_id=job, agent="dot")
+        token = claim["token"]
+        packet = await call("get_application_packet", token=token)
+        assert packet["job"]["job_id"] == job
+        pdf = await call("get_application_file", job_id=job, name="resume.pdf")
+        assert base64.b64decode(pdf["base64"]) == RESUME
+        assert pdf["sha256"] == hashlib.sha256(RESUME).hexdigest()
+        assert (await call("hold_application", token=token))["status"] == "ready"
+        held = await call("get_held_applications")
+        assert [(item["job_id"], item["agent"]) for item in held["items"]] == [(job, "dot")]
+        assert (await call("release_application", token=token))["released"] is True
+        assert await call("get_held_applications") == {"items": []}
+
+    monkeypatch.setenv("AUTO_APP_HOME", str(tmp_path))
+    assert jobq(["held"]) == 0
+    assert json.loads(capsys.readouterr().out) == {"items": []}

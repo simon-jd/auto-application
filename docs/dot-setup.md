@@ -1,8 +1,22 @@
 # Dot connected to the Ubuntu job library
 
+**2026-11-17 handoff checkpoint.** A new Dot-managed cloud task read the live
+screening rules and invoked `propose_screening_change`. Both the initial call
+and an explicit plugin retry timed out in chat. Ubuntu later saved both
+no-change proposals. The preview took over 3 minutes against the tunnel's
+roughly 2-minute deadline; a preview that takes about 35 s on a copy of the live
+database is implemented locally and not deployed yet. A separate Dot cloud task
+passed the isolated handoff acceptance, and the real private listener now
+advertises the handoff tools. The Skill source is 0.4.1; no ChatGPT upload of
+0.4.0 or 0.4.1 is recorded. Dot has not yet filled a real form, uploaded a file
+into a web form, run a question or change round, or submitted anything. See
+[deployment and acceptance](#option-c-private-handoff)
+and [the verification record](updates/2026-11-17-dot-loopback-handoff.md).
+
 **2026-10-21 compatibility review:** see [review and rollout boundaries](reviews/2026-10-21-dot-compatibility.md).
-The current session discovers 18 tools and five read calls succeeded. Local plugin source is 0.3.1;
-that does not mean the cloud installation was updated. Historical deployment claims below are dated.
+The current session discovers 18 tools and five read calls succeeded. At that review the local
+plugin source was 0.3.1; it is now 0.4.1. Neither establishes the cloud installation.
+Historical deployment claims below are dated.
 
 
 **Current state (2026-10-14):** updated source is deployed on Ubuntu with schema
@@ -15,9 +29,11 @@ control tool has been verified through that cloud session. Refreshing backend
 metadata and having a callable tool in a running chat are separate checks.
 
 The job database and feed worker stay on Ubuntu. Current code has five base
-library/tracking tools, two optional fictional Ashby preparation tools and eleven
-opt-in control/review tools. The installed private service enables all three groups;
-application handoff tools remain disabled. The Skill follows the tools actually
+library/tracking tools, two optional fictional Ashby preparation tools, eleven
+opt-in control/review tools and twelve opt-in handoff tools. On 2026-10-14 the
+private service enabled the first three groups; since 2026-11-17 the persistent
+`50-dot-loopback-handoff.conf` override also enables the handoff tools without
+MCP authentication (30 tools). The Skill follows the tools actually
 discovered in each session. The Mac is only used during setup.
 
 Discord and Grok units are installed and systemd-verified but disabled/inactive;
@@ -58,10 +74,13 @@ Dot + cloud Job Search Skill
 | `assign_update` (controls) | Assign an update to the job explicitly identified by the owner |
 | `dismiss_update` (controls) | Dismiss an update the owner identifies as unrelated |
 
-This table describes the deployed 18-tool inventory, not a guarantee that an
-already-open chat exposes each tool. The backend UI inventory and the three
-actual cloud read calls above are the current evidence; newly added control calls
-still require discovery and direct verification in a refreshed client session.
+This table lists the 18 base, preparation and control tools. Since 2026-11-17
+the private listener also serves the twelve handoff tools in the
+[handoff contract](agent-handoff.md#cli-and-mcp), 30 in all. Neither list
+guarantees that an already-open chat exposes each tool. The backend UI inventory
+and the three actual cloud read calls above are the evidence for the 18; newly
+added control calls still require discovery and direct verification in a
+refreshed client session.
 
 Searches exclude Canada using the existing preferences. Direct details retain
 the original evidence. Pagination must reuse the same filters. Read tools never
@@ -255,14 +274,23 @@ job-search --explain` requires the runtime key in its environment. Then install
 services use systemd supervision and must run on Ubuntu. `Linger=yes` allows the
 user services to survive logout and start without an interactive login.
 
+tunnel-client 0.0.16 checks the MCP server and OAuth discovery once at startup
+and does not retry a refused connection. If it starts before auto-app-agent
+listens, as at boot on 2026-11-07, `/readyz` stays 503 for the life of the
+process although the tunnel keeps working. Adding `startup_wait_timeout: 60s`
+under `mcp:` in `~/.config/tunnel-client/job-search.yaml` makes it wait. It was
+applied on home-ubuntu on 2026-11-17 (one tunnel restart, which briefly dropped Dot's connection) and
+`/readyz` now returns 200 ([record](updates/2026-11-17-dot-loopback-handoff.md#follow-up-the-same-day)).
+
 ## Register the cloud tool and Skill
 
 In ChatGPT Plugins, select the **Personal** directory, then choose
 **Add → Add custom MCP server**, select **Tunnel**,
 use the real tunnel ID, choose **No authentication** within this private tunnel,
-and register the app. The current deployed private service has five base tools,
-two preparation tools and eleven control/review tools. Its refreshed backend UI
-lists all 18. The dated 2026-10-11 six-tool acceptance record above describes the
+and register the app. On 2026-10-14 the deployed private service had five base,
+two preparation and eleven control/review tools, and its refreshed backend UI
+listed all 18. After the 2026-11-17 handoff opt-in the refreshed app lists 30.
+The dated 2026-10-11 six-tool acceptance record above describes the
 earlier deployed version; the running Codex session's cached six-tool catalog
 has not yet demonstrated callability of the newly added controls.
 Keep the plugin private.
@@ -272,16 +300,202 @@ Build the Skill plugin using the registered `asdk_app_...` ID:
 ```bash
 python3 scripts/build_dot_plugin.py \
   --app-id asdk_app_ACTUAL_REGISTERED_ID \
-  --output /tmp/job-search-dot.zip
+  --output /tmp/job-search-dot-0.4.1.zip
 ```
 
-Upload the archive through ChatGPT's **Add → Upload plugin archive** and install
-it. The 2026-10-14 upload/readback confirmed version 0.3.0. The package uses `.app.json`
+The script refuses to overwrite an existing file, so name the output after the
+version in `plugins/job-search/plugin.json`. Upload the archive through ChatGPT's
+**Add → Upload plugin archive**, install it and confirm the installed version
+reads 0.4.1. The 2026-10-14 upload/readback confirmed version 0.3.0; no later
+upload is recorded. The package uses `.app.json`
 to refer to the registered cloud connection. It
 does not contain `mcp.json` or `.mcp.json`: those are desktop-only plugin paths.
 A `--skills-only` bundle contains instructions but does not connect a database.
 The [official plugin management guide](https://learn.chatgpt.com/docs/enterprise/plugin-management)
 explains the distinction.
+
+## Option C private handoff
+
+The owner can add `--handoff-tools --allow-unauthenticated-loopback-handoff`
+to the private service after deploying the code. This works only on Streamable
+HTTP bound to `127.0.0.1`. The local Host is `127.0.0.1:8767` for this tunnel
+target. The server accepts an absent Origin or `http://127.0.0.1:8767` and
+rejects other Hosts and Origins. Processes on Ubuntu that can reach this port
+can invoke exposed tools without a token. Keep this endpoint behind the existing
+private tunnel. This is accepted for a single-owner server: grokbot is blocked
+by its firewall ([grok-bot.md §4](grok-bot.md#4-grokbot-账户的隔离边界)), and local
+processes running as `postedism` can already read the same database and
+`apply-kit/` files. The [stock systemd unit](../deploy/auto-app-agent.service)
+requires a separate opt-in override, versioned as
+[`deploy/auto-app-agent.service.d/50-dot-loopback-handoff.conf`](../deploy/auto-app-agent.service.d/50-dot-loopback-handoff.conf)
+and installed on home-ubuntu since 2026-11-17.
+
+### Ubuntu checklist
+
+1. After owner approval, run `scripts/deploy_linux.sh home-ubuntu` from this
+   checkout on the Mac. The script syncs the checkout, backs up and checks the
+   runtime database, and resumes services. Unit overrides are installed
+   separately. Confirm the existing `job-search-tunnel.service` still targets
+   `http://127.0.0.1:8767/mcp` and check `http://127.0.0.1:8768/readyz` on Ubuntu.
+   If readiness returns 503, use the [tunnel-client health guide](https://github.com/openai/tunnel-client/blob/master/docs/troubleshooting.md#debug-why-readyz-is-failing)
+   to check startup discovery; on home-ubuntu the 503 since 2026-11-07 is the
+   boot race described under [Private tunnel](#private-tunnel). Record health
+   separately from actual tool results.
+2. For cloud acceptance use a new private test runtime with its own sibling
+   `apply-kit/`. In Bash from `~/Desktop/job-search/auto-application` on Ubuntu, create
+   one marked fictional job and copy the repository's fictional PDF into its
+   package. Save the printed root path, job ID and digest for the checks below.
+
+   ```bash
+   umask 077
+   DOT_TEST_ROOT=$(mktemp -d "$HOME/Desktop/job-search/dot-handoff-test.XXXXXX")
+   .venv/bin/python - "$DOT_TEST_ROOT" <<'PY'
+   from hashlib import sha256
+   import json
+   from pathlib import Path
+   import sys
+
+   from auto_app.agent.service import AgentService
+   from auto_app.screen.rules import ScreeningRules
+   from auto_app.screen.store import screen_jobs
+   from tests.imported_jobs import ingest, job_id_of, make_store, record
+
+   root = Path(sys.argv[1])
+   title = "Dot Fictional Handoff Acceptance"
+   store = make_store(root / "runtime")
+   try:
+       ingest(store, [record("dot-acceptance", title, company="Dot Test Only",
+                             url="https://forms.example.invalid/dot-acceptance")])
+       screen_jobs(store, ScreeningRules())
+       job_id = job_id_of(store, title)
+       db = store.db_path
+   finally:
+       store.engine.dispose()
+   AgentService(db).record_application_status(job_id, "want_to_apply")
+   package = root / "apply-kit" / "jobs" / str(job_id)
+   package.mkdir(parents=True)
+   pdf = Path("src/auto_app/prepare/fixtures/fictional-sales-resume.pdf").read_bytes()
+   (package / "resume.pdf").write_bytes(pdf)
+   digest = sha256(pdf).hexdigest()
+   (package / "job.json").write_text(json.dumps({"job_id": job_id, "title": title,
+       "files": {"resume.pdf": {"sha256": digest, "bytes": len(pdf)}}}))
+   print(f"root={root}\njob_id={job_id}\nresume_sha256={digest}")
+   PY
+   ```
+
+3. Temporarily use `auto-app-agent.service` at 8767 for **that isolated DB** so
+   the registered ChatGPT app reaches the fixture through its existing tunnel.
+   Pause other Dot jobs that use this plugin during the switch. Keep a distinct
+   `90-dot-handoff-test.conf` runtime drop-in and restore the previous target
+   after at most seven minutes or when told to finish. The test service keeps the existing control and
+   preparation tool schemas and points them at the isolated runtime. The public
+   8769 service and the production `jobq` are separate. Use the same Ubuntu
+   shell and checkout:
+
+   ```bash
+   (
+   set -euo pipefail
+   test -f "$DOT_TEST_ROOT/runtime/data/auto_app.db"
+   dropin_dir="$XDG_RUNTIME_DIR/systemd/user/auto-app-agent.service.d"
+   override="$dropin_dir/90-dot-handoff-test.conf"
+   install -d -m 700 "$dropin_dir"
+   (set -o noclobber; cat > "$override" <<EOF
+   [Service]
+   ExecStart=
+   ExecStart=$PWD/.venv/bin/auto-app-agent serve --db $DOT_TEST_ROOT/runtime/data/auto_app.db --preparation-dir $DOT_TEST_ROOT/runtime/preparation --transport streamable-http --host 127.0.0.1 --port 8767 --control-tools --handoff-tools --allow-unauthenticated-loopback-handoff
+   EOF
+   )
+   restore_route() {
+     rm -- "$override"
+     systemctl --user daemon-reload
+     systemctl --user restart auto-app-agent.service
+   }
+   trap restore_route EXIT
+   trap 'exit 129' HUP
+   trap 'exit 130' INT
+   trap 'exit 143' TERM
+   systemctl --user daemon-reload
+   systemctl --user restart auto-app-agent.service
+   .venv/bin/python scripts/check_agent_mcp.py --url http://127.0.0.1:8767/mcp
+   deadline=$((SECONDS + 420))
+   while ((SECONDS < deadline)) && [[ ! -f "$DOT_TEST_ROOT/.cloud-test-finished" ]]; do
+     sleep 2
+   done
+   )
+   ```
+
+   Confirm that the read-only smoke result lists handoff tools and the single
+   fictional job. If the target is wrong, cancel the window before the cloud test.
+4. Complete the ChatGPT checklist below. Check that the isolated lease was
+   released with `AUTO_APP_HOME="$DOT_TEST_ROOT/runtime" .venv/bin/auto-app-jobq held`.
+   It must return `{"items": []}`. The installed `jobq` wrapper pins the live
+   runtime, so use the entry point above for the fixture. If a call times out,
+   record its stage and inspect the fixture before retrying a write.
+5. After checking the isolated result, use the recorded root in a second
+   terminal and create the marker with `touch "$DOT_TEST_ROOT/.cloud-test-finished"`.
+   Check that the first terminal exits, the runtime `90-dot-handoff-test.conf`
+   is gone and `auto-app-agent.service` is active on the previous target. The
+   window also restores the route on failure or timeout.
+6. For normal operation after acceptance, install the versioned persistent
+   override. It resets `ExecStart=` and repeats the stock unit's command with
+   the real runtime DB, preferences, preparation and controls, plus the two
+   opt-in flags:
+
+   ```bash
+   cd ~/Desktop/job-search
+   install -d -m 700 ~/.config/systemd/user/auto-app-agent.service.d
+   cp auto-application/deploy/auto-app-agent.service.d/50-dot-loopback-handoff.conf \
+     ~/.config/systemd/user/auto-app-agent.service.d/
+   systemctl --user daemon-reload
+   systemctl --user restart auto-app-agent.service
+   ```
+
+   Verify live tool discovery with reads only. Because the override replaces
+   the whole `ExecStart`, a later change to the stock unit's `ExecStart` must be
+   made in this file too. To roll back, remove that specific persistent
+   drop-in, reload and restart.
+
+### ChatGPT checklist
+
+1. In **Plugins → Personal**, open the existing private **Job Search Backend**
+   MCP plugin. Select **Manage → Refresh tools** (管理 → 刷新工具). The
+   connection stays on its existing private **Tunnel** and **No authentication**.
+   Confirm the refreshed catalog exposes the handoff actions, including
+   `submit_open_questions`, and has no `answers-ready`.
+   [OpenAI plugin test guide](https://developers.openai.com/plugins/deploy/connect-chatgpt).
+2. Build the 0.4.1 ZIP as described above (`--output /tmp/job-search-dot-0.4.1.zip`)
+   and use **Add → Upload plugin archive**. Install the updated Skill for Dot
+   with the private backend attached, and confirm the installed version reads
+   0.4.1. Keep the connection and Skill private.
+3. Ask Dot to start a new cloud task. In it, explicitly select the private
+   plugin with `@` if needed. Restrict the run to the single fictional job ID
+   and expected title confirmed on Ubuntu. Call in order:
+
+   ```text
+   get_application_queue
+   claim_application(job_id=<fictional ID>, agent="dot")
+   get_application_packet(token=<claim token>)
+   get_application_file(job_id=<fictional ID>, name="resume.pdf")
+   hold_application(token=<claim token>)
+   get_held_applications
+   release_application(token=<claim token>)
+   ```
+
+4. Compare the fetched PDF's SHA-256 with the fixture digest. Require hold to
+   return `ready`, the held list to contain that ID under `dot`, and release to
+   return `released: true`. Report the fields and any app approval or timeout
+   without including the token or the PDF's base64. This exercise stops at the
+   simulated pre-submit state and uses no employer form or submission call.
+   `answers-ready` remains an owner-side CLI operation. The [Skill](../plugins/job-search/skills/job-search/SKILL.md)
+   covers open questions, remaining pre-submit form work and batch review.
+
+Dot has not yet attached a fetched PDF to any web form. Whether a cloud task
+can turn the `base64` result into a browser upload for real-size PDFs (about
+200 KB) is unverified; if it cannot, the Skill reports the error and releases
+the claim. Keeping a filled form open in Dot's cloud browser for up to the
+24-hour hold and reading it back later is also unverified. No employer form,
+open-question or change round, re-claim with `resumed: true`, or submission has
+run through Dot yet.
 
 ## Acceptance checks
 

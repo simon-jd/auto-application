@@ -55,7 +55,9 @@ def parser() -> argparse.ArgumentParser:
     serve.add_argument("--control-tools", action="store_true",
                        help="Expose pause/resume, previewed rule changes, feedback and digest tools.")
     serve.add_argument("--handoff-tools", action="store_true",
-                       help="Expose application handoff interfaces (requires --auth-token-file and --public-url).")
+                       help="Expose application handoff interfaces with authentication or explicit loopback opt-in.")
+    serve.add_argument("--allow-unauthenticated-loopback-handoff", action="store_true",
+                       help="Allow --handoff-tools without a token on streamable HTTP at 127.0.0.1 only.")
     worker = commands.add_parser("prepare-worker", help="Run the exclusive fictional Ashby preparation worker.")
     worker.add_argument("--preparation-dir", type=Path, required=True, help="Preparation ledger and artifacts directory.")
     worker.add_argument("--once", action="store_true", help="Process at most one queued task, then exit.")
@@ -81,15 +83,31 @@ def main(argv: list[str] | None = None) -> int:
         from auto_app.agent.service import AgentService
 
         auth = None
-        if args.auth_token_file or args.public_url:
+        transport_security = None
+        if args.allow_unauthenticated_loopback_handoff:
+            if not args.handoff_tools:
+                raise ValueError("--allow-unauthenticated-loopback-handoff requires --handoff-tools")
+            if args.transport != "streamable-http" or args.host != "127.0.0.1":
+                raise ValueError("--allow-unauthenticated-loopback-handoff requires --transport streamable-http "
+                                 "and --host 127.0.0.1")
+            if args.auth_token_file is not None or args.public_url is not None:
+                raise ValueError("--allow-unauthenticated-loopback-handoff cannot be combined with "
+                                 "--auth-token-file or --public-url")
+            from mcp.server.transport_security import TransportSecuritySettings
+
+            host = f"127.0.0.1:{args.port}"
+            transport_security = TransportSecuritySettings(
+                enable_dns_rebinding_protection=True, allowed_hosts=[host], allowed_origins=[f"http://{host}"])
+        elif args.auth_token_file or args.public_url:
             if not (args.auth_token_file and args.public_url) or args.transport != "streamable-http":
                 raise ValueError("--auth-token-file and --public-url go together, with --transport streamable-http")
             from auto_app.agent.auth import PublicAuth, load_token
 
             auth = PublicAuth(load_token(args.auth_token_file), args.public_url)
-
-        if args.handoff_tools and auth is None:
-            raise ValueError("--handoff-tools requires --auth-token-file and --public-url")
+            transport_security = auth.transport_security(args.port)
+        elif args.handoff_tools:
+            raise ValueError("--handoff-tools requires --auth-token-file and --public-url or "
+                             "--allow-unauthenticated-loopback-handoff")
         # Validate the selected database before starting either transport.
         AgentService(args.db, preferences_path=args.preferences).context()
         server = create_mcp_server(args.db, preferences_path=args.preferences,
@@ -98,8 +116,8 @@ def main(argv: list[str] | None = None) -> int:
         if args.transport == "stdio":
             server.run(transport="stdio")
         else:
-            extra = {"transport_security": auth.transport_security(args.port)} if auth else {}
-            server.run(transport="streamable-http", host=args.host, port=args.port, json_response=True, **extra)
+            server.run(transport="streamable-http", host=args.host, port=args.port, json_response=True,
+                       transport_security=transport_security)
         return 0
     except ValueError as exc:
         # A serve configuration error (token file, public URL, database) exits 2 so systemd does not

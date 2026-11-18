@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from auto_app.screen.rules import JobFacts, ScreeningRules, load_rules, screen, years_required
+from auto_app.screen.rules import JobFacts, ScreeningRules, evidence, load_rules, screen, years_required
 
 RULES = ScreeningRules()
 
@@ -101,6 +101,7 @@ def test_sponsorship_is_a_signal_not_an_exclusion(labels, description, expected)
 @pytest.mark.parametrize("labels, description", [
     (("U.S. Citizenship is Required",), ""),
     ((), "Applicants must be a U.S. citizen."),
+    ((), "Applicants must be a U.S. national."),  # "national" alone, so the keyword shortcut must keep it
     ((), "This role requires U.S. citizenship."),
     ((), "Requires an active Secret clearance."),
     ((), "Security clearance is required for this role."),
@@ -592,3 +593,17 @@ def test_a_title_part_made_only_of_level_words_is_senior(title):
 ])
 def test_team_suffixes_with_level_words_stay_kept(title):
     assert screen(facts(title), RULES).outcome == "kept", title
+
+
+def test_evidence_read_once_judges_a_job_under_any_rules():
+    """A rule-change preview reads each description once (evidence) and judges it under both rule sets."""
+    job = facts("Senior Platform Analyst", locations=("Toronto, ON",), description=(
+        "Security Clearance\n\nTop Secret/SCI required\n"
+        "Bachelor's degree and 5 years of experience; or Master's degree.\n"
+        "Requirements:\n- 4 years of experience with Python\nWe do not offer visa sponsorship."))
+    read = evidence(job)
+    for rules in (RULES, ScreeningRules(exclude_senior=False, us_only=False, max_years_required=None,
+                                        exclude_unknown_without_software_evidence=True,
+                                        extra_non_cs_terms=("analyst",))):
+        assert screen(job, rules, read) == screen(job, rules)
+    assert (read.sponsorship, read.years_required, read.location) == ("citizenship_required", 4, "non_us")

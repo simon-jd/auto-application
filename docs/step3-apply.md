@@ -5,8 +5,15 @@ claim-token packet and outcome recording for the owner's external agent, with ac
 resume registration. It does not invoke an agent, write its prompt, open a browser or submit forms.
 `submitted` is a reported external outcome; manual and agent applied history have separate sources.
 The [timeline/mail review](application-tracking.md) follows OA/interview/rejection/offer status.
-These additions are local; deployment and real-agent/mail/Discord acceptance remain pending.
+These additions were local at that date; the handoff's current status is in the 2026-11-17 line below.
 Historical automated appliers below remain off under the existing repository policy.
+
+**2026-11-17 status:** the handoff is deployed on Ubuntu with open questions, holds, the held list and token-free
+package reads. Grok Bot runs it through `jobq` (end to end up to the Submit button on 2026-10-21); Dot reaches it
+over its private loopback listener and passed a fictional queue-to-release acceptance. No real form fill or question
+round has gone through Dot, and no application has been submitted through the handoff (the live database's only
+handoff application, #14143, waits for answers). A local fix returning a released hold to `queued` is not deployed yet. [Contract](agent-handoff.md) ·
+[Dot record](updates/2026-11-17-dot-loopback-handoff.md).
 
 **2026-10-11 update:** the authorized fictional Ashby preparation path is deployed
 as a separate `auto_app.prepare` worker (§14). Dot can queue one fixed test

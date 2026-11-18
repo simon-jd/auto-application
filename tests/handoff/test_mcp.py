@@ -2,12 +2,14 @@
 
 import json
 from mcp import Client
+import pytest
 
 from auto_app.agent.mcp_server import create_mcp_server
 from auto_app.agent.service import AgentService
 from auto_app.screen.rules import ScreeningRules
 from auto_app.screen.store import screen_jobs
 from tests.imported_jobs import make_store, ingest, record, job_id_of
+from tests.screening_db import screening_db  # noqa: F401
 
 
 async def test_handoff_tools_and_submission_timeline_round_trip(tmp_path):
@@ -41,8 +43,19 @@ async def test_handoff_tools_and_submission_timeline_round_trip(tmp_path):
         assert not (await client.call_tool("list_unmatched_updates", {})).is_error
 
 
-def test_network_handoff_flag_requires_authentication(tmp_path, capsys):
+@pytest.mark.parametrize("transport", ["stdio", "streamable-http"])
+def test_handoff_requires_authentication_by_default(screening_db, capsys, monkeypatch, transport):
+    # A valid database, so only the refusal itself can stop the server from starting.
+    from mcp.server import MCPServer
+
     from auto_app.agent.cli import main
 
-    result = main(["serve", "--db", str(tmp_path / "missing.db"), "--handoff-tools"])
-    assert result == 2 and "requires" in capsys.readouterr().err
+    def run(*args, **kwargs):
+        raise AssertionError("the server started without authentication or the loopback opt-in")
+
+    monkeypatch.setattr(MCPServer, "run", run)
+    result = main(["serve", "--db", str(screening_db), "--transport", transport, "--handoff-tools"])
+    err = capsys.readouterr().err
+    assert result == 2
+    assert "--handoff-tools requires --auth-token-file and --public-url or " \
+           "--allow-unauthenticated-loopback-handoff" in err

@@ -1,6 +1,8 @@
 """Authenticated HTTP MCP against disposable data and an in-process ASGI client."""
 
 import os
+import subprocess
+import sys
 
 import pytest
 from starlette.testclient import TestClient
@@ -86,6 +88,99 @@ def test_the_cli_requires_both_auth_options(tmp_path, capsys):
                  "--auth-token-file", str(tmp_path / "t")]) == 2
     assert "go together" in capsys.readouterr().err
     assert not (tmp_path / "x.db").exists()
+
+
+@pytest.mark.parametrize(("args", "reason"), [
+    (["--transport", "streamable-http"], "--handoff-tools"),
+    (["--handoff-tools"], "--transport streamable-http"),
+    (["--handoff-tools", "--transport", "streamable-http", "--host", "localhost"], "127.0.0.1"),
+    (["--handoff-tools", "--transport", "streamable-http", "--host", "::1"], "127.0.0.1"),
+    (["--handoff-tools", "--transport", "streamable-http", "--host", "127.0.0.2"], "127.0.0.1"),
+    (["--handoff-tools", "--transport", "streamable-http", "--public-url", "https://testserver"],
+     "cannot be combined"),
+    (["--handoff-tools", "--transport", "streamable-http", "--auth-token-file", "unused-token"],
+     "cannot be combined"),
+])
+def test_loopback_handoff_opt_in_rejects_other_configurations(tmp_path, args, reason):
+    result = subprocess.run([sys.executable, "-m", "auto_app.agent.cli", "serve", "--db",
+                             str(tmp_path / "missing.db"), "--allow-unauthenticated-loopback-handoff", *args],
+                            text=True, capture_output=True, timeout=10)
+    assert result.returncode == 2
+    assert reason in result.stderr and "unrecognized arguments" not in result.stderr
+
+
+# The SDK's own default for 127.0.0.1 already allows any port on 127.0.0.1, localhost and [::1], so only the
+# localhost, other-port and localhost-Origin rows fail if the opt-in's exact pinning is removed.
+LOOPBACK_PINNING = [
+    ({"Host": "external.example:8767"}, 421),
+    ({"Host": "localhost:8767"}, 421),
+    ({"Host": "127.0.0.1:9999"}, 421),
+    ({"Host": "[::1]:8767"}, 421),
+    ({"Origin": "https://external.example"}, 403),
+    ({"Origin": "http://localhost:8767"}, 403),
+    ({"Origin": "http://127.0.0.1:9999"}, 403),
+    ({}, 200),
+    ({"Origin": "http://127.0.0.1:8767"}, 200),
+]
+
+
+def test_loopback_handoff_pins_the_exact_host_and_origin(screening_db, monkeypatch):
+    from mcp.server import MCPServer
+
+    from auto_app.agent.cli import main
+
+    started = []
+
+    def run(server, *, transport, host, port, **kwargs):
+        assert (transport, host, port) == ("streamable-http", "127.0.0.1", 8767)
+        app = server.streamable_http_app(host=host, **kwargs)
+        with TestClient(app, base_url=f"http://{host}:{port}") as client:
+            codes = [(extra, client.post("/mcp", json=INIT, headers={**HEADERS, **extra}).status_code)
+                     for extra, _ in LOOPBACK_PINNING]
+        assert codes == LOOPBACK_PINNING
+        security = kwargs["transport_security"]
+        assert (security.allowed_hosts, security.allowed_origins) == (["127.0.0.1:8767"], ["http://127.0.0.1:8767"])
+        started.append(True)
+
+    monkeypatch.setattr(MCPServer, "run", run)
+    assert main(["serve", "--db", str(screening_db), "--transport", "streamable-http",
+                 "--handoff-tools", "--allow-unauthenticated-loopback-handoff"]) == 0
+    assert started == [True]
+
+
+def test_handoff_tools_with_authentication_still_start_through_the_cli(screening_db, tmp_path, monkeypatch):
+    from mcp.server import MCPServer
+
+    from auto_app.agent.auth import PublicAuth
+    from auto_app.agent.cli import main
+
+    token_file = tmp_path / "mcp-token"
+    token_file.write_text(TOKEN + "\n")
+    token_file.chmod(0o600)
+    started = []
+
+    def run(server, *, transport, host, port, **kwargs):
+        assert (transport, host, port) == ("streamable-http", "127.0.0.1", 8767)
+        # The authenticated listener's transport security, not the loopback opt-in's exact pinning.
+        assert kwargs["transport_security"] == PublicAuth(TOKEN, "https://testserver").transport_security(8767)
+        app = server.streamable_http_app(host=host, **kwargs)
+        with TestClient(app, base_url="https://testserver") as client:
+            assert client.post("/mcp", json=INIT, headers=HEADERS).status_code == 401
+            authorized = {**HEADERS, "Authorization": f"Bearer {TOKEN}"}
+            init = client.post("/mcp", json=INIT, headers=authorized)
+            assert init.status_code == 200, init.text
+            session = {**authorized, "mcp-session-id": init.headers["mcp-session-id"],
+                       "mcp-protocol-version": init.json()["result"]["protocolVersion"]}
+            client.post("/mcp", json={"jsonrpc": "2.0", "method": "notifications/initialized"}, headers=session)
+            listed = client.post("/mcp", json={"jsonrpc": "2.0", "id": 2, "method": "tools/list"}, headers=session)
+            assert listed.status_code == 200, listed.text
+            assert "claim_application" in {tool["name"] for tool in listed.json()["result"]["tools"]}
+        started.append(True)
+
+    monkeypatch.setattr(MCPServer, "run", run)
+    assert main(["serve", "--db", str(screening_db), "--transport", "streamable-http", "--handoff-tools",
+                 "--auth-token-file", str(token_file), "--public-url", "https://testserver"]) == 0
+    assert started == [True]
 
 
 async def test_static_verifier_checks_token_and_hides_it_in_repr():

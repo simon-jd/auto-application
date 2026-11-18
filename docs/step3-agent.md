@@ -19,6 +19,13 @@ only. See [setup and states](dot-setup.md#fictional-ashby-preparation-v1) and
 applying stays disabled; its historical design below does not grant access to
 submission through Dot.
 
+**2026-11-17:** Dot can also act as the owner's external agent through the
+[application handoff](agent-handoff.md) on its private loopback listener
+([record](updates/2026-11-17-dot-loopback-handoff.md)). That path is separate
+from this applier and from fictional preparation; it has passed only a
+fictional queue-to-release acceptance, and its Skill submits only the job IDs
+the owner names.
+
 Status: **A7.1 ✅ A7.3 ✅** (2026-10-05: tools, guards, start mode — `src/auto_app/apply/agent/`; as built, §14); **accounts ✅**
 (pulled forward from A7.3, §15) and live progress; A7.2–A7.4 📐 designed. Part of [Step 3 — Apply](step3-apply.md); it replaces the "generic (later)" row
 of §3 there and moves it up the chain.

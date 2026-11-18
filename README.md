@@ -55,8 +55,9 @@ model, mailbox credentials or automatic submission. Manual states are
 `want_to_apply`, `applied`, and `not_applied`; an identical status/reason retry is
 a no-op. `applied` records the user's report of applying.
 
-The current Dot backend schema has 18 tools, including events and control tools. Cloud context,
-search and detail calls passed after deployment; new control tools were protocol-tested on Linux.
+The Dot backend has 18 base, preparation and control tools; since 2026-11-17 its private listener also enables the 12 handoff tools (30 in all). Cloud context,
+search and detail calls passed after deployment. A fresh Dot-managed task also demonstrated that
+screening proposals can persist after a chat-side timeout. See the [verification record](docs/updates/2026-11-17-dot-loopback-handoff.md).
 
 ```bash
 uv run auto-app-agent serve --db /srv/job-search/runtime/data/auto_app.db \
@@ -69,8 +70,9 @@ uv run python scripts/check_agent_mcp.py
 The [Dot setup guide](docs/dot-setup.md) covers Ubuntu user services, OpenAI's
 private outbound tunnel, and a cloud Skill plugin bound to the registered
 ChatGPT app. The source Skill is in `plugins/job-search/skills/job-search/`;
-`scripts/build_dot_plugin.py --app-id asdk_app_... --output /tmp/job-search.zip`
-builds its archive. A local Skill alone does not establish Dot cloud access.
+`scripts/build_dot_plugin.py --app-id asdk_app_... --output /tmp/job-search-dot-0.4.1.zip`
+builds its archive (version 0.4.1; the script never overwrites an existing file, so name each build after its
+version). A local Skill alone does not establish Dot cloud access.
 
 **Fictional Ashby preparation (opt-in):** add `--preparation-dir PATH` to the
 MCP server and run the separate `auto-app-agent prepare-worker
@@ -394,14 +396,20 @@ forms. Only allowed profile fields are exported; passwords are never accepted. D
 calendar day (the host's zone, or `timezone` in `handoff.json`), 3 per company in 30 days, a 30-minute lease and a
 24-hour hold for a filled form that waits for the user's go (`hold_hours`); the server's runtime has used
 `"daily_submissions": 200` since 2026-11-17. `held` lists the forms waiting for that go, oldest first, so the user can
-approve them together. An agent can hand open questions back (`questions`), and the job waits until the owner's
+approve them together; `release` on a held form puts it back to `queued` and clears the hold note (local fix,
+2026-11-17, not deployed yet). An agent can hand open questions back (`questions`), and the job waits until the owner's
 `answers-ready`. The published packages in `apply-kit/` (the runtime's sibling folder, written by jd-resume-tailor's
 `apply_kit.py`) are read with no claim token: `jobq kit` / `jobq guide`, or MCP `get_application_file` /
 `get_apply_guide`.
 `company_groups` in `handoff.json` makes an employer's other names (e.g. "amazon web services" for "amazon") share
 its company limit. Runtime `config/handoff.json` overrides the
-[example](config/handoff.example.json). Network tools require authenticated `--handoff-tools`.
-[Contract and command mapping](docs/agent-handoff.md).
+[example](config/handoff.example.json). Streamable HTTP handoff requires `--handoff-tools`
+and either the Bearer configuration or `--allow-unauthenticated-loopback-handoff` on
+the exact `127.0.0.1` bind for Dot's private tunnel. The latter accepts the local Host and
+Origin and permits callers on Ubuntu that can reach the port. Dot's private 8767 listener has run it since
+2026-11-17 through the override `deploy/auto-app-agent.service.d/50-dot-loopback-handoff.conf`. The owner uses CLI `answers-ready`
+after publishing revised answers. [Handoff contract](docs/agent-handoff.md) ·
+[Dot rollout and acceptance](docs/dot-setup.md#option-c-private-handoff).
 
 ```bash
 uv run auto-app handoff queue --limit 20

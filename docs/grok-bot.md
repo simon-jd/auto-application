@@ -606,6 +606,15 @@ Grok Bot 的 Routine 可以定时运行同一段指示（[功能说明见调研�
 | `get_application_file(job_id, name)` | `jobq kit ID FILE` | `job_id`、`name`、`bytes`、`sha256`；`.json`、`.md`、`.txt` 带 `text`，`.pdf` 带 `base64` |
 | `get_apply_guide(which)` | `jobq guide` | `which` 是 `cheatsheet`（默认）或 `readme`；返回 `name` 和 `text` |
 
-现在 Dot 用的私有监听（8767 端口，经 OpenAI Secure MCP
-Tunnel）没有身份验证，而 `--handoff-tools` 要求身份验证，所以 Dot 还用不了这些工具。要接 Dots，得先决定怎么给那条通道加上身份验证；
-`answers-ready` 一直是你这一侧的步骤，不会出现在 MCP 里。
+Dot 的 8767 私有监听在 `127.0.0.1` 上用
+`--handoff-tools --allow-unauthenticated-loopback-handoff` 显式启用，2026-11-17 起已经开着
+（持久 override `deploy/auto-app-agent.service.d/50-dot-loopback-handoff.conf`）。看
+[部署和隔离验收清单](dot-setup.md#option-c-private-handoff)。Dot 用 `agent="dot"` 认领，
+批量复核只看这个 agent 的 `held`，用 MCP 从 Ubuntu 取材料。和 Grok 一样，Dot 不自己 want 或 skip 职位；
+已认领的职位要求 clearance、美国公民或 U.S. person 的，用 `record_application_attempt` 记 `skipped` 并写明原因。
+先按速查表规则 2 抓完开放题，没覆盖的开放题（选填的个人题除外，留空并报告）一次交回；答案逐字照抄，
+Dot 不自己写、改写回答，也不改简历和求职信。Claude Code 重新发布后，由 owner 侧用 `answers-ready` 放回队列。
+按规则 8 填完一个就 hold（保留 `hold_hours`，默认 24 小时），保留云端表单页，合并汇报身份字段、开放题全文和上传文件的校验结果。
+还没验证过的：Dot 把取到的 PDF 传进网页表单，以及云端表单页留到 24 小时内再读；传不上去时 Skill 报错并释放认领。
+Dot 也还没填过真实表单、交回过题目或改动，也没提交过。
+[Dot Skill](../plugins/job-search/skills/job-search/SKILL.md) 有工具映射和重新认领步骤。

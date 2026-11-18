@@ -8,6 +8,8 @@ Bearer token and tunnel credentials have not been installed. Dependencies includ
 2.3.0 and checksum-verified cloudflared 2026.10.0. No public tunnel or Grok call has run.
 Use the [Linux connector setup checklist](linux-connectors-setup.md) to fill values on Linux
 and then choose activation. Grok's static Bearer compatibility remains unverified.
+Since 2026-11-17 the private service also runs `--handoff-tools --allow-unauthenticated-loopback-handoff`
+([record](updates/2026-11-17-dot-loopback-handoff.md)).
 
 **Historical state (2026-10-12):** the second listener and authentication had local code/tests;
 no Linux deployment, token installation, public tunnel or Grok connection had been attempted.
@@ -16,7 +18,7 @@ no Linux deployment, token installation, public tunnel or Grok connection had be
 
 | Listener | Intended client | Authentication | Network path |
 |---|---|---|---|
-| Existing `auto-app-agent.service`, port 8767 | Dot through the private outbound OpenAI tunnel | No MCP token; loopback bind only | Private tunnel; never publish this listener |
+| Existing `auto-app-agent.service`, port 8767 | Dot through the private outbound OpenAI tunnel | No MCP token; `127.0.0.1` bind; handoff tools on since 2026-11-17 via the owner's `--allow-unauthenticated-loopback-handoff` override | Private tunnel |
 | `auto-app-agent-public.service`, port 8769 | Grok or an explicitly configured personal agent | A mode-600 Bearer token file | Loopback bind behind one public HTTPS tunnel |
 
 Both use Streamable HTTP at `/mcp` and the same saved job database. The public listener
@@ -79,7 +81,8 @@ On 2026-10-14 the private backend was refreshed: its UI displays all 18 deployed
 as **Read 8 / Write 10**, and plugin 0.3.0 was uploaded and read back. Actual connected-cloud
 calls to `get_job_context`, `search_jobs` and `get_job` succeeded on the new code. The running
 Codex session still exposes its older six-tool catalog, so this does not establish that a new
-control tool has been called through the cloud. [Exact current inventory and boundaries](dot-setup.md#tools).
+control tool has been called through the cloud. [Tool inventory and boundaries](dot-setup.md#tools)
+(18 tools then; 30 with the handoff tools since 2026-11-17).
 
 `pause_pipeline` and `resume_pipeline` control the screening/enrichment/notification worker **and the bot's digest loop**; the repository and mailbox ingest worker keeps collecting on its own schedule. Pause can carry an ISO deadline. `get_pipeline_status` reports the two workers' recent state and source health without exposing credentials.
 
@@ -93,12 +96,18 @@ manual status recording. `get_job` returns its timeline. With `--control-tools`,
 exposes `list_unmatched_updates`, `assign_update(update_id, job_id)` and `dismiss_update(update_id)`.
 Only explicit owner review assigns ambiguous mail. [Tracking contract](application-tracking.md).
 
-Application handoff is separately opt-in via `--handoff-tools`. The CLI rejects this flag unless
-`--auth-token-file` and `--public-url` are supplied together with Streamable HTTP. The existing private
-unauthenticated Dot listener does not gain handoff tools. The flag publishes queue, claim, token-gated
-packet, reported attempt, release, account metadata and resume registration; it does not execute an
-agent or submit forms. There is no MCP requeue tool; the owner uses CLI `handoff requeue`.
-[Handoff contract and exact mapping](agent-handoff.md).
+Application handoff is separately enabled with `--handoff-tools` over Streamable HTTP.
+Use `--auth-token-file` and `--public-url` together for the authenticated listener. For Dot's
+private listener, `--allow-unauthenticated-loopback-handoff` is a distinct opt-in available
+only on `127.0.0.1` with no MCP auth flags. It validates `Host: 127.0.0.1:<port>` and
+allows an absent Origin or `http://127.0.0.1:<port>`. The local processes that can reach
+that listener can invoke its tools. The existing 8767 unit needs the owner's explicit
+override, versioned as [`deploy/auto-app-agent.service.d/50-dot-loopback-handoff.conf`](../deploy/auto-app-agent.service.d/50-dot-loopback-handoff.conf)
+and installed on home-ubuntu since 2026-11-17. Follow the [private setup and fictional acceptance](dot-setup.md#option-c-private-handoff).
+
+The [handoff contract](agent-handoff.md) lists the queue, claims, packets, published materials,
+open questions, holds and reported outcomes. The owner requeues a job or marks its answers
+ready through the CLI.
 
 ```bash
 # Configuration example only; owner chooses activation/network exposure separately.

@@ -96,8 +96,8 @@ def _environment():
 
 
 @asynccontextmanager
-async def _session(transport, path, tmp_path):
-    args = ["-m", "auto_app.agent.cli", "serve", "--db", str(path), "--transport", transport]
+async def _session(transport, path, tmp_path, *, serve_args=()):
+    args = ["-m", "auto_app.agent.cli", "serve", "--db", str(path), "--transport", transport, *serve_args]
     if transport == "stdio":
         params = StdioServerParameters(command=sys.executable, args=args, env=_environment(), cwd=tmp_path)
         async with stdio_client(params) as (reader, writer):
