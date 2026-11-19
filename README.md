@@ -129,7 +129,7 @@ Other configuration remains separate: `config/searches.yaml` controls website se
 
 ## Repository feeds and email recommendations
 
-The ingestion commands add repository listings and exported `.eml` recommendations to the same job library. Supported repository formats are `simplify` (default), `speedyapply`, `applyguy`, `ricsign` and `jobright`, plus the employer boards `greenhouse-board`, `lever-board`, `ashby-board`, `workday-board`, `eightfold-board`, `icims-jibe-board`, `oracle-board` and `smartrecruiters-board` ([Employer boards](#employer-boards)). The four after `simplify` use explicit provider adapters, not a generic GitHub README parser. The example config includes two Simplify feeds plus eight feeds for SpeedyApply's US SWE/AI internship/new-grad tables, ApplyGuy, Ricsign and Jobright's SWE new-grad/internship tables.
+The ingestion commands add repository listings and exported `.eml` recommendations to the same job library. Any feed may set `every_hours` (above 0, at most 168) to be read at most that often; such feeds share a budget of 40 reads per round, most overdue first, which is how long-tail employer boards are added ([2026-11-18](docs/updates/2026-11-18-workday-pacing.md)). Supported repository formats are `simplify` (default), `speedyapply`, `applyguy`, `ricsign` and `jobright`, plus the employer boards `greenhouse-board`, `lever-board`, `ashby-board`, `workday-board`, `eightfold-board`, `icims-jibe-board`, `oracle-board` and `smartrecruiters-board` ([Employer boards](#employer-boards)). The four after `simplify` use explicit provider adapters, not a generic GitHub README parser. The example config includes two Simplify feeds plus eight feeds for SpeedyApply's US SWE/AI internship/new-grad tables, ApplyGuy, Ricsign and Jobright's SWE new-grad/internship tables.
 
 ```bash
 cp config/feeds.example.yaml config/feeds.yaml
@@ -237,7 +237,9 @@ uv run auto-app worker boards --yaml --top 30
 **Workday career sites** (`*.myworkdayjobs.com`: GM, NVIDIA, Intel, Aptiv, Cisco …) use `format: workday-board`
 with the careers URL as `location` and a required `company`. Optional `search` (a text or a list, one Workday
 search each), `facets` (a facet's parameter or label → values as the site shows them) and `max_pages` (pages of
-20, default 25, at most 100) narrow it. The reader pauses one second between requests. The list has no JD:
+20, default 25, at most 100) narrow it. The reader pauses three seconds between requests. Workday sites take turns
+(2026-11-18): a feed round reads one, the most overdue, each at most every two hours, and a site that answered
+HTTP 429 waits out `Retry-After` or a 1–12 hour backoff ([pacing](docs/updates/2026-11-18-workday-pacing.md)). The list has no JD:
 the worker's enrichment reads it for the postings screening keeps. A search that ends before Workday's total,
 or at the page cap, imports what it read as a partial snapshot and closes nothing. Workday lists at most
 2000 results, so narrow large employers with facets.

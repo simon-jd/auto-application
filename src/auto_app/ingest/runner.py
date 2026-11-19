@@ -1,5 +1,6 @@
 """Retrieve and import repository snapshots and saved email messages."""
 
+from datetime import datetime, timedelta, timezone
 import glob
 from pathlib import Path
 import re
@@ -19,6 +20,16 @@ from auto_app.ingest.service import IngestService
 from auto_app.process.normalize import NORMALIZER_VERSION
 
 READ_ERRORS = (OSError, ValueError, httpx.HTTPError)
+# Workday sites share one service, which answers a burst from one address with HTTP 429 (all five boards, every
+# round, on 2026-11-18). So a round reads one Workday site, the most overdue; each at most every two hours; and a
+# site that answered 429 waits out Retry-After or a growing cool-down before its next turn.
+WORKDAY_FORMAT = "workday-board"
+WORKDAY_PER_ROUND = 1
+WORKDAY_GAP = timedelta(hours=2)
+MAX_EVERY_HOURS = 168  # a feed's every_hours: read at most once per this many hours (long-tail boards)
+EVERY_PER_ROUND = 40  # feeds with every_hours read per round, the most overdue first, so a big batch spreads out
+RATE_LIMIT_BACKOFF = (timedelta(hours=1), timedelta(hours=2), timedelta(hours=4), timedelta(hours=8),
+                      timedelta(hours=12))
 COUNTERS = ("records", "created", "updated", "unchanged", "restored", "inactive", "missing", "jobs_created",
             "skipped_internships")
 
@@ -111,9 +122,58 @@ def run_repository(store, source: str, location: str, client: httpx.Client | Non
 
 
 def _status(reports: list[dict]) -> str:
+    reports = [report for report in reports if report["status"] != "deferred"]  # waiting a turn is not a failure
     if not reports or all(report["status"] == "ok" for report in reports):
         return "ok"
     return "error" if all(report["status"] == "error" for report in reports) else "partial"
+
+
+def _moment(value):
+    if not value:
+        return None
+    try:
+        moment = datetime.fromisoformat(str(value))
+    except ValueError:
+        return None
+    return moment if moment.tzinfo else moment.replace(tzinfo=timezone.utc)
+
+
+def _workday_turn(store, sources: dict, now: datetime) -> set[str]:
+    """The Workday feeds read this round: the most overdue ones (never read first) that are due and not cooling
+    down after a 429, at most WORKDAY_PER_ROUND."""
+    waiting = []
+    for source, definition in sources.items():
+        if definition.get("format") != WORKDAY_FORMAT:
+            continue
+        run = store.source_health(source).get("ingest_run", {})
+        retry, last = _moment(run.get("retry_after")), _moment(run.get("last_run_at"))
+        if (retry and retry > now) or (last and now - last < WORKDAY_GAP):
+            continue
+        waiting.append((last or datetime.min.replace(tzinfo=timezone.utc), source))
+    return {source for _, source in sorted(waiting)[:WORKDAY_PER_ROUND]}
+
+
+def _interval_turn(store, sources: dict, now: datetime) -> tuple[set[str], set[str]]:
+    """(the every_hours feeds read this round, those due but waiting for a later round): due feeds, never read
+    first, then the longest unread, at most EVERY_PER_ROUND."""
+    due = []
+    for source, definition in sources.items():
+        every = definition.get("every_hours")
+        if every is None:
+            continue
+        last = _moment(store.source_health(source).get("ingest_run", {}).get("last_run_at"))
+        if last is None or now - last >= timedelta(hours=every):
+            due.append((last or datetime.min.replace(tzinfo=timezone.utc), source))
+    due.sort()
+    return {s for _, s in due[:EVERY_PER_ROUND]}, {s for _, s in due[EVERY_PER_ROUND:]}
+
+
+def _retry_after(exc: httpx.HTTPStatusError, count: int, now: datetime) -> datetime:
+    wait = RATE_LIMIT_BACKOFF[min(count, len(RATE_LIMIT_BACKOFF)) - 1]
+    header = exc.response.headers.get("Retry-After", "") if exc.response is not None else ""
+    if header.strip().isdigit():
+        wait = max(wait, timedelta(seconds=int(header.strip())))
+    return now + wait
 
 
 def run_email(store, source: str, paths: list[Path], *, skip_internships: bool = False) -> dict:
@@ -187,6 +247,9 @@ def load_feed_config(config_path: Path) -> dict[str, dict]:
         skip = definition.get("skip_internships", skip_default)
         if not isinstance(skip, bool):
             raise ValueError(f"{source}: skip_internships must be a boolean")
+        every = definition.get("every_hours", ...)
+        if every is not ... and (type(every) not in (int, float) or not 0 < every <= MAX_EVERY_HOURS):
+            raise ValueError(f"{source}: every_hours must be a number of hours above 0 and at most {MAX_EVERY_HOURS}")
         kind = definition.get("kind")
         if kind == "repository":
             format = definition.get("format", "simplify")
@@ -210,6 +273,8 @@ def load_feed_config(config_path: Path) -> dict[str, dict]:
                                "location": location, "skip_internships": skip}
             if options is not None:
                 sources[source]["options"] = options
+            if every is not ...:
+                sources[source]["every_hours"] = every
         elif kind == "email":
             paths = definition.get("paths")
             if not isinstance(paths, list) or not paths or any(not isinstance(p, str) or not p.strip() for p in paths):
@@ -227,11 +292,31 @@ def load_feed_config(config_path: Path) -> dict[str, dict]:
     return sources
 
 
-def run_config(store, config_path: Path, client: httpx.Client | None = None) -> dict:
+def run_config(store, config_path: Path, client: httpx.Client | None = None, now: datetime | None = None) -> dict:
+    """One round over every feed. Workday feeds take turns (WORKDAY_PER_ROUND, WORKDAY_GAP, cool-down after 429);
+    a feed that waits its turn is reported as deferred and keeps its health as it was."""
     sources = load_feed_config(config_path)
+    now = now or utcnow()
+    now = now if now.tzinfo else now.replace(tzinfo=timezone.utc)
+    turn = _workday_turn(store, sources, now)
+    interval_turn, interval_waiting = _interval_turn(store, sources, now)
     reports = {}
     for source, definition in sources.items():
-        started = utcnow().isoformat()
+        every = definition.get("every_hours")
+        if every is not None and source not in interval_turn:
+            last = _moment(store.source_health(source).get("ingest_run", {}).get("last_run_at"))
+            why = (f"due, waiting its turn: at most {EVERY_PER_ROUND} every_hours feeds per round"
+                   if source in interval_waiting else
+                   f"read every {every:g} hours (every_hours); last read {last.isoformat() if last else 'never'}")
+            reports[source] = {"source": source, "kind": definition["kind"], "status": "deferred", "reason": why}
+            continue
+        if definition.get("format") == WORKDAY_FORMAT and source not in turn:
+            reports[source] = {"source": source, "kind": definition["kind"], "status": "deferred",
+                               "reason": "waiting its turn: one Workday site per round, each at most every two "
+                                         "hours, and a site that answered 429 waits out its cool-down"}
+            continue
+        started = now.isoformat()
+        rate_limited = None
         try:
             if definition["kind"] == "repository":
                 report = run_repository(store, source, definition["location"], client=client,
@@ -247,6 +332,12 @@ def run_config(store, config_path: Path, client: httpx.Client | None = None) -> 
                     # Preserve unmatched patterns so they become explicit file errors.
                     paths.extend(Path(p) for p in (sorted(glob.glob(pattern, recursive=True)) or [pattern]))
                 report = run_email(store, source, paths, skip_internships=definition["skip_internships"])
+        except httpx.HTTPStatusError as exc:
+            if exc.response is not None and exc.response.status_code == 429:
+                rate_limited = exc
+                report = {"source": source, "kind": definition["kind"], "status": "rate_limited", "error": str(exc)}
+            else:
+                report = {"source": source, "kind": definition["kind"], "status": "error", "error": str(exc)}
         except READ_ERRORS as exc:
             report = {"source": source, "kind": definition["kind"], "status": "error", "error": str(exc)}
         reports[source] = report
@@ -258,6 +349,14 @@ def run_config(store, config_path: Path, client: httpx.Client | None = None) -> 
                                           "messages_pending", "messages_deferred")
                if key in report},
         }
+        if rate_limited is not None:
+            count = previous.get("rate_limited_count", 0) + 1
+            progress.update(rate_limited_count=count, retry_after=_retry_after(rate_limited, count, now).isoformat())
+            report["retry_after"] = progress["retry_after"]
+        elif report["status"] == "ok":
+            progress["rate_limited_count"] = 0
+        elif previous.get("rate_limited_count"):
+            progress["rate_limited_count"] = previous["rate_limited_count"]
         if report.get("error"):
             progress["error"] = report["error"]
         elif report["status"] != "ok":

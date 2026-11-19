@@ -2,7 +2,7 @@
 
 from collections import Counter, defaultdict
 import re
-from urllib.parse import quote
+from urllib.parse import quote, unquote
 
 from sqlalchemy import select
 import yaml
@@ -26,7 +26,14 @@ def board_location(platform: str, board: str) -> str:
     return LIST_APIS[platform].format(board=quote(board, safe=".-_"))
 
 
+def _same(location) -> str:
+    """A board location compared without letter case, percent-encoding or a trailing slash: a feed configured as
+    ".../job-board/Roadrunner" is the board "roadrunner"."""
+    return unquote(str(location)).strip().lower().rstrip("/")
+
+
 def suggest_boards(store, *, configured: set[str], top: int = 30, min_jobs: int = 2) -> list[dict]:
+    known = {_same(location) for location in configured}
     p, j, s = T.postings, T.jobs, T.job_screenings
     visible = {job["job_id"] for job in store.jobs(include_excluded=False)}
     query = (select(p.c.apply_url, p.c.company, j.c.job_id, s.c.signals)
@@ -66,7 +73,7 @@ def suggest_boards(store, *, configured: set[str], top: int = 30, min_jobs: int 
                     "location": location, "format": FORMATS[platform],
                     "source": re.sub(r"[^a-z0-9_-]+", "-", f"board-{platform}-{board}".lower()).strip("-")
                               + ("-eu" if location.startswith("https://api.eu.lever.co/") else ""),
-                    "configured": location in configured})
+                    "configured": _same(location) in known})
     out.sort(key=lambda b: (b["sponsoring_jobs"], b["kept_jobs"], b["board"], b["platform"]), reverse=True)
     return out[:top]
 

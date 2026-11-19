@@ -33,7 +33,7 @@ PAGE_SIZE = 20  # Workday answers a larger limit with HTTP 400
 RESULT_CAP = 2000  # Workday lists no further, whatever the total
 MAX_PAGES = RESULT_CAP // PAGE_SIZE
 DEFAULT_MAX_PAGES = 25
-PAUSE_SECONDS = 1.0  # between two requests to the same site
+PAUSE_SECONDS = 3.0  # between two requests to the same site (Workday rate-limits a burst: 429, 2026-11-18)
 OPTION_KEYS = ("search", "facets", "max_pages")
 USAGE = "the careers URL https://<tenant>.wd<N>.myworkdayjobs.com/<site>"
 

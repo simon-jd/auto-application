@@ -6,7 +6,7 @@ keeps three of GM's facets, its nested Locations group cut to four values.
 """
 
 import json
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 import httpx
@@ -26,6 +26,7 @@ GM_API = "https://generalmotors.wd5.myworkdayjobs.com/wday/cxs/generalmotors/Car
 CISCO = "https://cisco.wd5.myworkdayjobs.com/Cisco_Careers"
 US = "bc33aa3152ec42d4995f4791a106ed09"
 TODAY = date(2026, 11, 6)
+MOMENT = datetime(2026, 11, 6, 12, 0, tzinfo=timezone.utc)
 
 
 def fixture(name):
@@ -254,14 +255,15 @@ def test_config_import_closes_only_after_a_complete_read(tmp_path):
     shrunk = {**fixture("gm_firmware_us_p0"), "total": 20}  # the 21st posting has closed
     try:
         with httpx.Client(transport=httpx.MockTransport(Board())) as client:
-            first = run_config(store, path, client=client)["sources"]["board-workday-gm"]
+            first = run_config(store, path, client=client, now=MOMENT)["sources"]["board-workday-gm"]
         assert first["status"] == "ok" and first["created"] == 21 and first["format"] == "workday-board"
         assert store.source_health("board-workday-gm")["ingest"]["location"] == GM
         with httpx.Client(transport=httpx.MockTransport(Board({0: fixture("gm_firmware_us_p0")}))) as client:
-            partial = run_config(store, path, client=client)["sources"]["board-workday-gm"]
+            # Each read is a later turn: a Workday site is read at most every two hours (runner.WORKDAY_GAP).
+            partial = run_config(store, path, client=client, now=MOMENT + timedelta(hours=3))["sources"]["board-workday-gm"]
         assert partial["status"] == "partial" and partial["missing"] == 0
         with httpx.Client(transport=httpx.MockTransport(Board({0: shrunk}))) as client:
-            complete = run_config(store, path, client=client)["sources"]["board-workday-gm"]
+            complete = run_config(store, path, client=client, now=MOMENT + timedelta(hours=6))["sources"]["board-workday-gm"]
         assert complete["status"] == "ok" and complete["missing"] == 1
         assert {j["company"] for j in store.jobs()} == {"GM"}
     finally:

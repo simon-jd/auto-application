@@ -374,7 +374,9 @@ malformed rows keeps earlier absent records for retry instead of treating them a
 **Workday** (`format: workday-board`, 2026-11-06): `location` is the careers URL
 `https://<tenant>.wd<N>.myworkdayjobs.com/<site>`, `company` is required, and optional `search` (one Workday
 search per text), `facets` (parameter or label → values as the site shows them) and `max_pages` (pages of 20,
-default 25, at most 100) narrow it. Every run POSTs each page with a one-second pause between requests. The
+default 25, at most 100) narrow it. A run POSTs each page with a three-second pause between requests, and Workday
+sites take turns: one per feed round, each at most every two hours, with a cool-down after HTTP 429
+([pacing](updates/2026-11-18-workday-pacing.md)). The
 list has no JD, so imported postings are pending. This worker's screen step judges their titles and
 locations, and its enrich step reads the CXS detail endpoint for each posting kept, within the round's
 request budget. A search that falls short of Workday's total, at the page cap or Workday's 2000-result cap, is a

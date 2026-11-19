@@ -134,3 +134,11 @@ def test_boards_with_dotted_or_spaced_ashby_names_do_not_crash_suggestions(store
         "https://api.ashbyhq.com/posting-api/job-board/spectral%20labs?includeCompensation=true")
     data = yaml.safe_load("sources:\n" + as_yaml(list(boards.values())))
     assert data["sources"]["board-ashby-spectral-labs"]["format"] == "ashby-board"
+
+
+def test_a_board_configured_with_other_letter_case_or_encoding_counts_as_configured(store):
+    # board-ashby-roadrunner was configured as ".../job-board/Roadrunner"; the suggestion listed "roadrunner" as new.
+    from auto_app.worker.boards import suggest_boards
+    boards = suggest_boards(store, configured={"https://boards-api.greenhouse.io/v1/boards/ACME/jobs?content=true/"},
+                            top=10, min_jobs=2)
+    assert [(b["board"], b["configured"]) for b in boards] == [("acme", True)]
