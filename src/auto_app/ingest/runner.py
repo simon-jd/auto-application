@@ -1,7 +1,9 @@
 """Retrieve and import repository snapshots and saved email messages."""
 
+from collections import Counter
 from datetime import datetime, timedelta, timezone
 import glob
+import hashlib
 from pathlib import Path
 import re
 from urllib.parse import urlparse
@@ -51,6 +53,44 @@ def resolve_location(location: str, base: Path | None = None) -> str:
     if not path.is_absolute() and base is not None:
         path = base / path
     return str(path.resolve())
+
+
+def run_incremental(store, source: str, pattern: str, *, format: str = "simplify", company: str | None = None,
+                    skip_internships: bool = False) -> dict:
+    """An incremental feed (Grok's daily files of new listings): every file matching `pattern` that is new or changed
+    since the last run is imported as an incomplete snapshot, so a posting a later file leaves out is never marked
+    missing; postings age out by the library's TTL instead. A file that fails is reported and read again next run."""
+    validate_repository_format(format)
+    previous = _check_kind(store, source, "repository")
+    seen = dict(previous.get("files") or {}) if previous.get("incremental") else {}
+    service = IngestService(store)
+    totals, issues, files, read = Counter(), [], {}, 0
+    for name in sorted(glob.glob(pattern)):
+        try:
+            data = Path(name).read_bytes()
+        except OSError as exc:
+            issues.append({"file": name, "reason": f"unreadable ({type(exc).__name__})"})
+            continue
+        revision = "sha256:" + hashlib.sha256(data).hexdigest()
+        if seen.get(name) == revision:
+            files[name] = revision
+            continue
+        try:
+            parsed = parse_repository(data, format=format, company=company)
+            report = service.ingest(source, parsed, kind="repository", origin=name, revision=revision,
+                                    complete_snapshot=False, skip_internships=skip_internships)
+        except ValueError as exc:
+            issues.append({"file": name, "reason": str(exc)[:300]})
+            continue
+        files[name], read = revision, read + 1
+        for key in COUNTERS:
+            totals[key] += report.get(key, 0) or 0
+        issues += [{"file": name, **issue} for issue in (parsed.issues or []) if isinstance(issue, dict)]
+    store.update_health(source, ingest={"kind": "repository", "location": pattern, "format": format,
+                                        "company": company, "incremental": True, "files": files})
+    return {"source": source, "kind": "repository", "origin": pattern, "format": format, "incremental": True,
+            "files_read": read, **{key: totals[key] for key in COUNTERS}, "issues": issues[:20],
+            "status": "partial" if issues else "ok"}
 
 
 def _check_kind(store, source: str, kind: str) -> dict:
@@ -254,6 +294,14 @@ def load_feed_config(config_path: Path) -> dict[str, dict]:
         if kind == "repository":
             format = definition.get("format", "simplify")
             validate_repository_format(format)
+            incremental = definition.get("incremental", False)
+            if not isinstance(incremental, bool):
+                raise ValueError(f"{source}: incremental must be true or false")
+            if incremental and format != "simplify":
+                raise ValueError(f"{source}: incremental feeds use format simplify (Grok's daily files)")
+            if incremental and urlparse(str(definition.get("location") or "")).scheme:
+                raise ValueError(f"{source}: an incremental feed reads local files; location must be a local file "
+                                 "pattern such as /home/grokbot/feeds/linkedin/*.json")
             company = definition.get("company")
             if company is not None and (not isinstance(company, str) or not company.strip()):
                 raise ValueError(f"{source}: company must be a nonempty string")
@@ -275,6 +323,8 @@ def load_feed_config(config_path: Path) -> dict[str, dict]:
                 sources[source]["options"] = options
             if every is not ...:
                 sources[source]["every_hours"] = every
+            if incremental:
+                sources[source]["incremental"] = True
         elif kind == "email":
             paths = definition.get("paths")
             if not isinstance(paths, list) or not paths or any(not isinstance(p, str) or not p.strip() for p in paths):
@@ -318,7 +368,11 @@ def run_config(store, config_path: Path, client: httpx.Client | None = None, now
         started = now.isoformat()
         rate_limited = None
         try:
-            if definition["kind"] == "repository":
+            if definition["kind"] == "repository" and definition.get("incremental"):
+                report = run_incremental(store, source, definition["location"], format=definition["format"],
+                                         company=definition.get("company"),
+                                         skip_internships=definition["skip_internships"])
+            elif definition["kind"] == "repository":
                 report = run_repository(store, source, definition["location"], client=client,
                                         format=definition["format"], company=definition.get("company"),
                                         skip_internships=definition["skip_internships"],

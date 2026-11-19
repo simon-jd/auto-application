@@ -475,6 +475,26 @@ owner_questions = Table(  # what Claude needs the owner to decide, posted to Dis
     Column("reported_at", Ts),  # the bot posted handled_note under the question
 )
 
+board_proposals = Table(  # unconnected employer boards offered to the owner on Discord, weekly
+    "board_proposals", metadata,
+    Column("proposal_id", Integer, primary_key=True, autoincrement=True),
+    Column("platform", String, nullable=False),  # greenhouse | ashby | lever
+    Column("board", String, nullable=False),
+    Column("company", Text),
+    Column("location", Text, nullable=False),  # the board's list API, as a feed's location
+    Column("kept_jobs", Integer, nullable=False),
+    Column("applied", Integer, nullable=False),
+    Column("wanted", Integer, nullable=False),
+    Column("skipped", Integer, nullable=False),
+    Column("examples", JSON, nullable=False),  # a few kept job titles on the board
+    Column("created_at", Ts, nullable=False),
+    Column("posted_at", Ts),
+    Column("message_id", String),
+    Column("decision", String),  # added | skipped
+    Column("decided_at", Ts),
+    Column("feed", String),  # the feed name added to feeds.yaml
+)
+
 resume_artifacts = Table(
     'resume_artifacts', metadata,
     Column('artifact_id', Integer, primary_key=True, autoincrement=True),

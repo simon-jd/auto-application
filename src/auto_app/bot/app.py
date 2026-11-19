@@ -10,6 +10,9 @@ from discord.ext import tasks
 
 from auto_app.bot.actions import (
     BUTTONS,
+    board_custom_id,
+    board_proposal_action,
+    board_proposal_embed,
     ask_action,
     ask_custom_id,
     ask_embed,
@@ -168,6 +171,31 @@ async def _close_controls(interaction, close: bool) -> None:
             pass
 
 
+class BoardButton(discord.ui.DynamicItem[discord.ui.Button],
+                  template=r"bp:(?P<proposal>[1-9][0-9]{0,11}):(?P<action>add|skip)"):
+    def __init__(self, proposal_id: int, action: str):
+        super().__init__(discord.ui.Button(
+            label="加入（每 6 小时）" if action == "add" else "不加",
+            style=discord.ButtonStyle.success if action == "add" else discord.ButtonStyle.secondary,
+            custom_id=board_custom_id(proposal_id, action)))
+        self.proposal_id, self.action = proposal_id, action
+
+    @classmethod
+    async def from_custom_id(cls, interaction, item, match):
+        return cls(int(match["proposal"]), match["action"])
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        settings = interaction.client.settings
+        if not _owner(interaction, settings):
+            await interaction.response.send_message("Owner only in the configured server.", ephemeral=True)
+            return
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        result = await asyncio.to_thread(board_proposal_action, settings.db_path, interaction.user.id,
+                                         settings.owner_id, self.proposal_id, self.action)
+        await interaction.followup.send(result.message, ephemeral=True, allowed_mentions=discord.AllowedMentions.none())
+        await _close_controls(interaction, result.remove_buttons)
+
+
 class JobButton(discord.ui.DynamicItem[discord.ui.Button],
                 template=r"job:(?P<job>[1-9][0-9]{0,11}):(?P<action>want|skip|applied|bad)"):
     def __init__(self, job_id: int, action: str, row: int | None = None):
@@ -204,14 +232,14 @@ class JobBot(discord.Client):
         _commands(self)
 
     async def setup_hook(self) -> None:
-        self.add_dynamic_items(JobButton, ProposalButton, AskButton)
+        self.add_dynamic_items(JobButton, ProposalButton, AskButton, BoardButton)
         await self.tree.sync(guild=self.target_guild)
         self.digest.start()
 
     @tasks.loop(minutes=5)
     async def digest(self) -> None:
         for deliver in (self.post_digest, self.post_handoff_updates, self.post_screening_updates,
-                        self.post_owner_questions):
+                        self.post_owner_questions, self.post_board_proposals):
             try:
                 await deliver()
             except Exception:  # noqa: BLE001 - keep retrying; never log raw remote errors
@@ -249,6 +277,39 @@ class JobBot(discord.Client):
                 await channel.send(content=content, allowed_mentions=discord.AllowedMentions.none())
                 state["handoff_cursor"] = cursor
                 await asyncio.to_thread(_write_state, db, state, ".bot-state.json")
+
+    async def post_board_proposals(self) -> None:
+        """Once a week, pick unconnected employer boards (worker/board_proposals.py) and post each once, with Add and
+        Skip, in the questions channel (or the main one)."""
+        from auto_app.ingest.scheduler import _read_state, _write_state
+        from auto_app.worker.board_proposals import BoardProposals
+
+        db = self.settings.db_path
+        proposals = BoardProposals(db)
+
+        def plan():
+            state = _read_state(db, BOT_STATE)
+            now = utcnow()
+            if BoardProposals.due(state.get("board_proposals_at"), now):
+                proposals.generate(now=now)
+                state["board_proposals_at"] = now.isoformat()
+                _write_state(db, state, BOT_STATE)
+            return proposals.to_post()
+
+        items = await asyncio.to_thread(plan)
+        if not items:
+            return
+        channel_id = self.settings.questions_channel_id or self.settings.channel_id
+        channel = self.get_channel(channel_id) or await self.fetch_channel(channel_id)
+        if getattr(getattr(channel, "guild", None), "id", None) != self.settings.guild_id:
+            raise ValueError("Questions channel does not belong to the configured server")
+        for item in items:
+            view = discord.ui.View(timeout=None)
+            view.add_item(BoardButton(item["proposal_id"], "add"))
+            view.add_item(BoardButton(item["proposal_id"], "skip"))
+            message = await channel.send(embeds=[discord.Embed.from_dict(board_proposal_embed(item))], view=view,
+                                         allowed_mentions=discord.AllowedMentions.none())
+            await asyncio.to_thread(proposals.mark_posted, item["proposal_id"], str(message.id))
 
     async def post_owner_questions(self) -> None:
         """Claude's questions for the owner, each once, in the questions channel (or the main one), with buttons;

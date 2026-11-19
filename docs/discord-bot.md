@@ -135,3 +135,16 @@ When the bot first went live it worked through a month of backlog: notifications
 jobs first seen more than 3 days earlier were marked notified without being sent. They stay in the library
 (`/jobs`, `jobq search`). Their list is in `runtime/data/digest-cleared-20261118.json`; clearing `notified_at` for
 those IDs sends them again.
+
+## Weekly board proposals (2026-11-18)
+
+Once a week (`board_proposals_at` in `<db>.bot-state.json`) the bot picks up to 10 Greenhouse, Ashby and Lever boards
+that have kept jobs but no feed (`worker/board_proposals.py`).
+- **Ranking:** first by your applied and wanted jobs at the company, then by kept jobs.
+- **Left out:** boards proposed before; likely annotation, translation or staffing vendors; companies you skipped
+  twice and never wanted.
+- **The message:** each proposal is posted once, to the questions channel (or the main one). It shows the kept jobs,
+  your record there, a few titles, the board link, and the buttons **加入（每 6 小时）** and **不加**, owner only.
+- **加入:** a dated backup (`feeds.yaml.bak-before-board-proposals-YYYYMMDD`), then the feed with `every_hours: 6`
+  is appended. The new file is validated as the feed worker loads it and replaces the old one atomically.
+- **不加:** the board is never proposed again.

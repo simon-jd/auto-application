@@ -19,6 +19,7 @@ ENV = ("AUTO_APP_DISCORD_BOT_TOKEN", "AUTO_APP_DISCORD_OWNER_ID", "AUTO_APP_DISC
 # Optional: the channel for Claude's questions to the owner (without it they go to the main channel).
 OPTIONAL_ENV = ("AUTO_APP_DISCORD_QUESTIONS_CHANNEL_ID",)
 ASK_ID = re.compile(r"ask:([1-9][0-9]{0,11}):(opt[0-3]|reply|skip)")
+BOARD_ID = re.compile(r"bp:([1-9][0-9]{0,11}):(add|skip)")
 
 
 def custom_id(job_id: int, action: str) -> str:
@@ -330,3 +331,47 @@ def ask_action(db_path: Path, user_id: int, owner_id: int, question_id: int, act
     except (AskError, ValueError) as exc:
         return AskActionResult(f"没有记下：{exc}")
     return AskActionResult(f"已记下你的回复：{answer}。Claude 马上接着处理，做完会在这条消息下回复。", True)
+
+
+# ---- weekly board proposals (auto_app.worker.board_proposals) --------------------------------------------------
+
+def board_custom_id(proposal_id: int, action: str) -> str:
+    value = f"bp:{proposal_id}:{action}"
+    if type(proposal_id) is not int or not BOARD_ID.fullmatch(value):
+        raise ValueError("Invalid board proposal button")
+    return value
+
+
+def parse_board_id(value: str) -> tuple[int, str] | None:
+    match = BOARD_ID.fullmatch(value) if isinstance(value, str) else None
+    return (int(match[1]), match[2]) if match else None
+
+
+def board_proposal_embed(item: dict) -> dict:
+    """One weekly board proposal: the company, its kept jobs, the owner's record there and a few titles."""
+    from auto_app.worker.board_proposals import EVERY_HOURS
+
+    lines = [f"通过筛选的职位 {item['kept_jobs']} 个；你在这家：投过 {item['applied']}，想投 {item['wanted']}，"
+             f"不投 {item['skipped']}。"]
+    if item.get("examples"):
+        lines.append("例如：" + "；".join(item["examples"]))
+    lines.append(f"加入后每 {EVERY_HOURS} 小时读一次这家的招聘板。它现有的职位不推送，只推之后新出现的。")
+    return {"title": f"新招聘板候选：{item.get('company') or item['board']}（{item['platform']}）"[:256],
+            "url": item["board_page"], "description": "\n".join(lines)[:4000],
+            "footer": {"text": f"board proposal #{item['proposal_id']} · {item['location']}"[:2048]}}
+
+
+def board_proposal_action(db_path: Path, user_id: int, owner_id: int, proposal_id: int,
+                          action: str) -> AskActionResult:
+    """The owner's Add / Skip on a board proposal."""
+    if user_id != owner_id:
+        return AskActionResult("Only the owner of this job search can add sources.")
+    from auto_app.worker.board_proposals import BoardProposalError, BoardProposals
+
+    try:
+        result = BoardProposals(db_path).decide(proposal_id, action)
+    except BoardProposalError as exc:
+        return AskActionResult(f"没有改动：{exc}")
+    if result["decision"] == "added":
+        return AskActionResult(f"已加入来源 {result['feed']}，下一轮采集开始读（每 6 小时一次）。", True)
+    return AskActionResult("不加。这个招聘板以后不会再推荐。", True)
