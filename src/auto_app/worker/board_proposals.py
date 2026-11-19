@@ -2,8 +2,8 @@
 
 Once a week the Discord bot picks up to LIMIT boards that have kept jobs but no feed. They are ranked by the owner's
 applied and wanted jobs at the company, then by kept jobs. Boards are left out when they were proposed before (added
-or skipped), look like data-annotation, translation or staffing vendors, or belong to companies the owner skipped
-twice and never wanted. "Add" appends a feed to the runtime's feeds.yaml with `every_hours: EVERY_HOURS`, after a
+or skipped), look like data-annotation, translation or staffing vendors (by name, or on the VENDOR_BOARDS list),
+or belong to companies the owner skipped twice and never wanted. "Add" appends a feed to the runtime's feeds.yaml with `every_hours: EVERY_HOURS`, after a
 dated backup and a validation of the new file as the feed worker would load it. The new file replaces the old one
 atomically, and the feed worker reads it at its next round. Nothing is added without the owner's click, and no
 model is involved.
@@ -34,6 +34,12 @@ BOARD_PAGES = {"greenhouse": "https://job-boards.greenhouse.io/{board}", "ashby"
 APPLY_HOSTS = {"greenhouse": "greenhouse.io", "ashby": "ashbyhq.com", "lever": "lever.co"}
 VENDOR = re.compile(r"\b(?:annotation|data\s+label\w*|translation|localization|staffing|outsourc\w*|"
                     r"talent\s+solutions|recruit\w*)\b", re.I)
+# Vendors whose names say nothing about it: AI-training, data and language work the owner left out of the long-tail
+# boards on 2026-11-18, yet proposed in the first week (2026-11-19). Matched by board or by company name.
+VENDOR_BOARDS = {("lever", "tsmg"), ("greenhouse", "innodatainc"), ("lever", "rws"), ("lever", "weloglobal"),
+                 ("greenhouse", "agency"), ("greenhouse", "prolificacademicltd")}
+VENDOR_COMPANIES = re.compile(r"(?:tsmg|innodata|rws|welo(?:\s+global)?|invisible\s+technologies|prolific)"
+                              r"(?:\s*,?\s*(?:inc|ltd|llc|plc|holdings?|group)\.?)*", re.I)
 EXAMPLES = 3
 
 
@@ -50,6 +56,12 @@ def _aware(value):
 
 def _same(location) -> str:
     return unquote(str(location)).strip().lower().rstrip("/")
+
+
+def _vendor(board: dict) -> bool:
+    company = (board.get("company") or "").strip()
+    return bool(VENDOR.search(company) or VENDOR_COMPANIES.fullmatch(company)
+                or (board["platform"], str(board["board"]).lower()) in VENDOR_BOARDS)
 
 
 class BoardProposals:
@@ -103,7 +115,7 @@ class BoardProposals:
             candidates = []
             for board in boards:
                 if board["platform"] not in PLATFORMS or board.get("configured") or _same(board["location"]) in configured \
-                        or _same(board["location"]) in proposed or VENDOR.search(board.get("company") or ""):
+                        or _same(board["location"]) in proposed or _vendor(board):
                     continue
                 seen = decisions.get((board.get("company") or "").lower(), Counter())
                 if seen["not_applied"] >= 2 and not seen["applied"] and not seen["want_to_apply"]:

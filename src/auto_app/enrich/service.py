@@ -17,6 +17,15 @@ candidate set and is not revisited. A refresh that fails or reports the
 listing gone keeps the stored description and its real fetched_at, and only moves
 the next attempt: losing a good JD to a transient error or a bot block is worse
 than serving an old one, whose age stays visible in extras.enrichment.
+
+Workday is read gently. Its job lists carry no description, so every kept Workday
+job needs a request of its own, and Workday blocks the address after a burst: on
+2026-11-19, 117 Workday reads were refused with HTTP 403, from dozens of tenants. So a round reads at most WORKDAY_REQUESTS Workday jobs (three seconds
+apart, in Fetcher), stops reading Workday at the first 403 or 429, and waits out
+the cool-down it shares with the feed worker (platforms/workday_guard.py). Workday
+jobs held back are counted in workday_deferred and stay pending. A blocked job's
+own retry waits until after the cool-down, so the jobs that were not blocked go
+first: one listing that is always refused cannot keep Workday shut.
 """
 
 import copy
@@ -28,14 +37,20 @@ from sqlalchemy.dialects.sqlite import insert as upsert
 from auto_app.core.db import tables as T
 from auto_app.core.models import CommonPosting, utcnow
 from auto_app.enrich.targets import target_for
+from auto_app.platforms.workday_guard import BLOCKED, WorkdayGuard
 from auto_app.process.dedup import load_items
 from auto_app.process.link import refresh_job_projection
-from auto_app.process.normalize import CompanyAliases, normalize_posting, pending_enrichment
+from auto_app.process.normalize import (
+    CompanyAliases,
+    normalize_posting,
+    pending_enrichment,
+)
 from auto_app.screen.store import PLACEHOLDER_TITLE, chunks
 from auto_app.sources.registry import default_registry
 
 PENDING = func.coalesce(func.json_extract(T.postings.c.parsed, "$.extras.ingestion.enrichment_status"), "") == "pending"
 ENRICHED = func.json_extract(T.postings.c.parsed, "$.extras.enrichment.url").is_not(None)
+WORKDAY_REQUESTS = 10  # Workday requests per round
 FIELDS = {"title", "locations", "employment_type", "workplace_type", "salary", "req_id", "description_text",
           "description_html"}
 CACHE_MAX_AGE = timedelta(days=14)  # how long a fetched description is served before it is fetched again
@@ -157,7 +172,9 @@ def enrich_jobs(store, fetcher, *, limit: int = 200, now: datetime | None = None
     now = _aware(now or utcnow())
     limit = max(0, min(200, limit))
     report = dict.fromkeys(("candidates", "fetched", "ok", "gone", "failed", "unsupported", "from_cache",
-                            "waiting", "skipped_limit", "jobs_enriched", "refreshed", "refresh_kept"), 0)
+                            "waiting", "skipped_limit", "jobs_enriched", "refreshed", "refresh_kept",
+                            "workday_deferred"), 0)
+    report["workday_cooling_until"] = None
     rows = candidates(store)
     report["candidates"] = len(rows)
     if not rows:
@@ -166,6 +183,8 @@ def enrich_jobs(store, fetcher, *, limit: int = 200, now: datetime | None = None
     aliases = CompanyAliases(registry.companies(), store.load_aliases())
     cache = _cache(store, {r["apply_url"] for r in rows})
     touched: set[int] = set()
+    guard = WorkdayGuard.beside(store.db_path) if getattr(store, "db_path", None) else None
+    workday_used, workday_until = 0, None
     for row in rows:
         url = row["apply_url"]
         cached = cache.get(url)
@@ -193,6 +212,12 @@ def enrich_jobs(store, fetcher, *, limit: int = 200, now: datetime | None = None
             cache[url] = _save(store, url, None, "unsupported", now, error="no public job API for this link")
             report["unsupported"] += 1
             continue
+        workday = target.platform == "workday"
+        if workday and guard is not None and workday_until is None and workday_used < WORKDAY_REQUESTS:
+            workday_until = guard.cooling_until(now)  # read each time: the feed worker may have been refused
+        if workday and (workday_until is not None or workday_used >= WORKDAY_REQUESTS):
+            report["workday_deferred"] += 1
+            continue
         counted = isinstance(getattr(fetcher, "request_count", None), int) and callable(getattr(fetcher, "request_needed", None))
         cost = fetcher.request_needed(target) if counted else 1
         if report["fetched"] + cost > limit:
@@ -200,7 +225,16 @@ def enrich_jobs(store, fetcher, *, limit: int = 200, now: datetime | None = None
             continue
         before = fetcher.request_count if counted else 0
         result = fetcher.fetch(target)
-        report["fetched"] += fetcher.request_count - before if counted else 1
+        spent = fetcher.request_count - before if counted else 1
+        report["fetched"] += spent
+        retry_from = now
+        if workday:
+            workday_used += spent
+            if getattr(result, "http_status", None) in BLOCKED and guard is not None:
+                workday_until = retry_from = guard.strike(now, status=result.http_status, by="enrich",
+                                                          retry_after=getattr(result, "retry_after", None))
+            elif result.status == "ok" and guard is not None:
+                guard.clear(started=now)
         if result.status == "ok" and isinstance(result.posting, CommonPosting):
             if not result.posting.description_text.strip():
                 cache[url] = _save(store, url, target.platform, "unsupported", now,
@@ -231,14 +265,14 @@ def enrich_jobs(store, fetcher, *, limit: int = 200, now: datetime | None = None
                 # Keep the stored success and its real age; only the next attempt moves.
                 cache[url] = _save(store, url, cached["platform"], "ok", now, data=cached["data"],
                                    error=result.error or "refresh failed", attempts=attempts,
-                                   next_attempt_at=now + wait, fetched_at=cached["fetched_at"])
+                                   next_attempt_at=retry_from + wait, fetched_at=cached["fetched_at"])
                 if (job := _write_back(store, aliases, row["posting_id"], cache[url])) is not None:
                     touched.add(job)
                 report["refresh_kept"] += 1
             else:
                 cache[url] = _save(store, url, target.platform, "failed", now,
                                    error=result.error or "invalid fetch result",
-                                   attempts=attempts, next_attempt_at=now + wait)
+                                   attempts=attempts, next_attempt_at=retry_from + wait)
                 report["failed"] += 1
     if touched:
         # Acquire the write lock before reloading current evidence so concurrent
@@ -252,4 +286,5 @@ def enrich_jobs(store, fetcher, *, limit: int = 200, now: datetime | None = None
                 store._tx.execute(update(T.postings).where(T.postings.c.job_id.in_(part),
                                   T.postings.c.state == "normalized", ENRICHED, ~PENDING).values(state="linked"))
     report["jobs_enriched"] = len(touched)
+    report["workday_cooling_until"] = workday_until.isoformat() if workday_until else None
     return report

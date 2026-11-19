@@ -9,6 +9,11 @@ from auto_app.settings import PROJECT_ROOT
 MIGRATIONS = PROJECT_ROOT / "migrations"
 
 
+# How long a connection waits for another writer's lock. Five seconds was too short: enrichment's projection
+# write and the feed worker's health writes collided twice on 2026-11-19 ("database is locked").
+BUSY_TIMEOUT_MS = 30_000
+
+
 def make_engine(db_path: Path, *, configure_journal: bool = True) -> Engine:
     """Create an engine; existing-database clients can retain its journal mode.
 
@@ -21,7 +26,7 @@ def make_engine(db_path: Path, *, configure_journal: bool = True) -> Engine:
     @event.listens_for(engine, "connect")
     def _pragmas(dbapi_conn, _):
         cur = dbapi_conn.cursor()
-        cur.execute("PRAGMA busy_timeout=5000")
+        cur.execute(f"PRAGMA busy_timeout={BUSY_TIMEOUT_MS}")
         if configure_journal:
             cur.execute("PRAGMA journal_mode=WAL")
         cur.execute("PRAGMA foreign_keys=ON")
@@ -49,7 +54,7 @@ def upgrade(engine: Engine) -> None:
         dbapi_conn.isolation_level = None  # the driver stops managing transactions; we BEGIN ourselves
         cur = dbapi_conn.cursor()
         cur.execute("PRAGMA foreign_keys=OFF")
-        cur.execute("PRAGMA busy_timeout=5000")
+        cur.execute(f"PRAGMA busy_timeout={BUSY_TIMEOUT_MS}")
         cur.close()
 
     @event.listens_for(migrator, "begin")

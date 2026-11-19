@@ -1,5 +1,6 @@
 """Workday sites share one service and rate-limit a burst (HTTP 429 on 2026-11-18 for all five boards, every round):
-one Workday site per round, the most overdue first, at most once per two hours each, and a cool-down after a 429."""
+one Workday site per round, the most overdue first, at most once per two hours each, and a cool-down after a 429
+that holds every Workday site (tests/ingest/test_workday_guard.py)."""
 
 import json
 from datetime import datetime, timedelta, timezone
@@ -95,10 +96,13 @@ def test_a_429_cools_the_site_down_by_retry_after_or_a_growing_backoff(tmp_path)
         assert first["sources"][name]["status"] == "rate_limited" and first["status"] == "partial"
         health = store.source_health(name)["ingest_run"]
         assert health["retry_after"] == (T0 + timedelta(hours=2)).isoformat() and health["rate_limited_count"] == 1
-        # The other two get their turns; the limited site waits out its two hours.
+        # Workday blocks the address, so every Workday site waits out the two hours (workday_guard) ...
         later = [read_this_round(run(store, path, Sites(), T0 + timedelta(minutes=30 * k))) for k in (1, 2, 3)]
-        assert [n for turn in later for n in turn] == sorted(set(SITES) - {name})
-        assert read_this_round(run(store, path, Sites(), T0 + timedelta(minutes=125))) == [name]
+        assert later == [[], [], []]
+        # ... then the two never read go first, and the limited site after them.
+        after = [read_this_round(run(store, path, Sites(), T0 + timedelta(minutes=125 + 30 * k))) for k in (0, 1)]
+        assert sorted(n for turn in after for n in turn) == sorted(set(SITES) - {name})
+        assert read_this_round(run(store, path, Sites(), T0 + timedelta(minutes=185))) == [name]
         assert store.source_health(name)["ingest_run"]["rate_limited_count"] == 0  # a good read clears it
         assert "retry_after" not in store.source_health(name)["ingest_run"]
     finally:

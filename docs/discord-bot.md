@@ -141,7 +141,8 @@ those IDs sends them again.
 Once a week (`board_proposals_at` in `<db>.bot-state.json`) the bot picks up to 10 Greenhouse, Ashby and Lever boards
 that have kept jobs but no feed (`worker/board_proposals.py`).
 - **Ranking:** first by your applied and wanted jobs at the company, then by kept jobs.
-- **Left out:** boards proposed before; likely annotation, translation or staffing vendors; companies you skipped
+- **Left out:** boards proposed before; likely annotation, translation or staffing vendors, by name or on the
+  `VENDOR_BOARDS` list (TSMG, Innodata, RWS, Welo Global, Invisible Technologies, Prolific); companies you skipped
   twice and never wanted.
 - **The message:** each proposal is posted once, to the questions channel (or the main one). It shows the kept jobs,
   your record there, a few titles, the board link, and the buttons **加入（每 6 小时）** and **不加**, owner only.

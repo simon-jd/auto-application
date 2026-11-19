@@ -15,11 +15,15 @@ from auto_app.platforms.ashby import AshbySource
 from auto_app.platforms.greenhouse import GreenhouseSource
 from auto_app.platforms.lever import LeverSource
 from auto_app.platforms.workday import WorkdaySource
+from auto_app.platforms.workday_guard import retry_after_seconds
 from auto_app.sources.parsing import ParseError
 
 USER_AGENT = "auto-app/1 (personal job search; one request per job)"
 # Eightfold answers bursts with HTTP 429 (seen 2026-11-06): its tenants get two seconds between requests.
 PLATFORM_INTERVAL = {"eightfold": 2.0}
+# Workday blocks the address, not one tenant (HTTP 403 from dozens of tenants on 2026-11-19): any two Workday
+# requests are three seconds apart, whichever tenants they go to.
+PLATFORM_GAP = {"workday": 3.0}
 PARSERS = {"greenhouse": GreenhouseSource, "lever": LeverSource, "ashby": AshbySource, "workday": WorkdaySource}
 GONE = (404, 410)
 # prefix letters, a core starting with a digit (more digit/letter groups allowed), an optional 1–2 digit copy suffix
@@ -31,6 +35,8 @@ class FetchResult:
     status: str  # ok | gone | failed | unsupported (the site has no page of its own for this link)
     posting: CommonPosting | None = None
     error: str | None = None
+    http_status: int | None = None  # the status of a failed HTTP answer (403, 429 …)
+    retry_after: int | None = None  # its Retry-After, in seconds
 
 
 def _same_requisition(expected: str, found: str) -> bool:
@@ -87,18 +93,20 @@ class Fetcher:
         return int(not (target.platform == "ashby" and target.board in self._boards))
 
     def _get(self, url: str, params: dict | None = None, accept: str = "application/json",
-             interval: float = 0.0) -> httpx.Response:
-        host = urlsplit(url).hostname
-        if host in self._last:
-            wait = self._last[host] + max(self.min_interval, interval) - self.clock()
-            if wait > 0:
-                self.sleep(wait)
+             interval: float = 0.0, platform: str | None = None) -> httpx.Response:
+        gaps = [(urlsplit(url).hostname, max(self.min_interval, interval))]
+        if platform in PLATFORM_GAP:
+            gaps.append((f"platform:{platform}", PLATFORM_GAP[platform]))
+        wait = max((self._last[key] + gap - self.clock() for key, gap in gaps if key in self._last), default=0)
+        if wait > 0:
+            self.sleep(wait)
         self.request_count += 1
         try:
             return self.client.get(url, params=params, follow_redirects=False,
                                    headers={"User-Agent": USER_AGENT, "Accept": accept}, timeout=20)
         finally:
-            self._last[host] = self.clock()
+            for key, _ in gaps:
+                self._last[key] = self.clock()
 
     def fetch(self, target: Target) -> FetchResult:
         if not valid_target(target):
@@ -115,7 +123,7 @@ class Fetcher:
                 page = target.platform in sites.PAGES
                 response = self._get(target.api_url, {"mode": "json"} if target.platform == "lever" else None,
                                      "text/html" if page else "application/json",
-                                     PLATFORM_INTERVAL.get(target.platform, 0.0))
+                                     PLATFORM_INTERVAL.get(target.platform, 0.0), target.platform)
                 if response.status_code in GONE:
                     return FetchResult("gone", error=f"HTTP {response.status_code}")
                 if target.platform == "jobright" and response.is_redirect:
@@ -135,10 +143,11 @@ class Fetcher:
             return FetchResult("ok", posting=PARSERS[target.platform]().parse(raw))
         except (httpx.HTTPError, ValueError, ParseError, KeyError, TypeError, AttributeError, OverflowError) as exc:
             # Exceptions may include request credentials, arbitrary response text or URLs.
-            error = type(exc).__name__
+            error, status, retry_after = type(exc).__name__, None, None
             if isinstance(exc, httpx.HTTPStatusError):
-                error += f": HTTP {exc.response.status_code}"
-            failed = FetchResult("failed", error=error)
+                status, retry_after = exc.response.status_code, retry_after_seconds(exc.response.headers)
+                error += f": HTTP {status}"
+            failed = FetchResult("failed", error=error, http_status=status, retry_after=retry_after)
             if target.platform == "ashby" and target.board not in self._boards:
                 self._boards[target.board] = failed
             return failed

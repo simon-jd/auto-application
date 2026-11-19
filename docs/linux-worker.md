@@ -66,7 +66,13 @@ the letter prefix (`123456`), or lack the URL's copy suffix (`R123456-1` / `R123
 Custom company domains and unrecognized links remain unsupported. Requests reject credentials, unusual
 ports, traversal and off-platform targets. Redirects are not followed. At most **200 actual HTTP requests**
 are made per round, with at least one second between requests to the same host (two for Eightfold tenants,
-which answer bursts with HTTP 429). The User-Agent is
+which answer bursts with HTTP 429). Workday is read more gently, since it blocks the address, not one site (HTTP
+403 from dozens of tenants on 2026-11-19). A round reads at most **10 Workday jobs** (`WORKDAY_REQUESTS`), three
+seconds apart across all tenants, and stops reading Workday at the first 403 or 429. That refusal starts a
+cool-down shared with the feed worker: the file `data/.workday-guard.json` (1, 2, 4, 8, then 12 hours, or a
+longer `Retry-After`). While it lasts, no Workday request is made by either side, and a good Workday read ends it.
+Workday jobs held back count as `workday_deferred` and stay pending; `workday_cooling_until` gives the end of a
+cool-down. A refused job's own retry waits until after the cool-down. The User-Agent is
 `auto-app/1 (personal job search; one request per job)`. An Ashby board response is reused during the round;
 cache reuse consumes no request budget. `--enrich-limit` can reduce the budget to any integer from 0 to 200.
 
@@ -376,7 +382,9 @@ malformed rows keeps earlier absent records for retry instead of treating them a
 search per text), `facets` (parameter or label → values as the site shows them) and `max_pages` (pages of 20,
 default 25, at most 100) narrow it. A run POSTs each page with a three-second pause between requests, and Workday
 sites take turns: one per feed round, each at most every two hours, with a cool-down after HTTP 429
-([pacing](updates/2026-11-18-workday-pacing.md)). The
+([pacing](updates/2026-11-18-workday-pacing.md)). A 403 or 429 from a Workday site, or from enrichment's Workday
+requests, holds every Workday feed back until the shared cool-down ends
+([guard](updates/2026-11-19-workday-guard-and-locks.md)). The
 list has no JD, so imported postings are pending. This worker's screen step judges their titles and
 locations, and its enrich step reads the CXS detail endpoint for each posting kept, within the round's
 request budget. A search that falls short of Workday's total, at the page cap or Workday's 2000-result cap, is a

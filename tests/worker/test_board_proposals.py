@@ -104,3 +104,23 @@ def test_bad_decisions_are_refused(home):
         store.decide(beta["proposal_id"], "maybe")
     with pytest.raises(BoardProposalError, match="not found"):
         store.decide(999999, "add")
+
+
+def test_known_vendors_are_left_out_by_board_or_company(home):
+    store = make_store(home)
+    ingest(store, [record("201", "AI Trainer", company="TSMG",
+                          url="https://jobs.lever.co/tsmg/6ed76ce8-1111-2222-3333-444455556667"),
+                   record("202", "Research Participant Ops", company="Prolific",
+                          url="https://job-boards.greenhouse.io/prolificacademicltd/jobs/202"),
+                   record("203", "Operator", company="Invisible Technologies",
+                          url="https://job-boards.greenhouse.io/agency/jobs/203"),
+                   record("204", "Linguist", company="Welo Global Inc.",
+                          url="https://jobs.lever.co/welo/6ed76ce8-1111-2222-3333-444455556668")],
+           source="other-feed")
+    with store.engine.begin() as conn:
+        for title in ("AI Trainer", "Research Participant Ops", "Operator", "Linguist"):
+            conn.execute(insert(T.job_screenings).values(
+                job_id=job_id_of(store, title), rules_version="t", facts_hash="h", outcome="kept", reasons=[],
+                signals={"sponsorship": "unknown"}, screened_at=utcnow()))
+    store.engine.dispose()
+    assert [p["board"] for p in proposals(home).generate(now=NOW)] == ["beta", "acme"]

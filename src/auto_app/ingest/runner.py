@@ -1,16 +1,17 @@
 """Retrieve and import repository snapshots and saved email messages."""
 
-from collections import Counter
-from datetime import datetime, timedelta, timezone
 import glob
 import hashlib
-from pathlib import Path
 import re
+from collections import Counter
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from urllib.parse import urlparse
 
 import httpx
-from sqlalchemy import select
 import yaml
+from sqlalchemy import select
+from sqlalchemy.exc import OperationalError
 
 from auto_app.core.db import tables as T
 from auto_app.core.models import utcnow
@@ -19,12 +20,15 @@ from auto_app.ingest.reader import read_feed
 from auto_app.ingest.repository import parse_repository, validate_repository_format
 from auto_app.ingest.repository_paged import feed_options, paged_board
 from auto_app.ingest.service import IngestService
+from auto_app.platforms.workday_guard import BLOCKED, WorkdayGuard, retry_after_seconds
 from auto_app.process.normalize import NORMALIZER_VERSION
 
 READ_ERRORS = (OSError, ValueError, httpx.HTTPError)
 # Workday sites share one service, which answers a burst from one address with HTTP 429 (all five boards, every
 # round, on 2026-11-18). So a round reads one Workday site, the most overdue; each at most every two hours; and a
-# site that answered 429 waits out Retry-After or a growing cool-down before its next turn.
+# site that answered 429 waits out Retry-After or a growing cool-down before its next turn. Workday blocks the
+# address, so a 403 or 429 from a Workday site also pauses all of Workday, for JD enrichment too, and a cool-down
+# that enrichment started holds every Workday feed back (platforms/workday_guard.py).
 WORKDAY_FORMAT = "workday-board"
 WORKDAY_PER_ROUND = 1
 WORKDAY_GAP = timedelta(hours=2)
@@ -32,6 +36,7 @@ MAX_EVERY_HOURS = 168  # a feed's every_hours: read at most once per this many h
 EVERY_PER_ROUND = 40  # feeds with every_hours read per round, the most overdue first, so a big batch spreads out
 RATE_LIMIT_BACKOFF = (timedelta(hours=1), timedelta(hours=2), timedelta(hours=4), timedelta(hours=8),
                       timedelta(hours=12))
+BUSY = "database busy (another process held the write lock for 30 seconds); read again next round"
 COUNTERS = ("records", "created", "updated", "unchanged", "restored", "inactive", "missing", "jobs_created",
             "skipped_internships")
 
@@ -166,6 +171,12 @@ def _status(reports: list[dict]) -> str:
     if not reports or all(report["status"] == "ok" for report in reports):
         return "ok"
     return "error" if all(report["status"] == "error" for report in reports) else "partial"
+
+
+def _busy(exc: OperationalError) -> bool:
+    """SQLite's lock errors: another writer held the database past busy_timeout."""
+    message = str(getattr(exc, "orig", None) or exc).lower()
+    return "database is locked" in message or "database is busy" in message or "database table is locked" in message
 
 
 def _moment(value):
@@ -348,7 +359,9 @@ def run_config(store, config_path: Path, client: httpx.Client | None = None, now
     sources = load_feed_config(config_path)
     now = now or utcnow()
     now = now if now.tzinfo else now.replace(tzinfo=timezone.utc)
-    turn = _workday_turn(store, sources, now)
+    guard = WorkdayGuard.beside(store.db_path)
+    cooling = guard.cooling_until(now)
+    turn = set() if cooling else _workday_turn(store, sources, now)
     interval_turn, interval_waiting = _interval_turn(store, sources, now)
     reports = {}
     for source, definition in sources.items():
@@ -359,6 +372,12 @@ def run_config(store, config_path: Path, client: httpx.Client | None = None, now
                    if source in interval_waiting else
                    f"read every {every:g} hours (every_hours); last read {last.isoformat() if last else 'never'}")
             reports[source] = {"source": source, "kind": definition["kind"], "status": "deferred", "reason": why}
+            continue
+        if definition.get("format") == WORKDAY_FORMAT and cooling:
+            why = guard.state()
+            reports[source] = {"source": source, "kind": definition["kind"], "status": "deferred",
+                               "reason": f"Workday is cooling down until {cooling.isoformat()} after HTTP "
+                                         f"{why.get('status', '403/429')} ({why.get('by', 'a reader')})"}
             continue
         if definition.get("format") == WORKDAY_FORMAT and source not in turn:
             reports[source] = {"source": source, "kind": definition["kind"], "status": "deferred",
@@ -387,14 +406,25 @@ def run_config(store, config_path: Path, client: httpx.Client | None = None, now
                     paths.extend(Path(p) for p in (sorted(glob.glob(pattern, recursive=True)) or [pattern]))
                 report = run_email(store, source, paths, skip_internships=definition["skip_internships"])
         except httpx.HTTPStatusError as exc:
-            if exc.response is not None and exc.response.status_code == 429:
+            code = exc.response.status_code if exc.response is not None else None
+            workday = definition.get("format") == WORKDAY_FORMAT
+            if code == 429 or (workday and code in BLOCKED):
                 rate_limited = exc
                 report = {"source": source, "kind": definition["kind"], "status": "rate_limited", "error": str(exc)}
+                if workday:
+                    cooling = guard.strike(now, status=code, by="ingest",
+                                           retry_after=retry_after_seconds(exc.response.headers))
             else:
                 report = {"source": source, "kind": definition["kind"], "status": "error", "error": str(exc)}
         except READ_ERRORS as exc:
             report = {"source": source, "kind": definition["kind"], "status": "error", "error": str(exc)}
+        except OperationalError as exc:
+            if not _busy(exc):
+                raise
+            report = {"source": source, "kind": definition["kind"], "status": "error", "error": BUSY}
         reports[source] = report
+        if definition.get("format") == WORKDAY_FORMAT and report["status"] == "ok":
+            guard.clear(started=now)
         previous = store.source_health(source).get("ingest_run", {})
         progress = {
             "status": report["status"], "last_run_at": started, "finished_at": utcnow().isoformat(),
@@ -419,5 +449,10 @@ def run_config(store, config_path: Path, client: httpx.Client | None = None, now
                 progress["error"] = errors[0].get("error") or errors[0].get("reason") or "Some inputs failed"
             elif report.get("messages_pending"):
                 progress["error"] = "Unresolved messages remain in the durable retry queue"
-        store.update_health(source, status=report["status"], ingest_run=progress)
+        try:
+            store.update_health(source, status=report["status"], ingest_run=progress)
+        except OperationalError as exc:
+            if not _busy(exc):
+                raise
+            report["health_saved"] = False  # the jobs are in; this feed is simply read again next round
     return {"status": _status(list(reports.values())), "sources": reports}

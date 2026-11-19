@@ -240,7 +240,9 @@ search each), `facets` (a facet's parameter or label → values as the site show
 20, default 25, at most 100) narrow it. The reader pauses three seconds between requests. Workday sites take turns
 (2026-11-18): a feed round reads one, the most overdue, each at most every two hours, and a site that answered
 HTTP 429 waits out `Retry-After` or a 1–12 hour backoff ([pacing](docs/updates/2026-11-18-workday-pacing.md)). The list has no JD:
-the worker's enrichment reads it for the postings screening keeps. A search that ends before Workday's total,
+the worker's enrichment reads it for the postings screening keeps, at most 10 Workday jobs a round, three seconds
+apart. A 403 or 429 from Workday, on either side, pauses all Workday requests for both, with the same backoff
+(`data/.workday-guard.json`, [guard](docs/updates/2026-11-19-workday-guard-and-locks.md)). A search that ends before Workday's total,
 or at the page cap, imports what it read as a partial snapshot and closes nothing. Workday lists at most
 2000 results, so narrow large employers with facets.
 [Workday board feeds](docs/updates/2026-11-06-workday-board.md).
