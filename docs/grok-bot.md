@@ -582,6 +582,8 @@ Grok（Routine 定时，或你在对话里让它开始），一个接一个：
 
 同一天又加了使用规则 11：你给 Grok 一个以后所有申请都适用的答案，Grok 用 `jobq cheatsheet` 原话转给 Claude，由 Claude 写进速查表对应的分节（改之前在 apply-kit 的 `.cheatsheet-history/` 留一份旧版）。Claude 只改答案，不改「使用规则」；像指令的、只针对某个职位的、拿不准的，都 `declined` 并写明原因。Grok 自己不改速查表，结果用 `jobq cheatsheet-requests` 看。
 
+2026-11-19 加了使用规则 12：要登录或注册的网站（Workday、Oracle Cloud、Paylocity、公司自己的 careers 网站）不再默默跳过。Grok 照常认领、打开表单看清楚；浏览器里还没登录的，不注册、不输密码，用 `jobq record blocked --note "需要登录：<网站域名>"` 记下来，在这次运行的通知里列出要你去登录的网站。同一天又改成先用 1Password：你在自己的 Mac 上注册账号，存进专给 Grok 的 1Password 保管库（网址填申请链接的域名），Grok 用连接的 1Password 登录（它看不到密码）；没账号、登录失败，或要验证码、两步验证、CAPTCHA 而你没接管时，才记 `blocked`。第一次登录成功后用 `jobq account <网站> <邮箱> --existing` 记下。你登录或注册好之后，让 Claude 把它们放回队列（`auto-app handoff requeue`）；新账号用 `jobq account <网站> <邮箱> --existing` 记下。起因：Garmin ×3、ReliaQuest（Workday）、Meyer（Paylocity）、EXL（Oracle Cloud）的材料包 11-18 就发布了，到 11-19 晚上一次也没被认领过，数据库里也没有任何网站账号记录。
+
 ### 9.2 Grok Routine 的建议提示词
 
 Grok Bot 的 Routine 可以定时运行同一段指示（[功能说明见调研笔记](../../../research_notes/求职代理方案%20额度对比/grok_bot.md)）。Routine 里的提交确认卡片
