@@ -120,3 +120,26 @@ async def test_loopback_http_handoff_through_the_cli(kit, tmp_path, monkeypatch,
     monkeypatch.setenv("AUTO_APP_HOME", str(tmp_path))
     assert jobq(["held"]) == 0
     assert json.loads(capsys.readouterr().out) == {"items": []}
+
+
+async def test_documents_over_mcp(tmp_path):
+    import base64
+
+    from mcp import Client
+
+    from auto_app.agent.mcp_server import create_mcp_server
+    from tests.handoff.test_questions_mcp import wanted_job
+
+    runtime = tmp_path / "runtime"
+    runtime.mkdir()
+    db, _ = wanted_job(runtime)
+    folder = runtime.parent / "apply-kit" / "documents"
+    folder.mkdir(parents=True)
+    (folder / "neu-unofficial-transcript.pdf").write_bytes(b"%PDF-1.7 fictional\n")
+    async with Client(create_mcp_server(db, handoff_tools=True)) as client:
+        listed = (await client.call_tool("list_documents", {})).structured_content
+        assert [d["name"] for d in listed["documents"]] == ["neu-unofficial-transcript.pdf"]
+        one = (await client.call_tool("get_document", {"name": "neu-unofficial-transcript.pdf"})).structured_content
+        assert base64.b64decode(one["base64"]) == b"%PDF-1.7 fictional\n"
+        bad = await client.call_tool("get_document", {"name": "../answers.md"})
+        assert bad.is_error

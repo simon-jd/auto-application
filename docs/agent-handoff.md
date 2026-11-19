@@ -106,6 +106,7 @@ Do not commit or disclose tokens.
 | `account careers.example.com person@example.com --existing` | `record_site_account(site=..., email=..., created_by_agent=False)` | Host/email metadata only; omit `--existing` for an agent-created account. |
 | `resume 123 "$AUTO_APP_HOME/resumes/example.pdf" --note "example"` | `register_resume(job_id=123, path=..., note=...)` | Server computes SHA-256 and byte count. |
 | No owner command (`jobq kit ID FILE`) | `get_application_file(job_id=123, name="resume.pdf")` | Read-only, no token. One file of the job's published package; `name` is `job.json`, `fields.json`, `jd.txt`, `resume.pdf`, `cover_letter.pdf`, `answers.md` or `message.txt`. MCP returns `job_id`, `name`, `bytes`, `sha256`, plus `text` (`.json`, `.md`, `.txt`; UTF-8) or `base64` (`.pdf`); `jobq` prints the raw bytes. `jobq kit` alone prints `jobs/index.json` and `jobq kit ID` the job's `job.json` as JSON. |
+| No owner command (`jobq doc [NAME]`) | `list_documents()`, `get_document(name=...)` | Read-only, no token. The user's own documents a form may ask for, in `apply-kit/documents/` (2026-11-19; e.g. an unofficial transcript): the list with name, bytes and sha256, or one file (`jobq` prints the raw bytes, MCP returns base64). Names match `[A-Za-z0-9][A-Za-z0-9._-]{0,99}`; regular files only, no symlinks, at most 10 MiB. |
 | No owner command (`jobq guide [cheatsheet\|readme]`) | `get_apply_guide(which="cheatsheet")` | Read-only, no token. `apply-kit/answers.md` (the cheat sheet, the default) or `apply-kit/README.md`; MCP returns `{"name", "text"}` with the file name, `jobq` prints the text. |
 
 The `jobq` command ([guide](grok-bot.md); `deploy/jobq` on the server) is a third entry to these services: it exposes `queue`, `claim`, `packet`, `record`, `release`, `hold`, `held`, `questions`, `request`, `status`, `answers-needed`, `answers-ready`, `kit`, `guide` and `account` under the fixed agent name `grok-bot`, accepts no evidence files or paths, and leaves `requeue` and resume registration to the owner's CLI. Its `answers-ready` is refused when `SUDO_USER` is set (grokbot reaches `jobq` only through sudo); Claude Code runs it as `postedism` without sudo after republishing the answers (directly on home-ubuntu after the 2026-11-17 move, or over ssh from the Mac).
@@ -212,6 +213,21 @@ token rejection and duplicate/quota refusal. No application, production profile 
 listener activation or deployment was performed for the original 2026-10-13 implementation. On 2026-11-17 the
 private Dot listener enabled these tools through the loopback opt-in after an isolated acceptance
 ([record](updates/2026-11-17-dot-loopback-handoff.md)).
+
+## Frozen packages of submitted jobs (2026-11-18)
+
+`apply-kit/jobs/<job>/` is the live package, and jd-resume-tailor's `publish --replace` can overwrite it. When a job is
+submitted (a `submitted` outcome, or the owner's own `applied` through Discord, MCP or the CLI), its package files are
+copied once to `apply-kit/submitted/<job>/` (`auto_app/handoff/archive.py`), with `frozen.json`:
+
+- each file's sha256 and size;
+- `frozen_at`;
+- `backfilled`.
+
+The first copy is kept. A copy that cannot be made never fails the record. `status` shows `package.submitted_copy`.
+The owner's `auto-app handoff freeze-submitted` freezes every applied job that has no copy yet, marked
+`backfilled: true` because its live package may have changed after the submission. The nightly `ops backup` archives
+the whole apply-kit folder, these copies included.
 
 ## Kicking the package runner (2026-11-18)
 

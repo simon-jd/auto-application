@@ -1,4 +1,4 @@
-"""SQLite online backups with private atomic archives and per-database retention."""
+"""SQLite online backups and an archive of the apply-kit folder, as private atomic files with per-kind retention."""
 
 from contextlib import closing
 from datetime import datetime, timedelta, timezone
@@ -8,11 +8,12 @@ import os
 from pathlib import Path
 import re
 import sqlite3
+import tarfile
 import tempfile
 
 import zstandard
 
-NAME = re.compile(r"(auto_app|preparation)-(\d{8}T\d{6}Z)\.db\.zst")
+NAME = re.compile(r"(auto_app|preparation)-(\d{8}T\d{6}Z)\.db\.zst|(apply_kit)-(\d{8}T\d{6}Z)\.tar\.zst")
 PREPARATION_COLUMNS = set("run_id idempotency_key status job_id title company apply_url candidate created_at updated_at attempt result".split())
 
 
@@ -67,6 +68,85 @@ def backup(db_path: Path, dest: Path, *, now: datetime | None = None) -> dict:
             target.unlink()
             raise
     return entry
+
+
+def _stream_end(decoder, source, output):
+    """Decompress `source` into `output`, requiring one complete zstd frame and nothing after it."""
+    while chunk := source.read(64 * 1024):
+        output.write(decoder.decompress(chunk))
+        if decoder.eof:
+            if decoder.unused_data or source.read(1):
+                raise ValueError("Backup archive contains trailing data")
+            return
+    raise ValueError("Backup archive is truncated")
+
+
+def backup_tree(folder: Path, dest: Path, *, now: datetime | None = None) -> dict:
+    """Archive a folder (the apply-kit: published packages, frozen submitted copies, the cheat sheet) as one
+    tar.zst. Regular files and folders only: symlinks and anything else are left out, never followed."""
+    now, folder, dest = _utc(now), Path(folder), Path(dest)
+    if folder.is_symlink() or not folder.is_dir():
+        raise ValueError("the folder to back up must be a real directory")
+    if dest.is_symlink():
+        raise ValueError("backup directory must not be a symlink")
+    dest.mkdir(parents=True, exist_ok=True, mode=0o700)
+    dest.chmod(0o700)
+    target = dest / f"apply_kit-{now:%Y%m%dT%H%M%SZ}.tar.zst"
+    if target.exists() or target.is_symlink():
+        raise FileExistsError(target)
+    count = size = 0
+    with tempfile.TemporaryDirectory(dir=dest) as work:
+        tar_path, compressed = Path(work) / "copy.tar", Path(work) / "copy.zst"
+        with tarfile.open(tar_path, "w", format=tarfile.PAX_FORMAT) as archive:
+            for root, dirs, files in os.walk(folder, followlinks=False):
+                dirs[:] = sorted(d for d in dirs if not os.path.islink(os.path.join(root, d)))
+                for name in sorted(files):
+                    path = Path(root) / name
+                    if path.is_symlink() or not path.is_file():
+                        continue
+                    archive.add(path, arcname=str(path.relative_to(folder)), recursive=False)
+                    count += 1
+                    size += path.stat().st_size
+        with tar_path.open("rb") as source, compressed.open("xb") as output:
+            compressed.chmod(0o600)
+            zstandard.ZstdCompressor(level=10, write_checksum=True).copy_stream(source, output)
+            output.flush()
+            os.fsync(output.fileno())
+        digest = hashlib.sha256(compressed.read_bytes()).hexdigest()
+        entry = {"path": str(target), "sha256": digest, "bytes": compressed.stat().st_size,
+                 "created_at": now.isoformat(), "files": count, "content_bytes": size}
+        os.link(compressed, target)
+        try:
+            _manifest(dest, entry)
+        except BaseException:
+            target.unlink()
+            raise
+    return entry
+
+
+def verify_tree(path: Path) -> dict:
+    """Check the manifest and the zstd frame, then read every member of a folder archive (nothing is extracted)."""
+    path = Path(path)
+    with tempfile.TemporaryDirectory() as work:
+        tar_path = Path(work) / "copy.tar"
+        with path.open("rb") as source, tar_path.open("xb") as output:
+            _verify_manifest(path, source)
+            _stream_end(zstandard.ZstdDecompressor().decompressobj(), source, output)
+        count = size = 0
+        try:
+            with tarfile.open(tar_path, "r") as archive:
+                for member in archive:
+                    if member.isfile():
+                        data = archive.extractfile(member)
+                        while data.read(64 * 1024):
+                            pass
+                        count += 1
+                        size += member.size
+                    elif not member.isdir():
+                        raise ValueError("Backup archive holds something other than files and folders")
+        except tarfile.TarError as exc:
+            raise ValueError("Backup archive is not a readable tar file") from exc
+    return {"ok": True, "files": count, "bytes": size}
 
 
 def _manifest(dest, entry):
@@ -192,11 +272,12 @@ def prune(dest: Path, *, keep_daily: int = 14, keep_weekly: int = 8, now: dateti
         match = NAME.fullmatch(path.name)
         if not match or path.is_symlink() or not path.is_file():
             continue
+        kind, when = (match[1], match[2]) if match[1] else (match[3], match[4])
         try:
-            stamp = datetime.strptime(match[2], "%Y%m%dT%H%M%SZ").replace(tzinfo=timezone.utc)
+            stamp = datetime.strptime(when, "%Y%m%dT%H%M%SZ").replace(tzinfo=timezone.utc)
         except ValueError:
             continue
-        groups.setdefault(match[1], []).append((stamp, path))
+        groups.setdefault(kind, []).append((stamp, path))
     removed = []
     cutoff = now.date() - timedelta(days=max(0, keep_daily - 1))
     for files in groups.values():

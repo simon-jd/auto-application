@@ -325,6 +325,19 @@ def create_mcp_server(
             return result
 
         @server.tool(annotations=read_annotations)
+        def list_documents() -> dict[str, Any]:
+            """The user's documents a form may ask for (apply-kit/documents/, e.g. an unofficial transcript): name,
+            bytes and sha256 of each. Upload one only where the form asks for that document."""
+            return handoff_call(handoff.documents)
+
+        @server.tool(annotations=read_annotations)
+        def get_document(name: str) -> dict[str, Any]:
+            """One of the user's documents by the name list_documents gives: name, bytes, sha256 and base64."""
+            data = handoff_call(handoff.document, name)
+            return {"name": name, "bytes": len(data), "sha256": hashlib.sha256(data).hexdigest(),
+                    "base64": base64.b64encode(data).decode("ascii")}
+
+        @server.tool(annotations=read_annotations)
         def get_apply_guide(which: Literal["cheatsheet", "readme"] = "cheatsheet") -> dict[str, Any]:
             """The apply-kit's guide as text: cheatsheet (answers.md, how to fill a form from a package; the default)
             or readme (README.md). Returns {"name", "text"}."""

@@ -7,7 +7,7 @@ from auto_app.cli import app
 
 TREE = {
     "handoff": ["queue", "claim", "packet", "record", "release", "hold", "held", "questions", "answers-needed",
-                "answers-ready", "requeue", "account", "resume"],
+                "answers-ready", "freeze-submitted", "requeue", "account", "resume"],
     "events": ["add", "list", "unmatched", "assign", "dismiss"],
     "ops": ["backup", "verify", "prune", "alert"],
     "worker": ["run", "watch", "status", "boards"],

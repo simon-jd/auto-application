@@ -337,10 +337,11 @@ check scripts are in `deploy/grokbot/`. [Guide, in Chinese](docs/grok-bot.md).
 | `cheatsheet --text TEXT` | Pass on the user's own words with an answer for every application (one line, 1–1000 characters) for Claude to add to the cheat sheet (`apply-kit/answers.md`); the agent never edits it. One job's answer goes through `request` |
 | `cheatsheet-requests` | Cheat-sheet requests: `pending`, and the last 20 done ones (`recent`) with `outcome` (`applied` / `declined`) and Claude's `note` |
 | `cheatsheet-done ID --outcome applied\|declined --note TEXT` | The owner's step after editing the cheat sheet or declining. Refused through sudo |
-| `status ID` | Where one job stands: `decision`, `application`, live `claim` (agent, until, held), `pending` questions and changes, `package` (published, published_at, has_message), `runner` (the package runner's `apply-kit/runner.json`), `queue_block` (what keeps a wanted job out of the queue, e.g. `screened_out`, `company_cooldown`, `link_gone`; `daily_limit`; or null) and a one-line `summary`; never a token |
+| `status ID` | Where one job stands: `decision`, `application`, live `claim` (agent, until, held), `pending` questions and changes, `package` (published, published_at, has_message, `submitted_copy`: when the package was frozen at submission, or null), `runner` (the package runner's `apply-kit/runner.json`), `queue_block` (what keeps a wanted job out of the queue, e.g. `screened_out`, `company_cooldown`, `link_gone`; `daily_limit`; or null) and a one-line `summary`; never a token |
 | `answers-needed` | Jobs waiting for answers, each with the latest questions handed back |
 | `answers-ready ID [--asked-at SUBMITTED_AT]` | The owner's step once the answers are published: the job returns to the queue. With `--asked-at` (the round's `submitted_at` from `answers-needed`, which the skill's `apply_kit.py answers-ready` always passes), refused when the round changed since, e.g. a change request arrived while the package was being made. Refused through sudo (grokbot); Claude Code runs it as `postedism`, without sudo |
 | `kit [ID [FILE]]` | The published application packages in the server's `apply-kit/` folder (the runtime's sibling), with **no claim token**: with no ID, `jobs/index.json`; with ID, that job's `job.json`; with ID FILE, the file itself on stdout, not JSON (`jobq kit 14143 resume.pdf > ~/kit/14143/resume.pdf`). `FILE` is `job.json`, `fields.json`, `jd.txt`, `resume.pdf`, `cover_letter.pdf`, `answers.md` or `message.txt`; a file not published yet is an error |
+| `doc [NAME]` | The user's own documents a form may ask for, in the server's `apply-kit/documents/` (e.g. an unofficial transcript), with **no claim token**: with no NAME, the list (`name`, `bytes`, `sha256`); with NAME, the file itself on stdout, not JSON. Names are letters, digits, `.`, `_` and `-`; regular files only, no symlinks, at most 10 MiB (2026-11-19) |
 | `guide [cheatsheet\|readme]` | The apply-kit's guide as plain text, not JSON: `cheatsheet` (`apply-kit/answers.md`, the default) or `readme` (`apply-kit/README.md`) |
 | `account SITE EMAIL [--existing] [--note TEXT]` | Note that an account exists on a hiring site (never its password); `--existing` means the user made it, not the agent |
 
@@ -487,7 +488,8 @@ uv run auto-app events add 123 interview --note "phone screen"
 
 `ops backup` makes private online SQLite copies of the main DB and an existing optional preparation
 ledger, verifies every new archive, then keeps 14 recent daily and 8 older weekly representatives per
-DB. Attachments/screenshots/resume files are outside SQLite backup coverage. Templates add nightly
+DB. Since 2026-11-18 it also archives the apply-kit folder next to the runtime (published packages, frozen submitted
+copies, the cheat sheet) as `apply_kit-<UTC>.tar.zst`, verified and pruned the same way; screenshots are not kept. Templates add nightly
 backups and service-failure alerts; worker health checks free disk below 2 GiB. Private SSH backup pull
 and optional clean-checkout Git deployment are available; rsync remains default. No deployment or real
 backup/alert/pull was performed in P2/P3. [Operator procedures](docs/operations.md).
@@ -514,7 +516,7 @@ scripts/pull_backups.sh home-ubuntu
   - [`worker`](#linux-worker-screening-jd-enrichment-and-discord) — `run`, `watch`, `status`, `boards`
   - [`bot`](#discord-bot) — `run`
   - [`screen-feedback`](#discord-bot) — `due`, `list`, `preview`, `propose`, `close`
-  - [`jobq`](#grok-bot-local-execution) — `new`, `seen`, `search`, `show`, `want`, `skip`, `queue`, `claim`, `packet`, `record`, `release`, `hold`, `held`, `questions`, `request`, `status`, `cheatsheet`, `cheatsheet-requests`, `cheatsheet-done`, `answers-needed`, `answers-ready`, `kit`, `guide`, `account`
+  - [`jobq`](#grok-bot-local-execution) — `new`, `seen`, `search`, `show`, `want`, `skip`, `queue`, `claim`, `packet`, `record`, `release`, `hold`, `held`, `questions`, `request`, `status`, `cheatsheet`, `cheatsheet-requests`, `cheatsheet-done`, `answers-needed`, `answers-ready`, `kit`, `doc`, `guide`, `account`
   - [`handoff`](#application-handoff) — `queue`, `claim`, `packet`, `record`, `release`, `hold`, `held`, `questions`, `answers-needed`, `answers-ready`, `requeue`, `account`, `resume`
   - [`events`](#tracking-after-you-apply) — `add`, `list`, `unmatched`, `assign`, `dismiss`
   - [`ops`](#operations) — `backup`, `verify`, `prune`, `alert`

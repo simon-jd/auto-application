@@ -101,6 +101,12 @@ def answers_ready(job: int,
     _out(lambda: _service().answers_ready(job, asked_at=asked_at))
 
 
+@app.command("freeze-submitted")
+def freeze_submitted() -> None:
+    """Freeze the package of every applied job that has no frozen copy yet (apply-kit/submitted/<job>/)."""
+    _out(lambda: _service().freeze_submitted())
+
+
 @app.command("requeue")
 def requeue(job: int) -> None:
     """Put a job that waited for you (needs_user / blocked) back into the queue."""

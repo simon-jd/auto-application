@@ -287,3 +287,48 @@ def test_prune_refuses_a_symlinked_directory(tmp_path):
     link.symlink_to(actual)
     with pytest.raises(ValueError, match="symlink"):
         prune(link)
+
+
+def make_kit(root):
+    kit = root / "apply-kit"
+    (kit / "jobs" / "42").mkdir(parents=True)
+    (kit / "jobs" / "42" / "resume.pdf").write_bytes(b"%PDF-1.7 fictional\n")
+    (kit / "answers.md").write_text("# cheat sheet (fictional)\n")
+    (kit / "jobs" / "index.json").write_text('{"jobs": []}')
+    (kit / "outside-link").symlink_to(root)  # never followed or archived
+    return kit
+
+
+def test_apply_kit_archive_is_verifiable_and_pruned_on_its_own(tmp_path):
+    from auto_app.ops.backup import backup_tree, prune, verify_tree
+
+    kit, dest = make_kit(tmp_path), tmp_path / "backups"
+    entry = backup_tree(kit, dest, now=NOW)
+    assert Path(entry["path"]).name == f"apply_kit-{NOW:%Y%m%dT%H%M%SZ}.tar.zst"
+    assert oct(Path(entry["path"]).stat().st_mode & 0o777) == "0o600"
+    assert verify_tree(entry["path"]) == {"ok": True, "files": 3, "bytes": entry["content_bytes"]}
+    later = backup_tree(kit, dest, now=NOW + timedelta(days=1))
+    assert prune(dest, keep_daily=1, keep_weekly=0, now=NOW + timedelta(days=1)) == [Path(entry["path"]).name]
+    assert os.path.exists(later["path"])
+    damaged = Path(later["path"])
+    data = bytearray(damaged.read_bytes())
+    data[len(data) // 2] ^= 0xFF
+    damaged.write_bytes(bytes(data))
+    with pytest.raises(ValueError):
+        verify_tree(damaged)
+
+
+def test_backup_cli_includes_the_apply_kit_next_to_the_runtime(tmp_path, monkeypatch):
+    from typer.testing import CliRunner
+    from auto_app.ops.cli import app
+
+    runtime = tmp_path / "runtime"
+    store = make_store(runtime)
+    make_kit(tmp_path)
+    monkeypatch.setenv("AUTO_APP_HOME", str(runtime))
+    result = CliRunner().invoke(app, ["backup"])
+    assert result.exit_code == 0, result.output
+    saved = json.loads(result.output)
+    assert saved["apply_kit"]["verify"]["files"] == 3
+    assert CliRunner().invoke(app, ["verify", saved["apply_kit"]["path"]]).exit_code == 0
+    store.engine.dispose()

@@ -203,6 +203,36 @@ words" for the whole application. Skill and cheat-sheet changes (no auto-app ser
   ends at once while an earlier run is still filling a form (`blocked.claimed` above Grok's own held forms), or when
   6 held forms already wait for the owner.
 
+## Follow-up: frozen submitted packages and apply-kit backups (2026-11-19)
+
+The seven submitted jobs had packages only in `apply-kit/jobs/<job>/`, which a later `publish --replace` overwrites,
+and the nightly backup covered only the databases.
+
+- **Freezing.** `handoff/archive.py` copies a submitted job's package files once to `apply-kit/submitted/<job>/`, with
+  `frozen.json`. It runs on the `submitted` outcome and on the owner's `applied`, and never fails the record.
+  `status.package.submitted_copy` shows it. The owner's `auto-app handoff freeze-submitted` backfills jobs applied
+  before this, marked `backfilled`.
+- **Backup.** `ops backup` also writes `apply_kit-<UTC>.tar.zst` (regular files only, no symlinks), with its
+  manifest entry, `verify_tree` and its own retention. `ops verify` accepts it.
+
+## Follow-up: documents Grok can upload (2026-11-19)
+
+Some forms ask for files that are in no job's package, such as an unofficial transcript. `apply-kit/documents/` on
+the server holds them:
+
+- `jobq doc` lists name, bytes and sha256, and `jobq doc NAME` prints one file. MCP has `list_documents` and
+  `get_document`. No token is needed.
+- Names match `[A-Za-z0-9][A-Za-z0-9._-]{0,99}`. Only regular files are served, no symlinks, at most 10 MiB each.
+- The cheat sheet's Transcript row now points to `jobq doc neu-unofficial-transcript.pdf`. Grok uploads it only where
+  the form asks for a transcript, and the pre-submit list names every document uploaded, with its sha256.
+- The nightly apply-kit archive includes the folder.
+
+While deploying the frozen copies, it turned out the nightly backup had never been installed on the server: there was
+no `auto-app-backup.service` or timer. Both are now installed. The first run on 2026-11-19 wrote
+`auto_app-…db.zst` (253 MB), the preparation ledger and `apply_kit-…tar.zst` (287 files, verified). The timer runs at
+03:30. `freeze-submitted` backfilled the jobs applied so far: 12 folders under `apply-kit/submitted/`, marked
+`backfilled`.
+
 ## Status
 
 Deployed to home-ubuntu 2026-11-18 10:42 PST (`scripts/deploy_linux.sh`, full suite 2,721 passed; schema `a7c3e9f1d2b4`).

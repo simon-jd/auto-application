@@ -146,3 +146,18 @@ def test_help_lists_the_new_commands(capsys):
     with pytest.raises(SystemExit):
         parser().parse_args(["kit", "--help"])
     assert "resume.pdf > ~/kit/" in capsys.readouterr().out
+
+
+def test_doc_lists_and_prints_documents_also_through_sudo(home, capsysbinary, monkeypatch):  # noqa: F811
+    monkeypatch.setenv("SUDO_USER", "grokbot")
+    root, _ = home
+    folder = root.parent / "apply-kit" / "documents"
+    folder.mkdir(parents=True)
+    (folder / "neu-unofficial-transcript.pdf").write_bytes(b"%PDF-1.7 fictional\n")
+    code, out = as_json(capsysbinary, "doc")
+    assert code == 0 and [d["name"] for d in out["documents"]] == ["neu-unofficial-transcript.pdf"]
+    code, data = raw(capsysbinary, "doc", "neu-unofficial-transcript.pdf")
+    assert code == 0 and data == b"%PDF-1.7 fictional\n"
+    with pytest.raises(SystemExit) as exit_:
+        raw(capsysbinary, "doc", "../answers.md")
+    assert exit_.value.code == 2

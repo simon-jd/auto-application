@@ -22,6 +22,7 @@ from sqlalchemy import delete, func, insert, inspect, select, update
 from auto_app.core.db import tables as T
 from auto_app.core.models import utcnow
 from auto_app.handoff.guard import load_guard
+from auto_app.handoff.archive import freeze_package, frozen_at
 from auto_app.handoff.kick import kick
 
 OUTCOMES = {  # agent outcome → (applications.status, attempts.outcome, job decision or None)
@@ -50,6 +51,8 @@ APPLY_KIT_DIR = "apply-kit"
 KIT_FILES = ("job.json", "fields.json", "jd.txt", "resume.pdf", "cover_letter.pdf", "answers.md", "message.txt")
 KIT_GUIDES = {"cheatsheet": "answers.md", "readme": "README.md"}  # apply-kit/answers.md is the agents' cheat sheet
 MAX_KIT_BYTES = 10 * 1024 * 1024
+DOCUMENTS_DIR = "documents"  # apply-kit/documents/: the user's own files a form may ask for (a transcript, say)
+DOCUMENT_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,99}")
 RUNNER_FILE = "runner.json"  # the package runner's state (deploy/jd-apply-queue.sh writes it)
 MAX_REQUEST_TEXT = 1000  # a change request's characters (request_change), and a cheat-sheet request's
 CHEATSHEET_OUTCOMES = ("applied", "declined")
@@ -551,6 +554,31 @@ class HandoffService:
             raise HandoffError(f"{APPLY_KIT_DIR}/{name} ({which}) is missing")
         return data
 
+    # ---- the user's documents (apply-kit/documents/), read with no claim token --------------------------------
+
+    def documents(self) -> dict:
+        """The documents a form may ask for, by name, with size and sha256; regular files only, no symlinks."""
+        folder = self.kit_dir / DOCUMENTS_DIR
+        if folder.is_symlink() or not folder.is_dir():
+            return {"documents": []}
+        items = []
+        for path in sorted(folder.iterdir()):
+            if not DOCUMENT_NAME.fullmatch(path.name) or path.is_symlink() or not path.is_file():
+                continue
+            data = self._kit_read(DOCUMENTS_DIR, path.name)
+            if data is not None:
+                items.append({"name": path.name, "bytes": len(data), "sha256": hashlib.sha256(data).hexdigest()})
+        return {"documents": items}
+
+    def document(self, name: str) -> bytes:
+        """One document's bytes, by the name `documents` lists."""
+        if not isinstance(name, str) or not DOCUMENT_NAME.fullmatch(name):
+            raise HandoffError("a document name is letters, digits, '.', '_' or '-' (see the list from `doc`)")
+        data = self._kit_read(DOCUMENTS_DIR, name)
+        if data is None:
+            raise HandoffError(f"there is no document named {name} (see the list from `doc`)")
+        return data
+
     # ---- open questions --------------------------------------------------------------------------------------
 
     def submit_questions(self, token: str, questions, now: datetime | None = None) -> dict:
@@ -819,6 +847,29 @@ class HandoffService:
             store.engine.dispose()
         return {"request_id": request_id, "outcome": outcome, "done_at": now.isoformat()}
 
+    # ---- frozen packages of submitted jobs -------------------------------------------------------------------
+
+    def freeze_submitted(self, now: datetime | None = None) -> dict:
+        """The owner's backfill: freeze the package of every applied job that has none frozen yet (marked
+        backfilled, since the live package may have changed after the submission)."""
+        now = _aware(now or utcnow()).astimezone(timezone.utc)
+        store = self._store()
+        try:
+            with store.engine.connect() as conn:
+                applied = conn.execute(select(T.jobs.c.job_id).where(T.jobs.c.decision == "applied")
+                                       .order_by(T.jobs.c.job_id)).scalars().all()
+        finally:
+            store.engine.dispose()
+        result = {"frozen": [], "already": [], "no_package": []}
+        for job_id in applied:
+            if frozen_at(self.kit_dir, job_id) is not None:
+                result["already"].append(job_id)
+            elif freeze_package(self.kit_dir, job_id, now, backfilled=True) is not None:
+                result["frozen"].append(job_id)
+            else:
+                result["no_package"].append(job_id)
+        return result
+
     # ---- one job's progress, in one read ---------------------------------------------------------------------
 
     def _runner(self) -> dict | None:
@@ -864,7 +915,8 @@ class HandoffService:
                        "submitted_at": _aware(waiting["submitted_at"]).isoformat()}
         entry = next((e for e in self.kit_index()["jobs"] if isinstance(e, dict) and e.get("job_id") == job_id), None)
         package = {"published": entry is not None, "published_at": (entry or {}).get("published_at"),
-                   "has_message": bool((entry or {}).get("has_message"))}
+                   "has_message": bool((entry or {}).get("has_message")),
+                   "submitted_copy": frozen_at(self.kit_dir, job_id)}
         runner = self._runner()
         running = bool(runner and runner.get("running"))
         working = f"; the package runner is running (since {runner.get('started_at')})" if running else ""
@@ -975,6 +1027,8 @@ class HandoffService:
                 conn.execute(delete(T.handoff_claims).where(T.handoff_claims.c.job_id == claim["job_id"]))
         finally:
             store.engine.dispose()
+        if outcome == "submitted":
+            freeze_package(self.kit_dir, claim["job_id"], now)  # what went out, apart from later republishing
         return {"job_id": claim["job_id"], "status": status, "outcome": outcome}
 
     def requeue(self, job_id: int) -> dict:

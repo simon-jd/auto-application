@@ -16,8 +16,9 @@ app = typer.Typer(no_args_is_help=True, add_completion=False, help="Backups, res
 def backup_(dest: Annotated[Path | None, typer.Option("--dest")] = None,
             keep_daily: Annotated[int, typer.Option("--keep-daily", min=1)] = 14,
             keep_weekly: Annotated[int, typer.Option("--keep-weekly", min=0)] = 8) -> None:
-    """Back up jobs and an existing preparation ledger, verify, then prune."""
-    from auto_app.ops.backup import backup, prune, verify
+    """Back up jobs, an existing preparation ledger and the apply-kit folder next to the runtime, verify, then
+    prune."""
+    from auto_app.ops.backup import backup, backup_tree, prune, verify, verify_tree
 
     paths = get_paths()
     target = dest or paths.home / "backups"
@@ -28,16 +29,21 @@ def backup_(dest: Annotated[Path | None, typer.Option("--dest")] = None,
         saved = backup(preparation, target)
         saved["verify"] = verify(Path(saved["path"]))
         entry["preparation"] = saved
+    kit = paths.home.parent / "apply-kit"  # published packages, frozen submitted copies, the cheat sheet
+    if kit.is_dir() and not kit.is_symlink():
+        saved = backup_tree(kit, target)
+        saved["verify"] = verify_tree(Path(saved["path"]))
+        entry["apply_kit"] = saved
     entry["pruned"] = prune(target, keep_daily=keep_daily, keep_weekly=keep_weekly)
     typer.echo(json.dumps(entry, indent=2))
 
 
 @app.command("verify")
 def verify_(path: Path) -> None:
-    """Read a backup and report integrity, count and compatible schema."""
-    from auto_app.ops.backup import verify
+    """Read a backup and report integrity, count and compatible schema (or, for an apply-kit archive, its files)."""
+    from auto_app.ops.backup import verify, verify_tree
 
-    typer.echo(json.dumps(verify(path), indent=2))
+    typer.echo(json.dumps(verify_tree(path) if path.name.endswith(".tar.zst") else verify(path), indent=2))
 
 
 @app.command("prune")

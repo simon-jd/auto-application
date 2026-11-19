@@ -136,7 +136,8 @@ def test_status_before_the_package_is_made(env):  # noqa: F811
     status = s.status(job, now=NOW)
     assert status["decision"] == "want_to_apply" and status["title"] == "Backend Engineer"
     assert status["application"] is None and status["claim"] is None and status["pending"] is None
-    assert status["package"] == {"published": False, "published_at": None, "has_message": False}
+    assert status["package"] == {"published": False, "published_at": None, "has_message": False,
+                                 "submitted_copy": None}
     assert status["runner"] is None
     assert "not made yet" in status["summary"]
 

@@ -15,6 +15,12 @@ new copy passes integrity and restore-schema checks before retention runs; failu
 Main copies are opened by read-only QueryService; preparation copies use a read-only compatible
 `preparation_runs` schema/count check, without creating a ledger or running migrations.
 
+Since 2026-11-18 it also archives the **apply-kit folder** next to the runtime (`$AUTO_APP_HOME/../apply-kit`: the
+published packages, the frozen copies of submitted jobs' packages and the cheat sheet), when it exists, as
+`apply_kit-<UTC>.tar.zst`. Only regular files and folders go in; symlinks are left out and never followed. The archive
+gets its manifest entry (sha256, size, file count) and `verify_tree` reads every member back (nothing is
+extracted), and it is pruned on its own schedule like each database. `ops verify` takes either kind of archive.
+
 ```bash
 uv run auto-app ops backup
 uv run auto-app ops backup --dest /srv/job-search/runtime/backups --keep-daily 14 --keep-weekly 8

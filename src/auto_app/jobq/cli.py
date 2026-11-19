@@ -2,7 +2,7 @@
 
 It only calls the existing services. It takes no database or file-path arguments: the runtime is
 $AUTO_APP_HOME (the server's wrapper script pins it), and a missing database is reported, never created.
-stdout is one JSON object, except that `kit ID FILE` and `guide` print the file itself (so a PDF can be redirected
+stdout is one JSON object, except that `kit ID FILE`, `doc NAME` and `guide` print the file itself (so a PDF can be redirected
 into a file); an error is JSON either way. Exit status 0 is success, 1 a failed request (a database or file error is
 reported by its class name only), 2 bad arguments or configuration.
 """
@@ -63,6 +63,12 @@ def plain_text(limit: int):
             raise argparse.ArgumentTypeError("must be one line, without control characters or line breaks")
         return text
     return parse
+
+
+def document_name(value: str) -> str:
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,99}", value):
+        raise argparse.ArgumentTypeError("a document name is letters, digits, '.', '_' or '-' (see `jobq doc`)")
+    return value
 
 
 def token(value: str) -> str:
@@ -136,7 +142,7 @@ class _SeenIds(argparse.Action):
 def parser() -> argparse.ArgumentParser:
     root = argparse.ArgumentParser(
         prog="jobq", description="Read new jobs, record the user's decisions and run the application handoff.",
-        epilog='Prints one JSON object, except that `kit ID FILE` and `guide` print the file itself. Exit status: '
+        epilog='Prints one JSON object, except that `kit ID FILE`, `doc NAME` and `guide` print the file itself. Exit status: '
                '0 success; 1 the request failed ({"status": "error", "error": "..."}); 2 bad arguments or '
                'configuration.')
     commands = root.add_subparsers(dest="command", required=True, metavar="COMMAND")
@@ -285,6 +291,12 @@ def parser() -> argparse.ArgumentParser:
     kit.add_argument("file", metavar="FILE", nargs="?", choices=KIT_FILES,
                      help=f"One of {', '.join(KIT_FILES)}.")
 
+    doc = command("doc", _cmd_doc,
+                  "The user's documents a form may ask for (apply-kit/documents/, e.g. an unofficial transcript), no "
+                  "token needed: with no NAME, the list (name, bytes, sha256); with NAME, the file itself on stdout "
+                  "(not JSON), e.g. `jobq doc neu-unofficial-transcript.pdf > ~/kit/docs/transcript.pdf`.")
+    doc.add_argument("name", metavar="NAME", nargs="?", type=document_name, help="A name from the list.")
+
     guide = command("guide", _cmd_guide, "The apply-kit's guide as plain text (not JSON): cheatsheet (answers.md, the "
                                          "default) or readme (README.md).")
     guide.add_argument("which", metavar="WHICH", nargs="?", choices=GUIDES, default="cheatsheet",
@@ -421,6 +433,13 @@ def _cmd_kit(args, db: Path, home: Path) -> dict | bytes:
     if not isinstance(manifest, dict):
         raise ValueError(f"job #{args.job_id}'s job.json is not a JSON object")
     return manifest
+
+
+def _cmd_doc(args, db: Path, home: Path) -> dict | bytes:
+    from auto_app.handoff.service import HandoffService
+
+    service = HandoffService(db)
+    return service.documents() if args.name is None else service.document(args.name)
 
 
 def _cmd_guide(args, db: Path, home: Path) -> bytes:

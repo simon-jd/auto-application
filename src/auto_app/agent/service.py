@@ -132,6 +132,10 @@ class AgentService:
             from auto_app.handoff.kick import kick
 
             kick(home)  # the package runner starts on it (deploy/jd-apply-queue.path)
+        if changed and status == "applied":
+            from auto_app.handoff.archive import freeze_package
+
+            freeze_package(home.parent / "apply-kit", job_id)  # the package that went out (handoff/archive.py)
         return {"success": True, "changed": changed, "status": status, "job": self.get_job(job_id)}
 
     def record_event(self, job_id: int, kind: str, occurred_at: str | None = None,
