@@ -61,3 +61,33 @@ def test_the_card_shows_the_history_field():
                               "window_days": 30, "same_title": []}})
     assert {"name": "同公司记录", "value": "没有投过这家公司"} in card["fields"]
     assert all(f["name"] != "同公司记录" for f in embed({"job_id": 7, "title": "SWE", "company": "Acme"})["fields"])
+
+
+def test_applied_jobs_show_their_date_and_latest_reply_and_wanted_jobs_their_titles(tmp_path):
+    from sqlalchemy import insert
+
+    store = make_store(tmp_path)
+    ingest(store, [record(str(i), title, url=f"https://job-boards.greenhouse.io/acme/jobs/{i}")
+                   for i, title in enumerate(("Data Engineer", "ML Engineer", "Backend Engineer", "New Grad SWE"), 1)])
+    ids = {t: job_id_of(store, t) for t in ("Data Engineer", "ML Engineer", "Backend Engineer", "New Grad SWE")}
+    decide(store, ids["Data Engineer"], "applied", 5)
+    decide(store, ids["ML Engineer"], "applied", 3)
+    decide(store, ids["Backend Engineer"], "want_to_apply", 1)
+    with store.engine.begin() as conn:
+        for kind, days in (("applied", 5), ("assessment", 4), ("interview", 2)):
+            conn.execute(insert(T.application_events).values(
+                job_id=ids["Data Engineer"], kind=kind, occurred_at=NOW - timedelta(days=days), source="manual",
+                created_at=NOW))
+    history = company_history(store, [ids["New Grad SWE"]], Guard(), now=NOW)[ids["New Grad SWE"]]
+    store.engine.dispose()
+    text = history_text(history)
+    assert "ML Engineer（11-15 投）" in text  # no reply recorded
+    assert "Data Engineer（11-13 投 · 面试）" in text  # the latest reply wins
+    assert "想投 1：Backend Engineer" in text
+
+
+def test_applied_dates_are_the_owners_pacific_dates():
+    text = history_text({"applied": [{"job_id": 1, "title": "SWE", "at": "2026-11-20T03:00:00+00:00", "reply": None}],
+                         "wanted": [], "skipped": 0, "recent_applied": 1, "limit": 3, "window_days": 30,
+                         "same_title": []})
+    assert "SWE（11-19 投）" in text  # 19:00 the evening before, Pacific

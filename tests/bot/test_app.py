@@ -81,7 +81,7 @@ async def test_post_digest_marks_only_accepted_discord_messages(tmp_path, monkey
 
     channel = Channel()
     bot = JobBot(BotSettings("local.test.token", 123, 456, 789, db_path))
-    bot.digest_per_check = 30  # this test is about rechecks, not the rate
+    bot.digest_at = None  # this test is about rechecks, not the morning schedule
     monkeypatch.setattr(bot, "get_channel", lambda channel_id: channel)
     with pytest.raises(RuntimeError, match="Discord unavailable"):
         await bot.post_digest()
@@ -153,7 +153,7 @@ async def test_later_digest_message_uses_current_eligibility(tmp_path, monkeypat
 
     channel = Channel()
     bot = JobBot(BotSettings("local.test.token", 123, 456, 789, db_path))
-    bot.digest_per_check = 30  # this test is about rechecks, not the rate
+    bot.digest_at = None  # this test is about rechecks, not the morning schedule
     monkeypatch.setattr(bot, "get_channel", lambda _: channel)
     await bot.post_digest()
     delivered = []
@@ -228,6 +228,7 @@ async def test_post_digest_holds_back_a_newly_added_feed(tmp_path, monkeypatch):
             self.sent.append(kwargs)
 
     bot = JobBot(BotSettings("local.test.token", 123, 456, 789, db_path))
+    bot.digest_at = None  # this test is about new feeds, not the morning schedule
     monkeypatch.setattr(bot, "get_channel", lambda _: Channel())
     await bot.post_digest()
     assert Channel.sent == []
@@ -310,21 +311,23 @@ async def test_screening_updates_are_posted_once(tmp_path, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_the_digest_sends_at_most_five_per_check_ten_an_hour_and_a_hundred_a_day(tmp_path, monkeypatch):
-    from datetime import timedelta
+async def test_the_digest_sends_fifty_a_day_from_eight_am_pacific_oldest_first(tmp_path, monkeypatch):
+    """The owner's choice on 2026-11-19: one batch of 50 every morning at 8:00 Pacific, oldest collected first."""
+    from datetime import time, timedelta
 
-    from auto_app.bot.app import BOT_STATE, DIGEST_PER_CHECK, DIGEST_PER_DAY, DIGEST_PER_HOUR
-    from auto_app.ingest.scheduler import _read_state, _write_state
+    from auto_app.bot import app
+    from auto_app.bot.app import DIGEST_AT, DIGEST_PER_DAY, DIGEST_ZONE
 
-    assert (DIGEST_PER_CHECK, DIGEST_PER_HOUR, DIGEST_PER_DAY) == (5, 10, 100)
+    assert (DIGEST_PER_DAY, DIGEST_AT, DIGEST_ZONE) == (50, time(8, 0), "America/Los_Angeles")
     store = make_store(tmp_path)
-    ingest(store, [record(str(300 + i), f"Engineer {i}") for i in range(14)])
+    ingest(store, [record(str(300 + i), f"Engineer {i}") for i in range(55)])
+    order = [job_id_of(store, f"Engineer {i}") for i in range(55)]
     with store.engine.begin() as conn:
-        conn.execute(update(T.jobs).values(first_seen_at=NOW))
-        for i in range(14):
+        for i, job_id in enumerate(order):  # Engineer 0 was collected first; the newest is a sponsor
+            conn.execute(update(T.jobs).where(T.jobs.c.job_id == job_id).values(first_seen_at=NOW + timedelta(minutes=i)))
             conn.execute(insert(T.job_screenings).values(
-                job_id=job_id_of(store, f"Engineer {i}"), rules_version="t", facts_hash="h", outcome="kept",
-                reasons=[], signals={"sponsorship": "offers", "has_description": True}, screened_at=NOW))
+                job_id=job_id, rules_version="t", facts_hash="h", outcome="kept", reasons=[],
+                signals={"sponsorship": "offers" if i == 54 else "unknown", "has_description": True}, screened_at=NOW))
     store.engine.dispose()
     db_path = tmp_path / "data" / "auto_app.db"
     db_path.with_name(db_path.name + ".worker-state.json").write_text(json.dumps({
@@ -340,22 +343,28 @@ async def test_the_digest_sends_at_most_five_per_check_ten_an_hour_and_a_hundred
         async def send(self, **kwargs):
             self.sent.append(kwargs)
 
+    clock = {"now": datetime(2026, 11, 20, 15, 59, tzinfo=UTC)}  # 07:59 Pacific
+    monkeypatch.setattr(app, "utcnow", lambda: clock["now"])
     channel = Channel()
     bot = JobBot(BotSettings("local.test.token", 123, 456, 789, db_path))
     monkeypatch.setattr(bot, "get_channel", lambda channel_id: channel)
+    def sent():
+        return [int(m["embed"].footer.text.split()[-1]) for m in channel.sent]
+
     await bot.post_digest()
-    assert len(channel.sent) == 5  # one check
+    assert sent() == []  # not before 8:00
+    clock["now"] = datetime(2026, 11, 20, 16, 0, tzinfo=UTC)
     await bot.post_digest()
-    assert len(channel.sent) == 10
+    assert sent() == order[:50]  # the day's 50 in one check, oldest collected first
+    assert channel.sent[0]["content"] == "**今日职位 50 个**（按收录时间从旧到新，另有 5 个在排队）"
+    assert all(m["content"] is None for m in channel.sent[1:])
+    clock["now"] = datetime(2026, 11, 21, 7, 0, tzinfo=UTC)  # 23:00 Pacific, same day
     await bot.post_digest()
-    assert len(channel.sent) == 10  # the hour's 10 are used
-    assert len(_read_state(db_path, BOT_STATE)["digest_sent"]) == 10
-    two_hours = (datetime.now(UTC) - timedelta(hours=2)).isoformat()
-    _write_state(db_path, {**_read_state(db_path, BOT_STATE), "digest_sent": [two_hours] * 100}, BOT_STATE)
+    assert len(sent()) == 50
+    clock["now"] = datetime(2026, 11, 21, 15, 59, tzinfo=UTC)  # 07:59 the next day
     await bot.post_digest()
-    assert len(channel.sent) == 10  # the day's 100 are used, though not in this hour
-    old = (datetime.now(UTC) - timedelta(hours=25)).isoformat()
-    _write_state(db_path, {**_read_state(db_path, BOT_STATE), "digest_sent": [old] * 100}, BOT_STATE)
+    assert len(sent()) == 50
+    clock["now"] = datetime(2026, 11, 21, 16, 5, tzinfo=UTC)
     await bot.post_digest()
-    assert len(channel.sent) == 14  # older sends no longer count; the last 4 jobs go out
+    assert sent() == order  # the last 5
     await bot.close()

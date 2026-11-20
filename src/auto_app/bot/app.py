@@ -2,7 +2,8 @@
 
 import asyncio
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, time, timedelta
+from zoneinfo import ZoneInfo
 
 import discord
 from discord import app_commands
@@ -35,13 +36,12 @@ log = logging.getLogger(__name__)
 STYLES = {"want": discord.ButtonStyle.success, "skip": discord.ButtonStyle.secondary,
           "applied": discord.ButtonStyle.primary, "bad": discord.ButtonStyle.danger}
 BOT_STATE = ".bot-state.json"
-# The new-job digest's pace (2026-11-18): at most this many messages per five-minute check, per rolling hour and per
-# rolling 24 hours.
-# The day is counted from the bot's own sends (digest_sent in .bot-state.json), not from notified_at, which also marks
-# jobs the owner chose not to see.
-DIGEST_PER_CHECK = 5
-DIGEST_PER_HOUR = 10
-DIGEST_PER_DAY = 100
+# The new-job digest (the owner's choice, 2026-11-19): one batch of 50 a day, from 8:00 Pacific, oldest collected
+# first. The day's count comes from the bot's own sends (digest_sent in .bot-state.json), not from notified_at, which
+# also marks jobs the owner chose not to see.
+DIGEST_PER_DAY = 50
+DIGEST_AT = time(8, 0)
+DIGEST_ZONE = "America/Los_Angeles"
 POSTED_KEEP = 200  # proposal ids remembered as posted
 
 
@@ -225,7 +225,8 @@ class JobBot(discord.Client):
     def __init__(self, settings: BotSettings):
         super().__init__(intents=discord.Intents.default())
         self.settings = settings
-        self.digest_per_check, self.digest_per_hour, self.digest_per_day = DIGEST_PER_CHECK, DIGEST_PER_HOUR, DIGEST_PER_DAY
+        # digest_at None: no morning start, the day starts at local midnight (tests)
+        self.digest_per_day, self.digest_at, self.digest_zone = DIGEST_PER_DAY, DIGEST_AT, DIGEST_ZONE
         self._handoff_lock = asyncio.Lock()
         self.tree = app_commands.CommandTree(self)
         self.target_guild = discord.Object(id=settings.guild_id)
@@ -394,25 +395,29 @@ class JobBot(discord.Client):
         def generation(state: dict) -> tuple[str | None, str | None]:
             return state.get("last_run_at"), state.get("last_finished_at")
 
-        def recent_sends(hours: int = 24) -> list[str]:
-            cutoff = utcnow() - timedelta(hours=hours)
+        def recent_sends(since: datetime) -> list[str]:
             kept = []
             for stamp in _read_state(db, BOT_STATE).get("digest_sent") or []:
                 try:
                     moment = datetime.fromisoformat(stamp)
                 except (TypeError, ValueError):
                     continue
-                if (moment if moment.tzinfo else moment.replace(tzinfo=cutoff.tzinfo)) > cutoff:
+                if (moment if moment.tzinfo else moment.replace(tzinfo=since.tzinfo)) >= since:
                     kept.append(stamp)
             return kept
 
         def record_send() -> None:
             state = _read_state(db, BOT_STATE)
-            state["digest_sent"] = [*recent_sends(), utcnow().isoformat()][-self.digest_per_day:]
+            state["digest_sent"] = [*recent_sends(utcnow() - timedelta(hours=48)), utcnow().isoformat()]
             _write_state(db, state, BOT_STATE)
 
-        budget = min(self.digest_per_check, self.digest_per_hour - len(await asyncio.to_thread(recent_sends, 1)),
-                     self.digest_per_day - len(await asyncio.to_thread(recent_sends)))
+        local = utcnow().astimezone(ZoneInfo(self.digest_zone))
+        start = local.replace(hour=self.digest_at.hour if self.digest_at else 0,
+                              minute=self.digest_at.minute if self.digest_at else 0, second=0, microsecond=0)
+        if local < start:  # before today's batch
+            return
+        sent_today = len(await asyncio.to_thread(recent_sends, start))
+        budget = self.digest_per_day - sent_today
         if budget <= 0:
             return
 
@@ -431,7 +436,7 @@ class JobBot(discord.Client):
             store = DbStore(db, Paths(home=home), migrate=False)
             try:
                 jobs, more = pending(store, limit=budget if job_id is None else 1, since=since, now=now,
-                                     source_since=state.get("source_since"), job_id=job_id)
+                                     source_since=state.get("source_since"), job_id=job_id, oldest_first=True)
                 if jobs:  # the owner's record with each job's company, for the card
                     from auto_app.handoff.guard import load_guard
                     from auto_app.worker.history import company_history
@@ -461,7 +466,9 @@ class JobBot(discord.Client):
         channel = self.get_channel(self.settings.channel_id) or await self.fetch_channel(self.settings.channel_id)
         if getattr(getattr(channel, "guild", None), "id", None) != self.settings.guild_id:
             raise ValueError("Digest channel does not belong to the configured server")
-        header: str | None = f"**{total} new job(s)** — visa sponsorship first"
+        waiting = total - len(planned_jobs)
+        header: str | None = (f"**{'今日职位' if sent_today == 0 else '今日补充'} {len(planned_jobs)} 个**"
+                              f"（按收录时间从旧到新，另有 {waiting} 个在排队）")
         for candidate in planned_jobs:
             refreshed = await asyncio.to_thread(select_jobs, candidate["job_id"], planned_generation)
             if refreshed is None:

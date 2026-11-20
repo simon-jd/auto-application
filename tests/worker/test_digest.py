@@ -213,3 +213,39 @@ def test_none_discord_never_changes_alert_state():
     state = {}
     assert send_alerts(None, state, {}, {"consecutive_failures": 3}, NOW) == []
     assert state == {}
+
+
+def test_oldest_first_orders_by_collection_time_whatever_the_sponsorship(store):
+    """The Discord bot's daily 50 (2026-11-19): oldest collected first, as the owner chose."""
+    ids = screened(store, [("Newest Engineer", "offers", True), ("Oldest Engineer", "no", True),
+                           ("Middle Engineer", "unknown", True)])
+    with store.engine.begin() as conn:
+        for title, days in (("Oldest Engineer", 3), ("Middle Engineer", 2), ("Newest Engineer", 1)):
+            conn.execute(update(T.jobs).where(T.jobs.c.job_id == ids[title])
+                         .values(first_seen_at=NOW - timedelta(days=days)))
+    jobs, _ = pending(store, limit=10, now=NOW, oldest_first=True)
+    assert [j["title"] for j in jobs] == ["Oldest Engineer", "Middle Engineer", "Newest Engineer"]
+    assert [j["collected_days"] for j in jobs] == [3, 2, 1]
+    assert pending(store, limit=10, now=NOW)[0][0]["title"] == "Newest Engineer"  # the default is unchanged
+
+
+def test_closed_jobs_are_not_pushed(store):
+    """A job whose every feed entry is inactive or missing, or whose link is gone, can't be queued: don't push it."""
+    ids = screened(store, [("Open Engineer", "offers", True), ("Closed Engineer", "offers", True),
+                           ("Gone Engineer", "offers", True)])
+    with store.engine.begin() as conn:
+        closed = select(T.postings.c.posting_id).where(T.postings.c.job_id == ids["Closed Engineer"])
+        conn.execute(update(T.ingest_entries).where(T.ingest_entries.c.posting_id.in_(closed)).values(status="missing"))
+        conn.execute(insert(T.enrichments).values(url="https://job-boards.greenhouse.io/acme/jobs/102", status="gone",
+                                                  attempts=0, updated_at=NOW))
+    jobs, more = pending(store, limit=10, now=NOW, oldest_first=True)
+    assert [j["title"] for j in jobs] == ["Open Engineer"] and more == 0
+
+
+def test_the_card_shows_when_the_job_was_collected():
+    card = embed({"job_id": 7, "title": "SWE", "company": "Acme", "first_seen_at": "2026-11-02T10:00:00+00:00",
+                  "collected_days": 18})
+    assert {"name": "收录", "value": "2026-11-02 · 18 天前", "inline": True} in card["fields"]
+    today = embed({"job_id": 7, "title": "SWE", "company": "Acme", "first_seen_at": "2026-11-20T03:00:00+00:00",
+                   "collected_days": 0})  # 19:00 the evening before, Pacific
+    assert {"name": "收录", "value": "2026-11-19 · 今天", "inline": True} in today["fields"]

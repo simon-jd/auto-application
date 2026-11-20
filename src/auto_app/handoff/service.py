@@ -21,6 +21,7 @@ from sqlalchemy import delete, func, insert, inspect, select, update
 
 from auto_app.core.db import tables as T
 from auto_app.core.models import utcnow
+from auto_app.handoff.evidence import closed, feed_states, gone_links
 from auto_app.handoff.guard import load_guard
 from auto_app.handoff.archive import freeze_package, frozen_at
 from auto_app.handoff.kick import kick
@@ -280,24 +281,8 @@ class HandoffService:
                     func.json_extract(T.ingest_entries.c.payload, '$.metadata.upstream.country'))
                     .join(p, p.c.posting_id == T.ingest_entries.c.posting_id).where(p.c.job_id.in_(wanted))):
                 countries.setdefault(job_id, []).append(country)
-        source_states = {}
-        source_evidence = conn.execute(select(p.c.job_id, p.c.kind, p.c.state, p.c.duplicate_of,
-                                              p.c.parsed, T.ingest_entries.c.status.label('entry_status'))
-                                       .select_from(p.outerjoin(T.ingest_entries,
-                                                               T.ingest_entries.c.posting_id == p.c.posting_id))
-                                       .where(p.c.job_id.in_(wanted))).mappings()
-        for posting in source_evidence:
-            state = posting['entry_status']
-            if state is None:
-                # Native browser/API postings have no ingest_entries row. A linked native record is
-                # independent positive evidence; a feed's disappearance does not close that posting.
-                imported = 'ingestion' in ((posting['parsed'] or {}).get('extras') or {})
-                if (posting['kind'] not in ('browser', 'api') or posting['state'] != 'linked'
-                        or posting['duplicate_of'] is not None or imported):
-                    continue
-                state = 'active'
-            source_states.setdefault(posting['job_id'], []).append(state)
-        gone = set(conn.execute(select(T.enrichments.c.url).where(T.enrichments.c.status == 'gone')).scalars())
+        source_states = feed_states(conn, wanted)
+        gone = gone_links(conn)
         groups = guard.company_keys()
         items, blocked = [], {}
         for row in rows:
@@ -330,7 +315,7 @@ class HandoffService:
                 reason = 'waiting_for_you'
             elif claim and job_id != ignore_claim_job and _aware(claim['lease_until']) > now:
                 reason = 'claimed'
-            elif source_states.get(job_id) and all(s in ('inactive', 'missing') for s in source_states[job_id]):
+            elif closed(source_states.get(job_id)):
                 reason = 'source_inactive'
             elif link in gone:
                 reason = 'link_gone'

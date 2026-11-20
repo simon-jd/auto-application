@@ -7,12 +7,14 @@ Discord messages mark jobs notified; failed batches stay pending.
 
 from datetime import datetime, timedelta, timezone
 import hashlib
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import func, select
 
 from auto_app.core.db import tables as T
 from auto_app.core.discord import MAX_EMBEDS, DiscordError, redact_webhook_secrets
 from auto_app.core.models import utcnow
+from auto_app.handoff.evidence import closed, feed_states, gone_links
 from auto_app.screen.store import chunks
 
 OPEN_STATES = ("not_evaluated", "recommended")
@@ -21,6 +23,7 @@ BADGE = {"offers": "🟢 sponsors visas", "unknown": "⚪ sponsorship not stated
          "citizenship_required": "⛔ citizenship required"}
 COLOR = {"offers": 0x2ECC71, "unknown": 0x95A5A6, "no": 0xF1C40F, "citizenship_required": 0xE74C3C}
 READY_AFTER = timedelta(hours=2)
+LOCAL = ZoneInfo("America/Los_Angeles")  # the owner's dates on the card
 ALERT_EVERY = timedelta(hours=12)
 
 
@@ -71,16 +74,24 @@ def _announceable(job: dict, since: datetime | None, source_since: dict | None) 
 
 
 def pending(store, limit: int, since: datetime | None = None, now: datetime | None = None,
-            source_since: dict | None = None, *, job_id: int | None = None) -> tuple[list[dict], int]:
-    """Return ready jobs up to the limit and the number of ready jobs left over."""
+            source_since: dict | None = None, *, job_id: int | None = None,
+            oldest_first: bool = False) -> tuple[list[dict], int]:
+    """Return ready jobs up to the limit and the number of ready jobs left over.
+
+    The order is visa sponsorship first, then your filter's recommendations, then the newest posting; with
+    `oldest_first` (the Discord bot's daily batch, 2026-11-19), simply the earliest collected first. Jobs the apply
+    queue would refuse as closed (every feed entry inactive or missing, or the link gone) are left out.
+    """
     now, since = _when(now or utcnow()), _when(since)
     jobs = [job for job in store.jobs(include_excluded=False, job_id=job_id)
             if job["state"] in OPEN_STATES and not job.get("notified_at")
             and _announceable(job, since, source_since)]
     s, jd, p = T.job_screenings, T.judgments, T.postings
-    verdicts, reasons, links = {}, {}, {}
+    verdicts, reasons, links, states = {}, {}, {}, {}
     with store.engine.connect() as conn:
+        gone = gone_links(conn)
         for part in chunks([job["job_id"] for job in jobs]):
+            states.update(feed_states(conn, part))
             for row in conn.execute(select(s.c.job_id, s.c.outcome, s.c.signals).where(s.c.job_id.in_(part))):
                 verdicts[row.job_id] = (row.outcome, row.signals or {})
             for row in conn.execute(select(jd.c.job_id, jd.c.reason).where(
@@ -96,17 +107,26 @@ def pending(store, limit: int, since: datetime | None = None, now: datetime | No
         outcome, signals = verdicts.get(job["job_id"], (None, {}))
         if outcome != "kept":
             continue
+        first = _when(job.get("first_seen_at"))
         described = bool(signals.get("has_description"))
-        if not described and now - (_when(job.get("first_seen_at")) or now) < READY_AFTER:
+        if not described and now - (first or now) < READY_AFTER:
+            continue
+        link = job.get("canonical_url") or links.get(job["job_id"])
+        if closed(states.get(job["job_id"])) or link in gone:
             continue
         recommended = job["state"] == "recommended"
         ready.append({**job, "sponsorship": signals.get("sponsorship", "unknown"),
                       "years_required": signals.get("years_required"), "title_only": not described,
                       "recommended": recommended, "reason": reasons.get(job["job_id"]) if recommended else None,
-                      "link": job.get("canonical_url") or links.get(job["job_id"])})
-    ready.sort(key=lambda job: _when(job.get("posted_at")) or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
-    ready.sort(key=lambda job: not job["recommended"])
-    ready.sort(key=lambda job: ORDER.get(job["sponsorship"], 3))
+                      "link": link, "collected_days": max(0, (now - first).days) if first else None})
+    if oldest_first:
+        ready.sort(key=lambda job: (_when(job.get("first_seen_at")) or datetime.min.replace(tzinfo=timezone.utc),
+                                    job["job_id"]))
+    else:
+        ready.sort(key=lambda job: _when(job.get("posted_at")) or datetime.min.replace(tzinfo=timezone.utc),
+                   reverse=True)
+        ready.sort(key=lambda job: not job["recommended"])
+        ready.sort(key=lambda job: ORDER.get(job["sponsorship"], 3))
     limit = max(0, limit)
     return ready[:limit], max(0, len(ready) - limit)
 
@@ -126,6 +146,11 @@ def embed(job: dict) -> dict:
     fields = [{"name": "Where", "value": _clip(_where(job.get("locations") or []), 100), "inline": True},
               {"name": "Visa", "value": BADGE.get(sponsorship, BADGE["unknown"]), "inline": True},
               {"name": "Posted", "value": (job.get("posted_at") or "not stated")[:10], "inline": True}]
+    collected = _when(job.get("first_seen_at"))
+    if collected:
+        days = job.get("collected_days")
+        age = "" if days is None else (" · 今天" if days == 0 else f" · {days} 天前")
+        fields.append({"name": "收录", "value": collected.astimezone(LOCAL).date().isoformat() + age, "inline": True})
     notes = []
     if job.get("recommended"):
         notes.append("⭐ your filter recommends it" + (f": {_clip(job['reason'], 250)}" if job.get("reason") else ""))

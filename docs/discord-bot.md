@@ -115,20 +115,35 @@ channel when that is not set. A question is not posted again while it is unanswe
   - A published job is in the queue, and Grok's 15-minute Routine picks it up.
 - **Pause.** Questions are not held back by `/pause`.
 
-## Digest pace (2026-11-18)
+## Digest pace (2026-11-19: 50 a day from 8:00 Pacific)
 
-The new-job digest sends at most **5 messages per five-minute check**, **10 per rolling hour** and **100 per
-rolling 24 hours** (`DIGEST_PER_CHECK`, `DIGEST_PER_HOUR` and `DIGEST_PER_DAY` in `bot/app.py`).
+The owner found too many cards at once to judge (10 an hour, around the clock). Since 2026-11-19 the new-job digest
+sends **one batch of 50 a day**, starting at **8:00 America/Los_Angeles** (`DIGEST_PER_DAY`, `DIGEST_AT`,
+`DIGEST_ZONE` in `bot/app.py`). The five-minute check sends nothing before 8:00. The first check after 8:00 sends the
+day's 50 at once, if the worker's last round screened successfully. Otherwise the batch goes out at the next check.
+If fewer than 50 were waiting, later checks that day top up to 50.
+- **Order:** oldest collected first (`pending(..., oldest_first=True)`), whatever the sponsorship. The webhook digest
+  keeps the old order (sponsors first, then newest).
+- **Header:** the first card carries 「今日职位 N 个（按收录时间从旧到新，另有 M 个在排队）」, and a top-up says 今日补充.
+- **Closed jobs are left out:** jobs the apply queue would refuse as closed are not pushed, in both the bot and the
+  webhook digest (`handoff/evidence.py`, shared with the queue's `source_inactive` and `link_gone`). Closed means every
+  feed entry is inactive or missing, or the link answered gone.
+- **The count:** the day's sends come from the bot's own records, kept as `digest_sent` in `<db>.bot-state.json` (the
+  last 48 hours). `notified_at` is not used for this count, because it also marks jobs the owner chose not to see.
 
-Each card has a **同公司记录** field (`worker/history.py`) with your record at that company:
-- the jobs you applied to there, with titles and dates;
-- how many you want to apply to, and how many you skipped;
+Jobs that don't make the day's 50 stay unsent and searchable (`/jobs`, `jobq search`). With 100–300 new kept jobs a
+day, the oldest-first queue falls further behind each day. The 收录 field shows how old each card is.
+
+Each card shows Where, Visa, Posted, **收录** (the date the job was first collected, Pacific, and how many days ago)
+and a **同公司记录** field (`worker/history.py`) with your record at that company:
+- the jobs you applied to there, up to 5, each with the date you applied and the latest reply from the application
+  timeline (OA, 面试, 已拒, offer, 已撤回), e.g. 「Data Engineer（11-13 投 · 面试）」;
+- the jobs you want to apply to there, by title (up to 5), and how many you skipped;
 - the 30-day submissions against the handoff's company limit;
 - a ⚠ line when you applied to, or want, a job with the same normalized title.
 
-It is computed from the database with the handoff's `company_groups`, not by a model. The day is counted from the bot's own sends, kept as
-`digest_sent` in `<db>.bot-state.json`. `notified_at` is not used for this count, because it also marks jobs the
-owner chose not to see.
+It is computed from the database with the handoff's `company_groups`, not by a model. Only applications recorded in
+auto-app count. 「没有投过这家公司」 means none is recorded there.
 
 When the bot first went live it worked through a month of backlog: notifications had been handed to the bot since
 2026-10-14, but the bot was never configured. It pushed 701 jobs in three hours. On the owner's go, 4,455 pending
